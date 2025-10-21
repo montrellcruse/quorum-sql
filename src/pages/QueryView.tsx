@@ -97,7 +97,8 @@ const QueryView = () => {
         .from('query_history')
         .select('*')
         .eq('query_id', id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(1, 100); // Skip the first (most recent) record, fetch up to 100 more
 
       if (error) throw error;
       setHistory(data || []);
