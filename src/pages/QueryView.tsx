@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Edit, Clock } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { ArrowLeft, Edit, Clock, Trash2 } from 'lucide-react';
 import ReactDiffViewer from 'react-diff-viewer';
 
 interface Query {
@@ -43,6 +44,7 @@ const QueryView = () => {
   const [previousHistory, setPreviousHistory] = useState<HistoryRecord | null>(null);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -196,6 +198,32 @@ const QueryView = () => {
     }
   };
 
+  const handleDeleteQuery = async () => {
+    if (!query) return;
+
+    try {
+      const { error } = await supabase
+        .from('sql_queries')
+        .delete()
+        .eq('id', query.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Query permanently deleted',
+      });
+
+      navigate(`/folder/${query.folder_id}`);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
   const canApproveOrReject = query?.status === 'pending_approval' && 
                               query?.last_modified_by_email !== user?.email;
 
@@ -257,6 +285,13 @@ const QueryView = () => {
             <Button onClick={() => navigate(`/query/edit/${query.id}`)}>
               <Edit className="mr-2 h-4 w-4" />
               Edit Query
+            </Button>
+            <Button 
+              onClick={() => setDeleteDialogOpen(true)} 
+              variant="destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Query
             </Button>
           </div>
         </div>
@@ -367,6 +402,26 @@ const QueryView = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to permanently delete this query and its entire history? This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleDeleteQuery} 
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete Query
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
