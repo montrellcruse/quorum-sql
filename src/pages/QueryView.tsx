@@ -29,6 +29,7 @@ interface HistoryRecord {
   modified_by_email: string;
   created_at: string;
   sql_content: string;
+  change_reason: string | null;
 }
 
 const QueryView = () => {
@@ -344,6 +345,11 @@ const QueryView = () => {
                       <p className="text-xs text-muted-foreground">
                         {formatDate(record.created_at)}
                       </p>
+                      {record.change_reason && (
+                        <p className="text-xs text-muted-foreground mt-1 italic">
+                          {record.change_reason}
+                        </p>
+                      )}
                     </div>
                     <Clock className="h-4 w-4 text-muted-foreground" />
                   </button>
@@ -369,6 +375,12 @@ const QueryView = () => {
                   <p className="font-medium">Version Modified By:</p>
                   <p className="text-muted-foreground">{selectedHistory.modified_by_email}</p>
                   <p className="text-muted-foreground">{formatDate(selectedHistory.created_at)}</p>
+                  {selectedHistory.change_reason && (
+                    <div className="mt-2">
+                      <p className="font-medium">Change Reason:</p>
+                      <p className="text-muted-foreground italic">{selectedHistory.change_reason}</p>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="rounded-lg overflow-hidden border">
