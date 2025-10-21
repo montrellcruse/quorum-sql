@@ -40,6 +40,7 @@ const QueryView = () => {
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<HistoryRecord | null>(null);
+  const [previousHistory, setPreviousHistory] = useState<HistoryRecord | null>(null);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
 
@@ -125,8 +126,11 @@ const QueryView = () => {
     }).format(date);
   };
 
-  const handleHistoryClick = (record: HistoryRecord) => {
+  const handleHistoryClick = (record: HistoryRecord, index: number) => {
     setSelectedHistory(record);
+    // Get the previous version (next in array since sorted descending)
+    const previousVersion = history[index + 1] || null;
+    setPreviousHistory(previousVersion);
     setHistoryModalOpen(true);
   };
 
@@ -280,10 +284,10 @@ const QueryView = () => {
               <p className="text-muted-foreground">Loading history...</p>
             ) : history.length > 0 ? (
               <div className="space-y-3">
-                {history.map((record) => (
+                {history.map((record, index) => (
                   <button
                     key={record.id}
-                    onClick={() => handleHistoryClick(record)}
+                    onClick={() => handleHistoryClick(record, index)}
                     className="w-full flex items-start justify-between rounded-lg border p-3 text-left transition-colors hover:bg-accent"
                   >
                     <div className="flex-1">
@@ -313,18 +317,18 @@ const QueryView = () => {
             {selectedHistory && (
               <div className="space-y-4">
                 <div className="text-sm">
-                  <p className="font-medium">Historical Version Modified By:</p>
+                  <p className="font-medium">Version Modified By:</p>
                   <p className="text-muted-foreground">{selectedHistory.modified_by_email}</p>
                   <p className="text-muted-foreground">{formatDate(selectedHistory.created_at)}</p>
                 </div>
                 
                 <div className="rounded-lg overflow-hidden border">
                   <ReactDiffViewer
-                    oldValue={selectedHistory.sql_content}
-                    newValue={query.sql_content}
+                    oldValue={previousHistory?.sql_content || ''}
+                    newValue={selectedHistory.sql_content}
                     splitView={true}
-                    leftTitle={`Historical Version (${formatDate(selectedHistory.created_at)})`}
-                    rightTitle="Current Version"
+                    leftTitle={previousHistory ? `Previous Version (${formatDate(previousHistory.created_at)})` : 'No Previous Version'}
+                    rightTitle={`Selected Version (${formatDate(selectedHistory.created_at)})`}
                     showDiffOnly={false}
                     useDarkTheme={false}
                   />
