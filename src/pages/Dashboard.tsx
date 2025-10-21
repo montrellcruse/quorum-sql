@@ -23,8 +23,8 @@ interface SearchResult {
   id: string;
   title: string;
   description: string | null;
-  project_id: string;
-  project_name: string;
+  folder_id: string;
+  folder_name: string;
 }
 
 const Dashboard = () => {
@@ -150,8 +150,8 @@ const Dashboard = () => {
           title,
           description,
           sql_content,
-          project_id,
-          projects (
+          folder_id,
+          folders (
             name
           )
         `)
@@ -163,8 +163,8 @@ const Dashboard = () => {
         id: item.id,
         title: item.title,
         description: item.description,
-        project_id: item.project_id,
-        project_name: item.projects?.name || 'Unknown Project',
+        folder_id: item.folder_id,
+        folder_name: item.folders?.name || 'Unknown Folder',
       }));
 
       setSearchResults(results);
@@ -260,7 +260,7 @@ const Dashboard = () => {
                     <div className="flex-1">
                       <h4 className="font-semibold">{result.title}</h4>
                       <p className="text-sm text-muted-foreground">
-                        Folder: {result.project_name}
+                        Folder: {result.folder_name}
                       </p>
                       {result.description && (
                         <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
