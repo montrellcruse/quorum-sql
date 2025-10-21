@@ -8,7 +8,17 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Query {
   id: string;
@@ -30,6 +40,7 @@ const QueryEdit = () => {
   const [query, setQuery] = useState<Query | null>(null);
   const [loadingQuery, setLoadingQuery] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   const isNewQuery = id === 'new';
   const folderId = location.state?.folderId;
@@ -219,6 +230,35 @@ const QueryEdit = () => {
     }
   };
 
+  const handleDelete = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('sql_queries')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Draft deleted successfully',
+      });
+
+      // Redirect to folder page
+      navigate(`/folder/${query?.folder_id}`);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+      setDeleteDialogOpen(false);
+    }
+  };
+
   const isEditable = query?.status === 'draft';
 
   if (loading || loadingQuery) {
@@ -303,23 +343,36 @@ const QueryEdit = () => {
             </div>
 
             {query.status === 'draft' && (
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => handleSave('draft')} 
-                  disabled={saving} 
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {saving ? 'Saving...' : 'Save Draft'}
-                </Button>
-                <Button 
-                  onClick={() => handleSave('pending_approval')} 
-                  disabled={saving}
-                  className="flex-1"
-                >
-                  {saving ? 'Saving...' : 'Request Approval'}
-                </Button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => handleSave('draft')} 
+                    disabled={saving} 
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    {saving ? 'Saving...' : 'Save Draft'}
+                  </Button>
+                  <Button 
+                    onClick={() => handleSave('pending_approval')} 
+                    disabled={saving}
+                    className="flex-1"
+                  >
+                    {saving ? 'Saving...' : 'Request Approval'}
+                  </Button>
+                </div>
+                {!isNewQuery && (
+                  <Button 
+                    onClick={() => setDeleteDialogOpen(true)} 
+                    disabled={saving}
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Draft
+                  </Button>
+                )}
               </div>
             )}
 
@@ -341,6 +394,27 @@ const QueryEdit = () => {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Draft</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete this draft? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete}
+              disabled={saving}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {saving ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
