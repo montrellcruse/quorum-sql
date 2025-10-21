@@ -6,7 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, FileText, Edit, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 interface Folder {
   id: string;
@@ -34,6 +39,10 @@ const Folder = () => {
   const [loadingFolder, setLoadingFolder] = useState(true);
   const [queries, setQueries] = useState<Query[]>([]);
   const [loadingQueries, setLoadingQueries] = useState(true);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   useEffect(() => {
     if (!loading && !user) {
@@ -115,6 +124,83 @@ const Folder = () => {
     }
   };
 
+  const handleEditFolder = () => {
+    if (folder) {
+      setEditName(folder.name);
+      setEditDescription(folder.description || '');
+      setEditDialogOpen(true);
+    }
+  };
+
+  const handleSaveFolder = async () => {
+    if (!folder) return;
+
+    try {
+      const { error } = await supabase
+        .from('folders')
+        .update({
+          name: editName,
+          description: editDescription,
+        })
+        .eq('id', folder.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Folder updated successfully',
+      });
+
+      setFolder({ ...folder, name: editName, description: editDescription });
+      setEditDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteFolder = async () => {
+    if (queries.length > 0) {
+      toast({
+        title: 'Cannot Delete Folder',
+        description: 'Folder is not empty. Please move or delete all queries in this folder first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteFolder = async () => {
+    if (!folder) return;
+
+    try {
+      const { error } = await supabase
+        .from('folders')
+        .delete()
+        .eq('id', folder.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Folder deleted successfully',
+      });
+
+      navigate('/dashboard');
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (loading || loadingFolder || loadingQueries) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -141,10 +227,24 @@ const Folder = () => {
 
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>{folder.name}</CardTitle>
-            {folder.description && (
-              <CardDescription>{folder.description}</CardDescription>
-            )}
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <CardTitle>{folder.name}</CardTitle>
+                {folder.description && (
+                  <CardDescription>{folder.description}</CardDescription>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleEditFolder}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Folder
+                </Button>
+                <Button variant="destructive" size="sm" onClick={handleDeleteFolder}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Folder
+                </Button>
+              </div>
+            </div>
           </CardHeader>
         </Card>
 
@@ -214,6 +314,61 @@ const Folder = () => {
             </CardHeader>
           </Card>
         )}
+
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Folder</DialogTitle>
+              <DialogDescription>
+                Update the folder name and description
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Folder Name</Label>
+                <Input
+                  id="name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Enter folder name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Enter folder description (optional)"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveFolder}>Save Changes</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the folder.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDeleteFolder} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete Folder
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
