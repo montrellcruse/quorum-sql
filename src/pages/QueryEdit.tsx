@@ -48,7 +48,7 @@ interface Query {
 
 interface Folder {
   id: string;
-  name: string;
+  full_path: string;
 }
 
 const QueryEdit = () => {
@@ -321,12 +321,16 @@ const QueryEdit = () => {
   const fetchFolders = async () => {
     try {
       const { data, error } = await supabase
-        .from('folders')
-        .select('id, name')
-        .order('name');
+        .rpc('get_all_folder_paths');
 
       if (error) throw error;
-      setFolders(data || []);
+      
+      // Filter out the current folder
+      const filteredFolders = (data || []).filter(
+        (folder: Folder) => folder.id !== query?.folder_id
+      );
+      
+      setFolders(filteredFolders);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -573,7 +577,7 @@ const QueryEdit = () => {
               <SelectContent className="bg-background z-50">
                 {folders.map((folder) => (
                   <SelectItem key={folder.id} value={folder.id}>
-                    {folder.name}
+                    {folder.full_path}
                   </SelectItem>
                 ))}
               </SelectContent>
