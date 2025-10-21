@@ -8,7 +8,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, Save } from 'lucide-react';
 
 interface Query {
@@ -111,6 +110,8 @@ const Query = () => {
 
     setSaving(true);
     try {
+      let queryId = id;
+      
       if (isNewQuery) {
         const { data, error } = await supabase
           .from('sql_queries')
@@ -118,7 +119,7 @@ const Query = () => {
             title: query.title,
             description: query.description,
             sql_content: query.sql_content,
-            status: query.status,
+            status: 'draft',
             project_id: query.project_id,
             user_id: user?.id,
           })
@@ -126,12 +127,7 @@ const Query = () => {
           .single();
 
         if (error) throw error;
-
-        toast({
-          title: 'Success',
-          description: 'Query created successfully',
-        });
-        navigate(`/query/${data.id}`);
+        queryId = data.id;
       } else {
         const { error } = await supabase
           .from('sql_queries')
@@ -139,17 +135,31 @@ const Query = () => {
             title: query.title,
             description: query.description,
             sql_content: query.sql_content,
-            status: query.status,
+            status: 'draft',
           })
           .eq('id', id);
 
         if (error) throw error;
-
-        toast({
-          title: 'Success',
-          description: 'Query updated successfully',
-        });
       }
+
+      // Create query history record
+      const { error: historyError } = await supabase
+        .from('query_history')
+        .insert({
+          query_id: queryId,
+          sql_content: query.sql_content,
+          modified_by_email: user?.email || '',
+        });
+
+      if (historyError) throw historyError;
+
+      toast({
+        title: 'Success',
+        description: 'Query saved as draft',
+      });
+
+      // Redirect back to project page
+      navigate(`/project/${query.project_id}`);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -215,23 +225,6 @@ const Query = () => {
             </div>
 
             <div>
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={query.status}
-                onValueChange={(value) => setQuery({ ...query, status: value })}
-              >
-                <SelectTrigger id="status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
               <Label htmlFor="sql_content">SQL Content</Label>
               <Textarea
                 id="sql_content"
@@ -245,7 +238,7 @@ const Query = () => {
 
             <Button onClick={handleSave} disabled={saving} className="w-full">
               <Save className="mr-2 h-4 w-4" />
-              {saving ? 'Saving...' : isNewQuery ? 'Create Query' : 'Save Changes'}
+              {saving ? 'Saving...' : 'Save as Draft'}
             </Button>
           </CardContent>
         </Card>
