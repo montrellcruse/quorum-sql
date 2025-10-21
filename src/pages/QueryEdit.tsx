@@ -269,14 +269,24 @@ const QueryEdit = () => {
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="mx-auto max-w-4xl">
-        <Button
-          variant="ghost"
-          onClick={() => navigate(`/project/${query.project_id}`)}
-          className="mb-6"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Project
-        </Button>
+        <div className="mb-6 flex items-center justify-between">
+          <Button
+            variant="ghost"
+            onClick={() => navigate(`/project/${query.project_id}`)}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Project
+          </Button>
+
+          {!isNewQuery && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/query/view/${query.id}`)}
+            >
+              View Query
+            </Button>
+          )}
+        </div>
 
         <Card>
           <CardHeader>
