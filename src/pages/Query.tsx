@@ -187,7 +187,30 @@ const Query = () => {
 
         if (error) throw error;
         queryId = data.id;
+
+        // For new queries, always create first history record
+        const { error: historyError } = await supabase
+          .from('query_history')
+          .insert({
+            query_id: queryId,
+            sql_content: query.sql_content,
+            modified_by_email: user?.email || '',
+          });
+
+        if (historyError) throw historyError;
       } else {
+        // For existing queries, check if SQL content changed
+        const { data: latestHistory } = await supabase
+          .from('query_history')
+          .select('sql_content')
+          .eq('query_id', id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const sqlContentChanged = !latestHistory || latestHistory.sql_content !== query.sql_content;
+
+        // Always update the query
         const { error } = await supabase
           .from('sql_queries')
           .update({
@@ -200,19 +223,19 @@ const Query = () => {
           .eq('id', id);
 
         if (error) throw error;
-      }
 
-      // Create query history record only if content changed
-      if (newStatus === 'draft' || newStatus === 'pending_approval') {
-        const { error: historyError } = await supabase
-          .from('query_history')
-          .insert({
-            query_id: queryId,
-            sql_content: query.sql_content,
-            modified_by_email: user?.email || '',
-          });
+        // Only create history record if SQL content actually changed
+        if (sqlContentChanged) {
+          const { error: historyError } = await supabase
+            .from('query_history')
+            .insert({
+              query_id: id,
+              sql_content: query.sql_content,
+              modified_by_email: user?.email || '',
+            });
 
-        if (historyError) throw historyError;
+          if (historyError) throw historyError;
+        }
       }
 
       toast({
@@ -244,6 +267,7 @@ const Query = () => {
     
     setSaving(true);
     try {
+      // Only update status, no history records for status-only changes
       const { error } = await supabase
         .from('sql_queries')
         .update({
