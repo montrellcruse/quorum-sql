@@ -8,7 +8,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Save } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ArrowLeft, Save, Clock } from 'lucide-react';
 
 interface Query {
   id: string;
@@ -39,6 +40,8 @@ const Query = () => {
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [selectedHistory, setSelectedHistory] = useState<HistoryRecord | null>(null);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
   
   const isNewQuery = id === 'new';
   const projectId = location.state?.projectId;
@@ -145,6 +148,11 @@ const Query = () => {
       hour: '2-digit',
       minute: '2-digit',
     }).format(date);
+  };
+
+  const handleHistoryClick = (record: HistoryRecord) => {
+    setSelectedHistory(record);
+    setHistoryModalOpen(true);
   };
 
   const handleSave = async (newStatus: string) => {
@@ -419,9 +427,10 @@ const Query = () => {
               ) : history.length > 0 ? (
                 <div className="space-y-3">
                   {history.map((record) => (
-                    <div
+                    <button
                       key={record.id}
-                      className="flex items-start justify-between rounded-lg border p-3"
+                      onClick={() => handleHistoryClick(record)}
+                      className="w-full flex items-start justify-between rounded-lg border p-3 text-left transition-colors hover:bg-accent"
                     >
                       <div className="flex-1">
                         <p className="font-medium text-sm">{record.modified_by_email}</p>
@@ -429,7 +438,8 @@ const Query = () => {
                           {formatDate(record.created_at)}
                         </p>
                       </div>
-                    </div>
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                    </button>
                   ))}
                 </div>
               ) : (
@@ -438,6 +448,41 @@ const Query = () => {
             </CardContent>
           </Card>
         )}
+
+        <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Query History Version</DialogTitle>
+              <DialogDescription>
+                View the SQL content from this previous version
+              </DialogDescription>
+            </DialogHeader>
+            {selectedHistory && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-sm">
+                  <div>
+                    <p className="font-medium">{selectedHistory.modified_by_email}</p>
+                    <p className="text-muted-foreground">
+                      {formatDate(selectedHistory.created_at)}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <Label>SQL Content</Label>
+                  <Textarea
+                    value={selectedHistory.sql_content}
+                    readOnly
+                    rows={15}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <Button onClick={() => setHistoryModalOpen(false)} className="w-full">
+                  Close
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
