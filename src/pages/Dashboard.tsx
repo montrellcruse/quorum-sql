@@ -83,6 +83,25 @@ const Dashboard = () => {
     }
 
     try {
+      // Check for duplicate folder name at root level
+      const { data: existingFolder, error: checkError } = await supabase
+        .from('folders')
+        .select('id')
+        .eq('name', newProject.name.trim())
+        .is('parent_folder_id', null)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingFolder) {
+        toast({
+          title: 'Error',
+          description: 'A folder with this name already exists at the root.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('folders')
         .insert({
