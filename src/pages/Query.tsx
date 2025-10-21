@@ -18,6 +18,7 @@ interface Query {
   status: string;
   project_id: string;
   last_modified_by_email: string | null;
+  created_by_email: string | null;
 }
 
 interface HistoryRecord {
@@ -68,6 +69,7 @@ const Query = () => {
           status: 'draft',
           project_id: projectId,
           last_modified_by_email: null,
+          created_by_email: null,
         });
         setLoadingQuery(false);
       } else if (id) {
@@ -169,6 +171,7 @@ const Query = () => {
             status: newStatus,
             project_id: query.project_id,
             user_id: user?.id,
+            created_by_email: user?.email || '',
             last_modified_by_email: user?.email || '',
           })
           .select()

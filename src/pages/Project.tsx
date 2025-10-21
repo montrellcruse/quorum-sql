@@ -21,6 +21,8 @@ interface Query {
   status: string;
   description: string | null;
   created_at: string;
+  created_by_email: string | null;
+  last_modified_by_email: string | null;
 }
 
 const Project = () => {
@@ -83,7 +85,7 @@ const Project = () => {
     try {
       const { data, error } = await supabase
         .from('sql_queries')
-        .select('id, title, status, description, created_at')
+        .select('id, title, status, description, created_at, created_by_email, last_modified_by_email')
         .eq('project_id', id)
         .order('created_at', { ascending: false });
 
@@ -167,6 +169,18 @@ const Project = () => {
                         <Badge variant={getStatusVariant(query.status)}>
                           {query.status === 'pending_approval' ? 'Pending Approval' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
                         </Badge>
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        {query.created_by_email && (
+                          <p className="text-xs text-muted-foreground">
+                            Created by {query.created_by_email}
+                          </p>
+                        )}
+                        {query.last_modified_by_email && (
+                          <p className="text-xs text-muted-foreground">
+                            Last modified by {query.last_modified_by_email}
+                          </p>
+                        )}
                       </div>
                       {query.description && (
                         <CardDescription className="mt-2">
