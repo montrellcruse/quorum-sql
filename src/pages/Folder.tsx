@@ -132,7 +132,7 @@ const Folder = () => {
         .from('folders')
         .select('*')
         .eq('parent_folder_id', id)
-        .order('created_at', { ascending: false });
+        .order('name', { ascending: true });
 
       if (error) throw error;
       setChildFolders(data || []);

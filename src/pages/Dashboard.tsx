@@ -57,7 +57,7 @@ const Dashboard = () => {
         .from('folders')
         .select('*')
         .is('parent_folder_id', null)
-        .order('created_at', { ascending: false });
+        .order('name', { ascending: true });
 
       if (error) throw error;
       setProjects(data || []);
