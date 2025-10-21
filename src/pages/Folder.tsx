@@ -109,9 +109,9 @@ const Folder = () => {
     try {
       const { data, error } = await supabase
         .from('sql_queries')
-        .select('id, title, status, description, created_at, created_by_email, last_modified_by_email')
+        .select('id, title, status, description, created_at, created_by_email, last_modified_by_email, updated_at')
         .eq('folder_id', id)
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
 
       if (error) throw error;
       setQueries(data || []);
