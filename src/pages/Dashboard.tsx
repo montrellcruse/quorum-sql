@@ -232,7 +232,7 @@ const Dashboard = () => {
                 {searchResults.map((result) => (
                   <div
                     key={result.id}
-                    onClick={() => navigate(`/query/${result.id}`)}
+                    onClick={() => navigate(`/query/view/${result.id}`)}
                     className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
                   >
                     <FileText className="mt-1 h-5 w-5 text-muted-foreground" />

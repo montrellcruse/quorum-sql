@@ -8,8 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Save, Clock } from 'lucide-react';
+import { ArrowLeft, Save } from 'lucide-react';
 
 interface Query {
   id: string;
@@ -22,14 +21,7 @@ interface Query {
   created_by_email: string | null;
 }
 
-interface HistoryRecord {
-  id: string;
-  modified_by_email: string;
-  created_at: string;
-  sql_content: string;
-}
-
-const Query = () => {
+const QueryEdit = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const { user, loading } = useAuth();
@@ -38,10 +30,6 @@ const Query = () => {
   const [query, setQuery] = useState<Query | null>(null);
   const [loadingQuery, setLoadingQuery] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [history, setHistory] = useState<HistoryRecord[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [selectedHistory, setSelectedHistory] = useState<HistoryRecord | null>(null);
-  const [historyModalOpen, setHistoryModalOpen] = useState(false);
   
   const isNewQuery = id === 'new';
   const projectId = location.state?.projectId;
@@ -77,7 +65,6 @@ const Query = () => {
         setLoadingQuery(false);
       } else if (id) {
         fetchQuery();
-        fetchHistory();
       }
     }
   }, [user, id, isNewQuery, projectId]);
@@ -113,46 +100,6 @@ const Query = () => {
     } finally {
       setLoadingQuery(false);
     }
-  };
-
-  const fetchHistory = async () => {
-    if (!id || id === 'new') return;
-    
-    setLoadingHistory(true);
-    try {
-      const { data, error } = await supabase
-        .from('query_history')
-        .select('*')
-        .eq('query_id', id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setHistory(data || []);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
-  };
-
-  const handleHistoryClick = (record: HistoryRecord) => {
-    setSelectedHistory(record);
-    setHistoryModalOpen(true);
   };
 
   const handleSave = async (newStatus: string) => {
@@ -436,80 +383,9 @@ const Query = () => {
             )}
           </CardContent>
         </Card>
-
-        {!isNewQuery && (
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Change History</CardTitle>
-              <CardDescription>
-                View all previous versions of this query
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingHistory ? (
-                <p className="text-muted-foreground">Loading history...</p>
-              ) : history.length > 0 ? (
-                <div className="space-y-3">
-                  {history.map((record) => (
-                    <button
-                      key={record.id}
-                      onClick={() => handleHistoryClick(record)}
-                      className="w-full flex items-start justify-between rounded-lg border p-3 text-left transition-colors hover:bg-accent"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{record.modified_by_email}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(record.created_at)}
-                        </p>
-                      </div>
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">No change history yet</p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>Query History Version</DialogTitle>
-              <DialogDescription>
-                View the SQL content from this previous version
-              </DialogDescription>
-            </DialogHeader>
-            {selectedHistory && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <div>
-                    <p className="font-medium">{selectedHistory.modified_by_email}</p>
-                    <p className="text-muted-foreground">
-                      {formatDate(selectedHistory.created_at)}
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  <Label>SQL Content</Label>
-                  <Textarea
-                    value={selectedHistory.sql_content}
-                    readOnly
-                    rows={15}
-                    className="font-mono text-sm"
-                  />
-                </div>
-                <Button onClick={() => setHistoryModalOpen(false)} className="w-full">
-                  Close
-                </Button>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   );
 };
 
-export default Query;
+export default QueryEdit;

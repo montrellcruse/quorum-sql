@@ -150,7 +150,7 @@ const Project = () => {
 
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold">SQL Queries</h2>
-          <Button onClick={() => navigate('/query/new', { state: { projectId: id } })}>
+          <Button onClick={() => navigate('/query/edit/new', { state: { projectId: id } })}>
             <Plus className="mr-2 h-4 w-4" />
             New Query
           </Button>
@@ -189,7 +189,7 @@ const Project = () => {
                       )}
                     </div>
                     <Button
-                      onClick={() => navigate(`/query/${query.id}`)}
+                      onClick={() => navigate(`/query/view/${query.id}`)}
                       variant="outline"
                     >
                       View/Edit
