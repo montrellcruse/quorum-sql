@@ -234,26 +234,26 @@ const QueryEdit = () => {
   const handleDiscardDraft = async () => {
     setSaving(true);
     try {
-      // Check if any history records exist for this query
-      const { data: historyRecords, error: historyError } = await supabase
+      // Find the most recent 'approved' history record for this query
+      const { data: approvedHistory, error: historyError } = await supabase
         .from('query_history')
         .select('*')
         .eq('query_id', id)
+        .eq('status', 'approved')
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(1)
+        .maybeSingle();
 
       if (historyError) throw historyError;
 
-      if (historyRecords && historyRecords.length > 0) {
-        // History exists - revert to the most recent approved version
-        const mostRecentHistory = historyRecords[0];
-        
+      if (approvedHistory) {
+        // Approved history exists - revert to it
         const { error: updateError } = await supabase
           .from('sql_queries')
           .update({
-            sql_content: mostRecentHistory.sql_content,
+            sql_content: approvedHistory.sql_content,
             status: 'approved',
-            last_modified_by_email: mostRecentHistory.modified_by_email,
+            last_modified_by_email: approvedHistory.modified_by_email,
           })
           .eq('id', id);
 
@@ -267,7 +267,7 @@ const QueryEdit = () => {
         // Redirect to view page
         navigate(`/query/view/${id}`);
       } else {
-        // No history exists - delete the query entirely
+        // No approved history exists - delete the query entirely
         const { error: deleteError } = await supabase
           .from('sql_queries')
           .delete()
