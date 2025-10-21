@@ -1,0 +1,257 @@
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowLeft, Save } from 'lucide-react';
+
+interface Query {
+  id: string;
+  title: string;
+  description: string | null;
+  sql_content: string;
+  status: string;
+  project_id: string;
+}
+
+const Query = () => {
+  const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [query, setQuery] = useState<Query | null>(null);
+  const [loadingQuery, setLoadingQuery] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
+  const isNewQuery = id === 'new';
+  const projectId = location.state?.projectId;
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      if (isNewQuery) {
+        if (!projectId) {
+          toast({
+            title: 'Error',
+            description: 'Project ID is required',
+            variant: 'destructive',
+          });
+          navigate('/dashboard');
+          return;
+        }
+        setQuery({
+          id: '',
+          title: '',
+          description: '',
+          sql_content: '',
+          status: 'draft',
+          project_id: projectId,
+        });
+        setLoadingQuery(false);
+      } else if (id) {
+        fetchQuery();
+      }
+    }
+  }, [user, id, isNewQuery, projectId]);
+
+  const fetchQuery = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sql_queries')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      if (!data) {
+        toast({
+          title: 'Error',
+          description: 'Query not found',
+          variant: 'destructive',
+        });
+        navigate('/dashboard');
+        return;
+      }
+
+      setQuery(data);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+      navigate('/dashboard');
+    } finally {
+      setLoadingQuery(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!query?.title.trim() || !query?.sql_content.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Title and SQL content are required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (isNewQuery) {
+        const { data, error } = await supabase
+          .from('sql_queries')
+          .insert({
+            title: query.title,
+            description: query.description,
+            sql_content: query.sql_content,
+            status: query.status,
+            project_id: query.project_id,
+            user_id: user?.id,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        toast({
+          title: 'Success',
+          description: 'Query created successfully',
+        });
+        navigate(`/query/${data.id}`);
+      } else {
+        const { error } = await supabase
+          .from('sql_queries')
+          .update({
+            title: query.title,
+            description: query.description,
+            sql_content: query.sql_content,
+            status: query.status,
+          })
+          .eq('id', id);
+
+        if (error) throw error;
+
+        toast({
+          title: 'Success',
+          description: 'Query updated successfully',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading || loadingQuery) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!query) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-background p-8">
+      <div className="mx-auto max-w-4xl">
+        <Button
+          variant="ghost"
+          onClick={() => navigate(`/project/${query.project_id}`)}
+          className="mb-6"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Project
+        </Button>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{isNewQuery ? 'New Query' : 'Edit Query'}</CardTitle>
+            <CardDescription>
+              {isNewQuery ? 'Create a new SQL query' : 'Update your SQL query'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                value={query.title}
+                onChange={(e) => setQuery({ ...query, title: e.target.value })}
+                placeholder="Enter query title"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={query.description || ''}
+                onChange={(e) => setQuery({ ...query, description: e.target.value })}
+                placeholder="Enter query description"
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={query.status}
+                onValueChange={(value) => setQuery({ ...query, status: value })}
+              >
+                <SelectTrigger id="status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="sql_content">SQL Content</Label>
+              <Textarea
+                id="sql_content"
+                value={query.sql_content}
+                onChange={(e) => setQuery({ ...query, sql_content: e.target.value })}
+                placeholder="Enter your SQL query here..."
+                rows={12}
+                className="font-mono text-sm"
+              />
+            </div>
+
+            <Button onClick={handleSave} disabled={saving} className="w-full">
+              <Save className="mr-2 h-4 w-4" />
+              {saving ? 'Saving...' : isNewQuery ? 'Create Query' : 'Save Changes'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default Query;
