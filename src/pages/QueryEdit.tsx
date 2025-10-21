@@ -168,6 +168,7 @@ const QueryEdit = () => {
             query_id: queryId,
             sql_content: query.sql_content,
             modified_by_email: user?.email || '',
+            status: 'pending_approval',
           });
 
         if (historyError) {

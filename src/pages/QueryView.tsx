@@ -139,7 +139,18 @@ const QueryView = () => {
     
     setUpdating(true);
     try {
-      // Update the status to approved/draft only
+      // Find the latest query_history record
+      const { data: latestHistory, error: historyFetchError } = await supabase
+        .from('query_history')
+        .select('id')
+        .eq('query_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (historyFetchError) throw historyFetchError;
+
+      // Update the query status
       const { error: updateError } = await supabase
         .from('sql_queries')
         .update({
@@ -149,6 +160,19 @@ const QueryView = () => {
 
       if (updateError) throw updateError;
 
+      // Update the latest history record's status
+      if (latestHistory) {
+        const historyStatus = newStatus === 'approved' ? 'approved' : 'rejected';
+        const { error: historyUpdateError } = await supabase
+          .from('query_history')
+          .update({
+            status: historyStatus,
+          })
+          .eq('id', latestHistory.id);
+
+        if (historyUpdateError) throw historyUpdateError;
+      }
+
       toast({
         title: 'Success',
         description: newStatus === 'approved' 
@@ -156,8 +180,9 @@ const QueryView = () => {
           : 'Query rejected and returned to draft',
       });
 
-      // Refresh query data
+      // Refresh query data and history
       await fetchQuery();
+      await fetchHistory();
     } catch (error: any) {
       console.error('Status change error:', error);
       toast({
