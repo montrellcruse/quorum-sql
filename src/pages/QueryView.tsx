@@ -131,20 +131,21 @@ const QueryView = () => {
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    if (!query) return;
+    if (!query || !id) return;
     
     setUpdating(true);
     try {
-      const { error } = await supabase
+      // Step 1: Update the status to approved/draft
+      const { error: updateError } = await supabase
         .from('sql_queries')
         .update({
           status: newStatus,
         })
         .eq('id', id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      // If approving, create a history record
+      // Step 2: If approving, create a history record with the current query details
       if (newStatus === 'approved') {
         const { error: historyError } = await supabase
           .from('query_history')
@@ -154,22 +155,26 @@ const QueryView = () => {
             modified_by_email: query.last_modified_by_email || '',
           });
 
-        if (historyError) throw historyError;
+        if (historyError) {
+          console.error('History insert error:', historyError);
+          throw historyError;
+        }
       }
 
       toast({
         title: 'Success',
         description: newStatus === 'approved' 
-          ? 'Query approved' 
+          ? 'Query approved and logged to history' 
           : 'Query rejected and returned to draft',
       });
 
-      // Refresh query data
-      fetchQuery();
+      // Refresh query and history data
+      await fetchQuery();
       if (newStatus === 'approved') {
-        fetchHistory();
+        await fetchHistory();
       }
     } catch (error: any) {
+      console.error('Status change error:', error);
       toast({
         title: 'Error',
         description: error.message,
