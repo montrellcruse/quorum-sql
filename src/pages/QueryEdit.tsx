@@ -230,23 +230,58 @@ const QueryEdit = () => {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDiscardDraft = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('sql_queries')
-        .delete()
-        .eq('id', id);
+      // Check if any history records exist for this query
+      const { data: historyRecords, error: historyError } = await supabase
+        .from('query_history')
+        .select('*')
+        .eq('query_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (error) throw error;
+      if (historyError) throw historyError;
 
-      toast({
-        title: 'Success',
-        description: 'Draft deleted successfully',
-      });
+      if (historyRecords && historyRecords.length > 0) {
+        // History exists - revert to the most recent approved version
+        const mostRecentHistory = historyRecords[0];
+        
+        const { error: updateError } = await supabase
+          .from('sql_queries')
+          .update({
+            sql_content: mostRecentHistory.sql_content,
+            status: 'approved',
+            last_modified_by_email: mostRecentHistory.modified_by_email,
+          })
+          .eq('id', id);
 
-      // Redirect to folder page
-      navigate(`/folder/${query?.folder_id}`);
+        if (updateError) throw updateError;
+
+        toast({
+          title: 'Success',
+          description: 'Draft discarded and reverted to last approved version',
+        });
+
+        // Redirect to view page
+        navigate(`/query/view/${id}`);
+      } else {
+        // No history exists - delete the query entirely
+        const { error: deleteError } = await supabase
+          .from('sql_queries')
+          .delete()
+          .eq('id', id);
+
+        if (deleteError) throw deleteError;
+
+        toast({
+          title: 'Success',
+          description: 'Draft discarded successfully',
+        });
+
+        // Redirect to folder page
+        navigate(`/folder/${query?.folder_id}`);
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -370,7 +405,7 @@ const QueryEdit = () => {
                     className="w-full"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Draft
+                    Discard Draft
                   </Button>
                 )}
               </div>
@@ -398,19 +433,19 @@ const QueryEdit = () => {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Draft</AlertDialogTitle>
+            <AlertDialogTitle>Discard Draft</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to permanently delete this draft? This action cannot be undone.
+              Are you sure you want to discard this draft? All changes will be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={handleDelete}
+              onClick={handleDiscardDraft}
               disabled={saving}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {saving ? 'Deleting...' : 'Delete'}
+              {saving ? 'Discarding...' : 'Discard'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
