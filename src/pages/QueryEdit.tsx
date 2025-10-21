@@ -149,10 +149,26 @@ const QueryEdit = () => {
         if (error) throw error;
       }
 
+      // Step 1: If requesting approval, create history record FIRST
+      if (newStatus === 'pending_approval') {
+        const { error: historyError } = await supabase
+          .from('query_history')
+          .insert({
+            query_id: queryId,
+            sql_content: query.sql_content,
+            modified_by_email: user?.email || '',
+          });
+
+        if (historyError) {
+          console.error('History insert error:', historyError);
+          throw historyError;
+        }
+      }
+
       toast({
         title: 'Success',
         description: newStatus === 'pending_approval' 
-          ? 'Query submitted for approval' 
+          ? 'Query submitted for approval and logged to history' 
           : newStatus === 'approved' 
           ? 'Query approved' 
           : newStatus === 'draft' 
