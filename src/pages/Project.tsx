@@ -163,36 +163,41 @@ const Project = () => {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                        <CardTitle className="text-lg">{query.title}</CardTitle>
-                        <Badge variant={getStatusVariant(query.status)}>
-                          {query.status === 'pending_approval' ? 'Pending Approval' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
-                        </Badge>
-                      </div>
-                      <div className="mt-2 space-y-1">
-                        {query.created_by_email && (
-                          <p className="text-xs text-muted-foreground">
-                            Created by {query.created_by_email}
-                          </p>
+                      <div
+                        className="cursor-pointer"
+                        onClick={() => navigate(`/query/view/${query.id}`)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-5 w-5 text-muted-foreground" />
+                          <CardTitle className="text-lg hover:underline">{query.title}</CardTitle>
+                          <Badge variant={getStatusVariant(query.status)}>
+                            {query.status === 'pending_approval' ? 'Pending Approval' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          {query.created_by_email && (
+                            <p className="text-xs text-muted-foreground">
+                              Created by {query.created_by_email}
+                            </p>
+                          )}
+                          {query.last_modified_by_email && (
+                            <p className="text-xs text-muted-foreground">
+                              Last modified by {query.last_modified_by_email}
+                            </p>
+                          )}
+                        </div>
+                        {query.description && (
+                          <CardDescription className="mt-2">
+                            {query.description}
+                          </CardDescription>
                         )}
-                        {query.last_modified_by_email && (
-                          <p className="text-xs text-muted-foreground">
-                            Last modified by {query.last_modified_by_email}
-                          </p>
-                        )}
                       </div>
-                      {query.description && (
-                        <CardDescription className="mt-2">
-                          {query.description}
-                        </CardDescription>
-                      )}
                     </div>
                     <Button
-                      onClick={() => navigate(`/query/view/${query.id}`)}
+                      onClick={() => navigate(`/query/edit/${query.id}`)}
                       variant="outline"
                     >
-                      View/Edit
+                      Edit
                     </Button>
                   </div>
                 </CardHeader>
