@@ -6,18 +6,20 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, FileText, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, FileText, Edit, Trash2, Folder as FolderIcon, Home } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 
 interface Folder {
   id: string;
   name: string;
   description: string | null;
   created_at: string;
+  parent_folder_id: string | null;
 }
 
 interface Query {
@@ -30,6 +32,11 @@ interface Query {
   last_modified_by_email: string | null;
 }
 
+interface BreadcrumbFolder {
+  id: string;
+  name: string;
+}
+
 const Folder = () => {
   const { id } = useParams<{ id: string }>();
   const { user, loading } = useAuth();
@@ -39,10 +46,16 @@ const Folder = () => {
   const [loadingFolder, setLoadingFolder] = useState(true);
   const [queries, setQueries] = useState<Query[]>([]);
   const [loadingQueries, setLoadingQueries] = useState(true);
+  const [childFolders, setChildFolders] = useState<Folder[]>([]);
+  const [loadingChildFolders, setLoadingChildFolders] = useState(true);
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbFolder[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderDescription, setNewFolderDescription] = useState('');
 
   useEffect(() => {
     if (!loading && !user) {
@@ -54,6 +67,8 @@ const Folder = () => {
     if (user && id) {
       fetchFolder();
       fetchQueries();
+      fetchChildFolders();
+      fetchBreadcrumbs();
     }
   }, [user, id]);
 
@@ -108,6 +123,58 @@ const Folder = () => {
       });
     } finally {
       setLoadingQueries(false);
+    }
+  };
+
+  const fetchChildFolders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('folders')
+        .select('*')
+        .eq('parent_folder_id', id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setChildFolders(data || []);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingChildFolders(false);
+    }
+  };
+
+  const fetchBreadcrumbs = async () => {
+    if (!id) return;
+    
+    const crumbs: BreadcrumbFolder[] = [];
+    let currentId: string | null = id;
+
+    try {
+      while (currentId) {
+        const { data, error } = await supabase
+          .from('folders')
+          .select('id, name, parent_folder_id')
+          .eq('id', currentId)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!data) break;
+
+        crumbs.unshift({ id: data.id, name: data.name });
+        currentId = data.parent_folder_id;
+      }
+
+      setBreadcrumbs(crumbs);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -191,7 +258,12 @@ const Folder = () => {
         description: 'Folder deleted successfully',
       });
 
-      navigate('/dashboard');
+      // Navigate to parent folder or dashboard
+      if (folder.parent_folder_id) {
+        navigate(`/folder/${folder.parent_folder_id}`);
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -201,7 +273,48 @@ const Folder = () => {
     }
   };
 
-  if (loading || loadingFolder || loadingQueries) {
+  const handleCreateChildFolder = async () => {
+    if (!newFolderName.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Folder name is required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('folders')
+        .insert({
+          name: newFolderName,
+          description: newFolderDescription,
+          parent_folder_id: id,
+          user_id: user?.id,
+          created_by_email: user?.email || '',
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Child folder created successfully',
+      });
+
+      setNewFolderName('');
+      setNewFolderDescription('');
+      setNewFolderDialogOpen(false);
+      fetchChildFolders();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (loading || loadingFolder || loadingQueries || loadingChildFolders) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-muted-foreground">Loading...</p>
@@ -216,14 +329,34 @@ const Folder = () => {
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="mx-auto max-w-7xl">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/dashboard')}
-          className="mb-6"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
-        </Button>
+        <div className="mb-6">
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink onClick={() => navigate('/dashboard')} className="cursor-pointer">
+                  <Home className="h-4 w-4" />
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              {breadcrumbs.map((crumb, index) => (
+                <div key={crumb.id} className="flex items-center">
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    {index === breadcrumbs.length - 1 ? (
+                      <BreadcrumbPage>{crumb.name}</BreadcrumbPage>
+                    ) : (
+                      <BreadcrumbLink 
+                        onClick={() => navigate(`/folder/${crumb.id}`)}
+                        className="cursor-pointer"
+                      >
+                        {crumb.name}
+                      </BreadcrumbLink>
+                    )}
+                  </BreadcrumbItem>
+                </div>
+              ))}
+            </BreadcrumbList>
+          </Breadcrumb>
+        </div>
 
         <Card className="mb-6">
           <CardHeader>
@@ -247,6 +380,47 @@ const Folder = () => {
             </div>
           </CardHeader>
         </Card>
+
+        {childFolders.length > 0 && (
+          <>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Folders</h2>
+              <Button onClick={() => setNewFolderDialogOpen(true)} variant="outline">
+                <Plus className="mr-2 h-4 w-4" />
+                New Folder
+              </Button>
+            </div>
+
+            <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {childFolders.map((childFolder) => (
+                <Card
+                  key={childFolder.id}
+                  className="cursor-pointer transition-colors hover:bg-accent"
+                  onClick={() => navigate(`/folder/${childFolder.id}`)}
+                >
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <FolderIcon className="h-5 w-5 text-muted-foreground" />
+                      <CardTitle>{childFolder.name}</CardTitle>
+                    </div>
+                    {childFolder.description && (
+                      <CardDescription>{childFolder.description}</CardDescription>
+                    )}
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+          </>
+        )}
+
+        {childFolders.length === 0 && (
+          <div className="mb-4">
+            <Button onClick={() => setNewFolderDialogOpen(true)} variant="outline">
+              <Plus className="mr-2 h-4 w-4" />
+              New Folder
+            </Button>
+          </div>
+        )}
 
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold">SQL Queries</h2>
@@ -369,6 +543,44 @@ const Folder = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Folder</DialogTitle>
+              <DialogDescription>
+                Create a new folder inside {folder?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-folder-name">Folder Name</Label>
+                <Input
+                  id="new-folder-name"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="Enter folder name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-folder-description">Description</Label>
+                <Textarea
+                  id="new-folder-description"
+                  value={newFolderDescription}
+                  onChange={(e) => setNewFolderDescription(e.target.value)}
+                  placeholder="Enter folder description (optional)"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNewFolderDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateChildFolder}>Create Folder</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

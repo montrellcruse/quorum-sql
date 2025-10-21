@@ -56,6 +56,7 @@ const Dashboard = () => {
       const { data, error } = await supabase
         .from('folders')
         .select('*')
+        .is('parent_folder_id', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -89,6 +90,7 @@ const Dashboard = () => {
           description: newProject.description,
           user_id: user?.id,
           created_by_email: user?.email || '',
+          parent_folder_id: null,
         });
 
       if (error) throw error;
