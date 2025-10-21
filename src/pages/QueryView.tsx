@@ -242,32 +242,47 @@ const QueryView = () => {
         </Card>
 
         <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-6xl">
             <DialogHeader>
-              <DialogTitle>Query History Version</DialogTitle>
+              <DialogTitle>Query History Comparison</DialogTitle>
               <DialogDescription>
-                View the SQL content from this previous version
+                Compare this historical version with the current query
               </DialogDescription>
             </DialogHeader>
             {selectedHistory && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <div>
-                    <p className="font-medium">{selectedHistory.modified_by_email}</p>
-                    <p className="text-muted-foreground">
-                      {formatDate(selectedHistory.created_at)}
-                    </p>
+                <div className="text-sm">
+                  <p className="font-medium">Historical Version Modified By:</p>
+                  <p className="text-muted-foreground">{selectedHistory.modified_by_email}</p>
+                  <p className="text-muted-foreground">{formatDate(selectedHistory.created_at)}</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">
+                      Historical Version (from {formatDate(selectedHistory.created_at)})
+                    </Label>
+                    <Textarea
+                      value={selectedHistory.sql_content}
+                      readOnly
+                      rows={20}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">
+                      Current Version
+                    </Label>
+                    <Textarea
+                      value={query.sql_content}
+                      readOnly
+                      rows={20}
+                      className="font-mono text-sm"
+                    />
                   </div>
                 </div>
-                <div>
-                  <Label>SQL Content</Label>
-                  <Textarea
-                    value={selectedHistory.sql_content}
-                    readOnly
-                    rows={15}
-                    className="font-mono text-sm"
-                  />
-                </div>
+                
                 <Button onClick={() => setHistoryModalOpen(false)} className="w-full">
                   Close
                 </Button>
