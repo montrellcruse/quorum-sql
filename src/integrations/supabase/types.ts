@@ -84,6 +84,7 @@ export type Database = {
       }
       query_history: {
         Row: {
+          change_reason: string | null
           created_at: string
           id: string
           modified_by_email: string
@@ -92,6 +93,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          change_reason?: string | null
           created_at?: string
           id?: string
           modified_by_email: string
@@ -100,6 +102,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          change_reason?: string | null
           created_at?: string
           id?: string
           modified_by_email?: string
