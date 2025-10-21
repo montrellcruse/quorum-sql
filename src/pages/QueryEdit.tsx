@@ -173,6 +173,36 @@ const QueryEdit = () => {
     }
   };
 
+  const handleCreateNewDraft = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('sql_queries')
+        .update({
+          status: 'draft',
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Query converted to draft',
+      });
+
+      // Refresh local state
+      fetchQuery();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const isEditable = query?.status === 'draft';
 
   if (loading || loadingQuery) {
@@ -285,7 +315,7 @@ const QueryEdit = () => {
 
             {query.status === 'approved' && (
               <Button 
-                onClick={() => handleSave('draft')} 
+                onClick={handleCreateNewDraft} 
                 disabled={saving}
                 className="w-full"
               >
