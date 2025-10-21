@@ -16,7 +16,7 @@ interface Query {
   description: string | null;
   sql_content: string;
   status: string;
-  project_id: string;
+  folder_id: string;
   last_modified_by_email: string | null;
   created_by_email: string | null;
 }
@@ -32,7 +32,7 @@ const QueryEdit = () => {
   const [saving, setSaving] = useState(false);
   
   const isNewQuery = id === 'new';
-  const projectId = location.state?.projectId;
+  const folderId = location.state?.folderId;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -43,10 +43,10 @@ const QueryEdit = () => {
   useEffect(() => {
     if (user) {
       if (isNewQuery) {
-        if (!projectId) {
+        if (!folderId) {
           toast({
             title: 'Error',
-            description: 'Project ID is required',
+            description: 'Folder ID is required',
             variant: 'destructive',
           });
           navigate('/dashboard');
@@ -58,7 +58,7 @@ const QueryEdit = () => {
           description: '',
           sql_content: '',
           status: 'draft',
-          project_id: projectId,
+          folder_id: folderId,
           last_modified_by_email: null,
           created_by_email: null,
         });
@@ -67,7 +67,7 @@ const QueryEdit = () => {
         fetchQuery();
       }
     }
-  }, [user, id, isNewQuery, projectId]);
+  }, [user, id, isNewQuery, folderId]);
 
   const fetchQuery = async () => {
     try {
@@ -124,7 +124,7 @@ const QueryEdit = () => {
             description: query.description,
             sql_content: query.sql_content,
             status: newStatus,
-            project_id: query.project_id,
+            folder_id: query.folder_id,
             user_id: user?.id,
             created_by_email: user?.email || '',
             last_modified_by_email: user?.email || '',
@@ -196,8 +196,8 @@ const QueryEdit = () => {
           : 'Query updated',
       });
 
-      // Redirect back to project page
-      navigate(`/project/${query.project_id}`);
+      // Redirect back to folder page
+      navigate(`/folder/${query.folder_id}`);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -236,8 +236,8 @@ const QueryEdit = () => {
         // Refresh to show editable state
         fetchQuery();
       } else {
-        // Redirect back to project page
-        navigate(`/project/${query.project_id}`);
+        // Redirect back to folder page
+        navigate(`/folder/${query.folder_id}`);
       }
     } catch (error: any) {
       toast({
@@ -272,10 +272,10 @@ const QueryEdit = () => {
         <div className="mb-6 flex items-center justify-between">
           <Button
             variant="ghost"
-            onClick={() => navigate(`/project/${query.project_id}`)}
+            onClick={() => navigate(`/folder/${query.folder_id}`)}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Project
+            Back to Folder
           </Button>
 
           {!isNewQuery && (

@@ -14,34 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      profiles: {
-        Row: {
-          created_at: string
-          email: string
-          full_name: string | null
-          id: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          email: string
-          full_name?: string | null
-          id?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          email?: string
-          full_name?: string | null
-          id?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      projects: {
+      folders: {
         Row: {
           created_at: string
           created_by_email: string | null
@@ -66,6 +39,33 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
           updated_at?: string
           user_id?: string
         }
@@ -108,9 +108,9 @@ export type Database = {
           created_at: string
           created_by_email: string | null
           description: string | null
+          folder_id: string
           id: string
           last_modified_by_email: string | null
-          project_id: string
           sql_content: string
           status: string
           title: string
@@ -121,9 +121,9 @@ export type Database = {
           created_at?: string
           created_by_email?: string | null
           description?: string | null
+          folder_id: string
           id?: string
           last_modified_by_email?: string | null
-          project_id: string
           sql_content: string
           status?: string
           title: string
@@ -134,9 +134,9 @@ export type Database = {
           created_at?: string
           created_by_email?: string | null
           description?: string | null
+          folder_id?: string
           id?: string
           last_modified_by_email?: string | null
-          project_id?: string
           sql_content?: string
           status?: string
           title?: string
@@ -145,10 +145,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "sql_queries_project_id_fkey"
-            columns: ["project_id"]
+            foreignKeyName: "sql_queries_folder_id_fkey"
+            columns: ["folder_id"]
             isOneToOne: false
-            referencedRelation: "projects"
+            referencedRelation: "folders"
             referencedColumns: ["id"]
           },
         ]
