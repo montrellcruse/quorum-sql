@@ -1,29 +1,34 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
 
 const Index = () => {
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate("/dashboard");
-      }
-    };
-    checkUser();
-  }, [navigate]);
+    if (!loading && user) {
+      navigate('/dashboard');
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="text-center space-y-6">
         <h1 className="text-4xl font-bold">SQL Query Manager</h1>
-        <p className="text-xl text-muted-foreground max-w-md">
-          Organize, store, and track your SQL queries with version history
+        <p className="text-xl text-muted-foreground">
+          Organize and manage your SQL queries securely
         </p>
-        <Button onClick={() => navigate("/auth")} size="lg">
+        <Button size="lg" onClick={() => navigate('/auth')}>
           Get Started
         </Button>
       </div>
