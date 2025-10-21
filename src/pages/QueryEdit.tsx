@@ -62,8 +62,10 @@ const QueryEdit = () => {
   const [saving, setSaving] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
+  const [changeReason, setChangeReason] = useState('');
   
   const isNewQuery = id === 'new';
   const folderId = location.state?.folderId;
@@ -192,12 +194,16 @@ const QueryEdit = () => {
             sql_content: query.sql_content,
             modified_by_email: user?.email || '',
             status: 'pending_approval',
+            change_reason: changeReason.trim() || null,
           });
 
         if (historyError) {
           console.error('History insert error:', historyError);
           throw historyError;
         }
+        
+        // Reset change reason after successful submission
+        setChangeReason('');
       }
 
       toast({
@@ -499,11 +505,11 @@ const QueryEdit = () => {
                     {saving ? 'Saving...' : 'Save Draft'}
                   </Button>
                   <Button 
-                    onClick={() => handleSave('pending_approval')} 
+                    onClick={() => setApprovalDialogOpen(true)} 
                     disabled={saving}
                     className="flex-1"
                   >
-                    {saving ? 'Saving...' : 'Request Approval'}
+                    Request Approval
                   </Button>
                 </div>
                 {!isNewQuery && (
@@ -589,6 +595,52 @@ const QueryEdit = () => {
             </Button>
             <Button onClick={handleMove} disabled={saving}>
               {saving ? 'Moving...' : 'Confirm Move'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Approval</DialogTitle>
+            <DialogDescription>
+              Optionally provide a reason for this change before submitting for approval
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="change-reason">Change Reason (Optional)</Label>
+            <Textarea
+              id="change-reason"
+              placeholder="Explain what changed and why..."
+              value={changeReason}
+              onChange={(e) => setChangeReason(e.target.value)}
+              className="mt-2 min-h-[100px]"
+              maxLength={1000}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {changeReason.length}/1000 characters
+            </p>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setApprovalDialogOpen(false);
+                setChangeReason('');
+              }}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                setApprovalDialogOpen(false);
+                handleSave('pending_approval');
+              }} 
+              disabled={saving}
+            >
+              {saving ? 'Submitting...' : 'Submit for Approval'}
             </Button>
           </DialogFooter>
         </DialogContent>
