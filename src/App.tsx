@@ -7,7 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
-import Project from "./pages/Project";
+import Folder from "./pages/Folder";
 import QueryEdit from "./pages/QueryEdit";
 import QueryView from "./pages/QueryView";
 import NotFound from "./pages/NotFound";
@@ -25,7 +25,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/project/:id" element={<Project />} />
+            <Route path="/folder/:id" element={<Folder />} />
             <Route path="/query/view/:id" element={<QueryView />} />
             <Route path="/query/edit/:id" element={<QueryEdit />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

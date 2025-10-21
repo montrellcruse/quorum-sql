@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, FileText } from 'lucide-react';
 
-interface Project {
+interface Folder {
   id: string;
   name: string;
   description: string | null;
@@ -25,13 +25,13 @@ interface Query {
   last_modified_by_email: string | null;
 }
 
-const Project = () => {
+const Folder = () => {
   const { id } = useParams<{ id: string }>();
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [project, setProject] = useState<Project | null>(null);
-  const [loadingProject, setLoadingProject] = useState(true);
+  const [folder, setFolder] = useState<Folder | null>(null);
+  const [loadingFolder, setLoadingFolder] = useState(true);
   const [queries, setQueries] = useState<Query[]>([]);
   const [loadingQueries, setLoadingQueries] = useState(true);
 
@@ -43,15 +43,15 @@ const Project = () => {
 
   useEffect(() => {
     if (user && id) {
-      fetchProject();
+      fetchFolder();
       fetchQueries();
     }
   }, [user, id]);
 
-  const fetchProject = async () => {
+  const fetchFolder = async () => {
     try {
       const { data, error } = await supabase
-        .from('projects')
+        .from('folders')
         .select('*')
         .eq('id', id)
         .maybeSingle();
@@ -61,14 +61,14 @@ const Project = () => {
       if (!data) {
         toast({
           title: 'Error',
-          description: 'Project not found',
+          description: 'Folder not found',
           variant: 'destructive',
         });
         navigate('/dashboard');
         return;
       }
 
-      setProject(data);
+      setFolder(data);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -77,7 +77,7 @@ const Project = () => {
       });
       navigate('/dashboard');
     } finally {
-      setLoadingProject(false);
+      setLoadingFolder(false);
     }
   };
 
@@ -86,7 +86,7 @@ const Project = () => {
       const { data, error } = await supabase
         .from('sql_queries')
         .select('id, title, status, description, created_at, created_by_email, last_modified_by_email')
-        .eq('project_id', id)
+        .eq('folder_id', id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -115,7 +115,7 @@ const Project = () => {
     }
   };
 
-  if (loading || loadingProject || loadingQueries) {
+  if (loading || loadingFolder || loadingQueries) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-muted-foreground">Loading...</p>
@@ -123,7 +123,7 @@ const Project = () => {
     );
   }
 
-  if (!project) {
+  if (!folder) {
     return null;
   }
 
@@ -141,16 +141,16 @@ const Project = () => {
 
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>{project.name}</CardTitle>
-            {project.description && (
-              <CardDescription>{project.description}</CardDescription>
+            <CardTitle>{folder.name}</CardTitle>
+            {folder.description && (
+              <CardDescription>{folder.description}</CardDescription>
             )}
           </CardHeader>
         </Card>
 
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold">SQL Queries</h2>
-          <Button onClick={() => navigate('/query/edit/new', { state: { projectId: id } })}>
+          <Button onClick={() => navigate('/query/edit/new', { state: { folderId: id } })}>
             <Plus className="mr-2 h-4 w-4" />
             New Query
           </Button>
@@ -219,4 +219,4 @@ const Project = () => {
   );
 };
 
-export default Project;
+export default Folder;

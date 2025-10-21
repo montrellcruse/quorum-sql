@@ -18,7 +18,7 @@ interface Query {
   description: string | null;
   sql_content: string;
   status: string;
-  project_id: string;
+  folder_id: string;
   created_by_email: string | null;
   last_modified_by_email: string | null;
 }
@@ -160,10 +160,10 @@ const QueryView = () => {
         <div className="mb-6 flex items-center justify-between">
           <Button
             variant="ghost"
-            onClick={() => navigate(`/project/${query.project_id}`)}
+            onClick={() => navigate(`/folder/${query.folder_id}`)}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Project
+            Back to Folder
           </Button>
           
           <Button onClick={() => navigate(`/query/edit/${query.id}`)}>

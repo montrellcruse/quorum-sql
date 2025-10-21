@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Plus, Search, FileText } from 'lucide-react';
 
-interface Project {
+interface Folder {
   id: string;
   name: string;
   description: string | null;
@@ -31,7 +31,7 @@ const Dashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Folder[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', description: '' });
@@ -54,7 +54,7 @@ const Dashboard = () => {
   const fetchProjects = async () => {
     try {
       const { data, error } = await supabase
-        .from('projects')
+        .from('folders')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -75,7 +75,7 @@ const Dashboard = () => {
     if (!newProject.name.trim()) {
       toast({
         title: 'Error',
-        description: 'Project name is required',
+        description: 'Folder name is required',
         variant: 'destructive',
       });
       return;
@@ -83,7 +83,7 @@ const Dashboard = () => {
 
     try {
       const { error } = await supabase
-        .from('projects')
+        .from('folders')
         .insert({
           name: newProject.name,
           description: newProject.description,
@@ -95,7 +95,7 @@ const Dashboard = () => {
 
       toast({
         title: 'Success',
-        description: 'Project created successfully',
+        description: 'Folder created successfully',
       });
 
       setNewProject({ name: '', description: '' });
@@ -239,7 +239,7 @@ const Dashboard = () => {
                     <div className="flex-1">
                       <h4 className="font-semibold">{result.title}</h4>
                       <p className="text-sm text-muted-foreground">
-                        Project: {result.project_name}
+                        Folder: {result.project_name}
                       </p>
                       {result.description && (
                         <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
@@ -256,55 +256,55 @@ const Dashboard = () => {
 
         <div className="mb-6">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Project
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Project</DialogTitle>
-                <DialogDescription>
-                  Create a new project to organize your SQL queries
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Project Name</Label>
-                  <Input
-                    id="name"
-                    value={newProject.name}
-                    onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                    placeholder="Enter project name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={newProject.description}
-                    onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                    placeholder="Enter project description"
-                  />
-                </div>
-                <Button onClick={handleCreateProject} className="w-full">
-                  Create Project
-                </Button>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              New Folder
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Folder</DialogTitle>
+              <DialogDescription>
+                Create a new folder to organize your SQL queries
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="name">Folder Name</Label>
+                <Input
+                  id="name"
+                  value={newProject.name}
+                  onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                  placeholder="Enter folder name"
+                />
               </div>
-            </DialogContent>
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={newProject.description}
+                  onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+                  placeholder="Enter folder description"
+                />
+              </div>
+              <Button onClick={handleCreateProject} className="w-full">
+                Create Folder
+              </Button>
+            </div>
+          </DialogContent>
           </Dialog>
         </div>
 
         {loadingProjects ? (
-          <p className="text-muted-foreground">Loading projects...</p>
+          <p className="text-muted-foreground">Loading folders...</p>
         ) : projects.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
               <Card
                 key={project.id}
                 className="cursor-pointer transition-colors hover:bg-accent"
-                onClick={() => navigate(`/project/${project.id}`)}
+                onClick={() => navigate(`/folder/${project.id}`)}
               >
                 <CardHeader>
                   <CardTitle>{project.name}</CardTitle>
@@ -323,9 +323,9 @@ const Dashboard = () => {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle>No Projects Yet</CardTitle>
+              <CardTitle>No Folders Yet</CardTitle>
               <CardDescription>
-                Create your first project to start organizing your SQL queries
+                Create your first folder to start organizing your SQL queries
               </CardDescription>
             </CardHeader>
           </Card>
