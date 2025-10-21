@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, FolderInput } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +19,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Query {
   id: string;
@@ -31,6 +46,11 @@ interface Query {
   created_by_email: string | null;
 }
 
+interface Folder {
+  id: string;
+  name: string;
+}
+
 const QueryEdit = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
@@ -41,6 +61,9 @@ const QueryEdit = () => {
   const [loadingQuery, setLoadingQuery] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   
   const isNewQuery = id === 'new';
   const folderId = location.state?.folderId;
@@ -295,6 +318,76 @@ const QueryEdit = () => {
     }
   };
 
+  const fetchFolders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('folders')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+      setFolders(data || []);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleOpenMoveDialog = () => {
+    fetchFolders();
+    setSelectedFolderId(query?.folder_id || '');
+    setMoveDialogOpen(true);
+  };
+
+  const handleMove = async () => {
+    if (!selectedFolderId || !query) {
+      toast({
+        title: 'Error',
+        description: 'Please select a folder',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (selectedFolderId === query.folder_id) {
+      toast({
+        title: 'Error',
+        description: 'Query is already in this folder',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('sql_queries')
+        .update({ folder_id: selectedFolderId })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Query moved successfully',
+      });
+
+      navigate(`/folder/${selectedFolderId}`);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+      setMoveDialogOpen(false);
+    }
+  };
+
   const isEditable = query?.status === 'draft';
 
   if (loading || loadingQuery) {
@@ -321,14 +414,25 @@ const QueryEdit = () => {
             Back to Folder
           </Button>
 
-          {!isNewQuery && (
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/query/view/${query.id}`)}
-            >
-              View Query
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {!isNewQuery && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleOpenMoveDialog}
+                >
+                  <FolderInput className="mr-2 h-4 w-4" />
+                  Move
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/query/view/${query.id}`)}
+                >
+                  View Query
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         <Card>
@@ -451,6 +555,40 @@ const QueryEdit = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move Query to Folder</DialogTitle>
+            <DialogDescription>
+              Select the folder where you want to move this query
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="folder-select">Select Folder</Label>
+            <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
+              <SelectTrigger id="folder-select" className="mt-2 bg-background">
+                <SelectValue placeholder="Select a folder" />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                {folders.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleMove} disabled={saving}>
+              {saving ? 'Moving...' : 'Confirm Move'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
