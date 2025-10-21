@@ -172,7 +172,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_all_folder_paths: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          full_path: string
+          id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
