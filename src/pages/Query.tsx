@@ -17,6 +17,7 @@ interface Query {
   sql_content: string;
   status: string;
   project_id: string;
+  last_modified_by_email: string | null;
 }
 
 const Query = () => {
@@ -57,6 +58,7 @@ const Query = () => {
           sql_content: '',
           status: 'draft',
           project_id: projectId,
+          last_modified_by_email: null,
         });
         setLoadingQuery(false);
       } else if (id) {
@@ -98,7 +100,7 @@ const Query = () => {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (newStatus: string) => {
     if (!query?.title.trim() || !query?.sql_content.trim()) {
       toast({
         title: 'Error',
@@ -119,7 +121,7 @@ const Query = () => {
             title: query.title,
             description: query.description,
             sql_content: query.sql_content,
-            status: 'draft',
+            status: newStatus,
             project_id: query.project_id,
             user_id: user?.id,
             last_modified_by_email: user?.email || '',
@@ -136,7 +138,7 @@ const Query = () => {
             title: query.title,
             description: query.description,
             sql_content: query.sql_content,
-            status: 'draft',
+            status: newStatus,
             last_modified_by_email: user?.email || '',
           })
           .eq('id', id);
@@ -144,20 +146,28 @@ const Query = () => {
         if (error) throw error;
       }
 
-      // Create query history record
-      const { error: historyError } = await supabase
-        .from('query_history')
-        .insert({
-          query_id: queryId,
-          sql_content: query.sql_content,
-          modified_by_email: user?.email || '',
-        });
+      // Create query history record only if content changed
+      if (newStatus === 'draft' || newStatus === 'pending_approval') {
+        const { error: historyError } = await supabase
+          .from('query_history')
+          .insert({
+            query_id: queryId,
+            sql_content: query.sql_content,
+            modified_by_email: user?.email || '',
+          });
 
-      if (historyError) throw historyError;
+        if (historyError) throw historyError;
+      }
 
       toast({
         title: 'Success',
-        description: 'Query saved as draft',
+        description: newStatus === 'pending_approval' 
+          ? 'Query submitted for approval' 
+          : newStatus === 'approved' 
+          ? 'Query approved' 
+          : newStatus === 'draft' 
+          ? 'Query saved as draft' 
+          : 'Query updated',
       });
 
       // Redirect back to project page
@@ -172,6 +182,50 @@ const Query = () => {
       setSaving(false);
     }
   };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!query) return;
+    
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('sql_queries')
+        .update({
+          status: newStatus,
+          ...(newStatus === 'draft' && { last_modified_by_email: user?.email || '' }),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: newStatus === 'approved' 
+          ? 'Query approved' 
+          : 'Query rejected and returned to draft',
+      });
+
+      if (newStatus === 'draft') {
+        // Refresh to show editable state
+        fetchQuery();
+      } else {
+        // Redirect back to project page
+        navigate(`/project/${query.project_id}`);
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isEditable = query?.status === 'draft';
+  const canApprove = query?.status === 'pending_approval' && 
+                     query?.last_modified_by_email !== user?.email;
 
   if (loading || loadingQuery) {
     return (
@@ -201,7 +255,10 @@ const Query = () => {
           <CardHeader>
             <CardTitle>{isNewQuery ? 'New Query' : 'Edit Query'}</CardTitle>
             <CardDescription>
-              {isNewQuery ? 'Create a new SQL query' : 'Update your SQL query'}
+              {isNewQuery ? 'Create a new SQL query' : 
+               query.status === 'pending_approval' ? 'Query pending approval' :
+               query.status === 'approved' ? 'Approved query' :
+               'Edit SQL query'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -212,6 +269,7 @@ const Query = () => {
                 value={query.title}
                 onChange={(e) => setQuery({ ...query, title: e.target.value })}
                 placeholder="Enter query title"
+                disabled={!isEditable}
               />
             </div>
 
@@ -223,6 +281,7 @@ const Query = () => {
                 onChange={(e) => setQuery({ ...query, description: e.target.value })}
                 placeholder="Enter query description"
                 rows={3}
+                disabled={!isEditable}
               />
             </div>
 
@@ -235,13 +294,66 @@ const Query = () => {
                 placeholder="Enter your SQL query here..."
                 rows={12}
                 className="font-mono text-sm"
+                disabled={!isEditable}
               />
             </div>
 
-            <Button onClick={handleSave} disabled={saving} className="w-full">
-              <Save className="mr-2 h-4 w-4" />
-              {saving ? 'Saving...' : 'Save as Draft'}
-            </Button>
+            {query.status === 'draft' && (
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => handleSave('draft')} 
+                  disabled={saving} 
+                  variant="outline"
+                  className="flex-1"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {saving ? 'Saving...' : 'Save Draft'}
+                </Button>
+                <Button 
+                  onClick={() => handleSave('pending_approval')} 
+                  disabled={saving}
+                  className="flex-1"
+                >
+                  {saving ? 'Saving...' : 'Request Approval'}
+                </Button>
+              </div>
+            )}
+
+            {query.status === 'pending_approval' && canApprove && (
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => handleStatusChange('approved')} 
+                  disabled={saving}
+                  className="flex-1"
+                >
+                  {saving ? 'Processing...' : 'Approve'}
+                </Button>
+                <Button 
+                  onClick={() => handleStatusChange('draft')} 
+                  disabled={saving}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  {saving ? 'Processing...' : 'Reject'}
+                </Button>
+              </div>
+            )}
+
+            {query.status === 'pending_approval' && !canApprove && (
+              <div className="rounded-lg bg-muted p-4 text-center text-sm text-muted-foreground">
+                This query is pending approval. You cannot approve your own submission.
+              </div>
+            )}
+
+            {query.status === 'approved' && (
+              <Button 
+                onClick={() => handleStatusChange('draft')} 
+                disabled={saving}
+                className="w-full"
+              >
+                {saving ? 'Processing...' : 'Create New Draft'}
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>

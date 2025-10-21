@@ -100,12 +100,14 @@ const Project = () => {
     }
   };
 
-  const getStatusVariant = (status: string): "default" | "secondary" | "outline" => {
+  const getStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
     switch (status.toLowerCase()) {
       case 'approved':
         return 'default';
-      case 'draft':
+      case 'pending_approval':
         return 'secondary';
+      case 'draft':
+        return 'outline';
       default:
         return 'outline';
     }
@@ -163,7 +165,7 @@ const Project = () => {
                         <FileText className="h-5 w-5 text-muted-foreground" />
                         <CardTitle className="text-lg">{query.title}</CardTitle>
                         <Badge variant={getStatusVariant(query.status)}>
-                          {query.status}
+                          {query.status === 'pending_approval' ? 'Pending Approval' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
                         </Badge>
                       </div>
                       {query.description && (
