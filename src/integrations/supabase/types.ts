@@ -105,6 +105,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          last_modified_by_email: string | null
           project_id: string
           sql_content: string
           status: string
@@ -116,6 +117,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          last_modified_by_email?: string | null
           project_id: string
           sql_content: string
           status?: string
@@ -127,6 +129,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          last_modified_by_email?: string | null
           project_id?: string
           sql_content?: string
           status?: string
