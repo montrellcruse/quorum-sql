@@ -9,13 +9,21 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Plus } from 'lucide-react';
+import { Plus, Search, FileText } from 'lucide-react';
 
 interface Project {
   id: string;
   name: string;
   description: string | null;
   created_at: string;
+}
+
+interface SearchResult {
+  id: string;
+  title: string;
+  description: string | null;
+  project_id: string;
+  project_name: string;
 }
 
 const Dashboard = () => {
@@ -26,6 +34,9 @@ const Dashboard = () => {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', description: '' });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -97,6 +108,54 @@ const Dashboard = () => {
     }
   };
 
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!searchTerm.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const searchPattern = `%${searchTerm}%`;
+      
+      const { data, error } = await supabase
+        .from('sql_queries')
+        .select(`
+          id,
+          title,
+          description,
+          sql_content,
+          project_id,
+          projects (
+            name
+          )
+        `)
+        .or(`title.ilike.${searchPattern},description.ilike.${searchPattern},sql_content.ilike.${searchPattern}`);
+
+      if (error) throw error;
+
+      const results: SearchResult[] = (data || []).map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        project_id: item.project_id,
+        project_name: item.projects?.name || 'Unknown Project',
+      }));
+
+      setSearchResults(results);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSearching(false);
+    }
+  };
+
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
     
@@ -139,6 +198,59 @@ const Dashboard = () => {
             Sign Out
           </Button>
         </header>
+
+        <form onSubmit={handleSearch} className="mb-6">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search queries by title, description, or SQL content..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button type="submit" disabled={searching}>
+              {searching ? 'Searching...' : 'Search'}
+            </Button>
+          </div>
+        </form>
+
+        {searchResults.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Search Results</CardTitle>
+              <CardDescription>
+                Found {searchResults.length} {searchResults.length === 1 ? 'query' : 'queries'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {searchResults.map((result) => (
+                  <div
+                    key={result.id}
+                    onClick={() => navigate(`/query/${result.id}`)}
+                    className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
+                  >
+                    <FileText className="mt-1 h-5 w-5 text-muted-foreground" />
+                    <div className="flex-1">
+                      <h4 className="font-semibold">{result.title}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Project: {result.project_name}
+                      </p>
+                      {result.description && (
+                        <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
+                          {result.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="mb-6">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
