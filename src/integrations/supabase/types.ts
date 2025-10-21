@@ -78,6 +78,7 @@ export type Database = {
           modified_by_email: string
           query_id: string
           sql_content: string
+          status: string
         }
         Insert: {
           created_at?: string
@@ -85,6 +86,7 @@ export type Database = {
           modified_by_email: string
           query_id: string
           sql_content: string
+          status?: string
         }
         Update: {
           created_at?: string
@@ -92,6 +94,7 @@ export type Database = {
           modified_by_email?: string
           query_id?: string
           sql_content?: string
+          status?: string
         }
         Relationships: [
           {
