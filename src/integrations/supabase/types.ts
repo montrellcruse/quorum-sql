@@ -179,6 +179,14 @@ export type Database = {
           id: string
         }[]
       }
+      update_query_status: {
+        Args: {
+          _modifier_email: string
+          _new_status: string
+          _query_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

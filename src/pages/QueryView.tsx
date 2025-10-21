@@ -138,42 +138,30 @@ const QueryView = () => {
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    if (!query || !id) return;
+    if (!query || !id || !user) return;
     
     setUpdating(true);
     try {
-      // Find the latest query_history record
-      const { data: latestHistory, error: historyFetchError } = await supabase
-        .from('query_history')
-        .select('id')
-        .eq('query_id', id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Call the secure server-side function to update query status
+      // This enforces peer review and prevents approval bypass
+      const { data, error } = await supabase.rpc('update_query_status', {
+        _query_id: id,
+        _new_status: newStatus,
+        _modifier_email: user.email || '',
+      });
 
-      if (historyFetchError) throw historyFetchError;
+      if (error) throw error;
 
-      // Update the query status
-      const { error: updateError } = await supabase
-        .from('sql_queries')
-        .update({
-          status: newStatus,
-        })
-        .eq('id', id);
-
-      if (updateError) throw updateError;
-
-      // Update the latest history record's status
-      if (latestHistory) {
-        const historyStatus = newStatus === 'approved' ? 'approved' : 'rejected';
-        const { error: historyUpdateError } = await supabase
-          .from('query_history')
-          .update({
-            status: historyStatus,
-          })
-          .eq('id', latestHistory.id);
-
-        if (historyUpdateError) throw historyUpdateError;
+      // Parse the response from the function
+      const result = data as { success: boolean; error?: string; message?: string };
+      
+      if (result && !result.success) {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to update query status',
+          variant: 'destructive',
+        });
+        return;
       }
 
       toast({
