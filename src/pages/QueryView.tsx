@@ -99,6 +99,7 @@ const QueryView = () => {
         .from('query_history')
         .select('*')
         .eq('query_id', id)
+        .eq('status', 'approved')
         .order('created_at', { ascending: false })
         .limit(100);
 
