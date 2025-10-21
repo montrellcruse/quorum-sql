@@ -284,6 +284,25 @@ const Folder = () => {
     }
 
     try {
+      // Check for duplicate folder name within current parent
+      const { data: existingFolder, error: checkError } = await supabase
+        .from('folders')
+        .select('id')
+        .eq('name', newFolderName.trim())
+        .eq('parent_folder_id', id)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingFolder) {
+        toast({
+          title: 'Error',
+          description: 'A folder with this name already exists in this folder.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('folders')
         .insert({
