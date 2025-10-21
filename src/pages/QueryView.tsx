@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowLeft, Edit, Clock } from 'lucide-react';
+import ReactDiffViewer from 'react-diff-viewer';
 
 interface Query {
   id: string;
@@ -242,7 +243,7 @@ const QueryView = () => {
         </Card>
 
         <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
-          <DialogContent className="max-w-6xl">
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Query History Comparison</DialogTitle>
               <DialogDescription>
@@ -257,30 +258,16 @@ const QueryView = () => {
                   <p className="text-muted-foreground">{formatDate(selectedHistory.created_at)}</p>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-base font-semibold">
-                      Historical Version (from {formatDate(selectedHistory.created_at)})
-                    </Label>
-                    <Textarea
-                      value={selectedHistory.sql_content}
-                      readOnly
-                      rows={20}
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-base font-semibold">
-                      Current Version
-                    </Label>
-                    <Textarea
-                      value={query.sql_content}
-                      readOnly
-                      rows={20}
-                      className="font-mono text-sm"
-                    />
-                  </div>
+                <div className="rounded-lg overflow-hidden border">
+                  <ReactDiffViewer
+                    oldValue={selectedHistory.sql_content}
+                    newValue={query.sql_content}
+                    splitView={true}
+                    leftTitle={`Historical Version (${formatDate(selectedHistory.created_at)})`}
+                    rightTitle="Current Version"
+                    showDiffOnly={false}
+                    useDarkTheme={false}
+                  />
                 </div>
                 
                 <Button onClick={() => setHistoryModalOpen(false)} className="w-full">
