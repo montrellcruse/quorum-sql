@@ -144,6 +144,19 @@ const QueryView = () => {
 
       if (error) throw error;
 
+      // If approving, create a history record
+      if (newStatus === 'approved') {
+        const { error: historyError } = await supabase
+          .from('query_history')
+          .insert({
+            query_id: id,
+            sql_content: query.sql_content,
+            modified_by_email: query.last_modified_by_email || '',
+          });
+
+        if (historyError) throw historyError;
+      }
+
       toast({
         title: 'Success',
         description: newStatus === 'approved' 
@@ -153,6 +166,9 @@ const QueryView = () => {
 
       // Refresh query data
       fetchQuery();
+      if (newStatus === 'approved') {
+        fetchHistory();
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
