@@ -209,50 +209,7 @@ const QueryEdit = () => {
     }
   };
 
-  const handleStatusChange = async (newStatus: string) => {
-    if (!query) return;
-    
-    setSaving(true);
-    try {
-      // Only update status, no history records for status-only changes
-      const { error } = await supabase
-        .from('sql_queries')
-        .update({
-          status: newStatus,
-          ...(newStatus === 'draft' && { last_modified_by_email: user?.email || '' }),
-        })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: newStatus === 'approved' 
-          ? 'Query approved' 
-          : 'Query rejected and returned to draft',
-      });
-
-      if (newStatus === 'draft') {
-        // Refresh to show editable state
-        fetchQuery();
-      } else {
-        // Redirect back to folder page
-        navigate(`/folder/${query.folder_id}`);
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const isEditable = query?.status === 'draft';
-  const canApprove = query?.status === 'pending_approval' && 
-                     query?.last_modified_by_email !== user?.email;
 
   if (loading || loadingQuery) {
     return (
@@ -356,35 +313,15 @@ const QueryEdit = () => {
               </div>
             )}
 
-            {query.status === 'pending_approval' && canApprove && (
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => handleStatusChange('approved')} 
-                  disabled={saving}
-                  className="flex-1"
-                >
-                  {saving ? 'Processing...' : 'Approve'}
-                </Button>
-                <Button 
-                  onClick={() => handleStatusChange('draft')} 
-                  disabled={saving}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  {saving ? 'Processing...' : 'Reject'}
-                </Button>
-              </div>
-            )}
-
-            {query.status === 'pending_approval' && !canApprove && (
+            {query.status === 'pending_approval' && (
               <div className="rounded-lg bg-muted p-4 text-center text-sm text-muted-foreground">
-                This query is pending approval. You cannot approve your own submission.
+                This query is pending approval. Approval actions are available on the View page.
               </div>
             )}
 
             {query.status === 'approved' && (
               <Button 
-                onClick={() => handleStatusChange('draft')} 
+                onClick={() => handleSave('draft')} 
                 disabled={saving}
                 className="w-full"
               >

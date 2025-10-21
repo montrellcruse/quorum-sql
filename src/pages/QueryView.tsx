@@ -41,6 +41,7 @@ const QueryView = () => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<HistoryRecord | null>(null);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -129,6 +130,43 @@ const QueryView = () => {
     setHistoryModalOpen(true);
   };
 
+  const handleStatusChange = async (newStatus: string) => {
+    if (!query) return;
+    
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('sql_queries')
+        .update({
+          status: newStatus,
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: newStatus === 'approved' 
+          ? 'Query approved' 
+          : 'Query rejected and returned to draft',
+      });
+
+      // Refresh query data
+      fetchQuery();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const canApproveOrReject = query?.status === 'pending_approval' && 
+                              query?.last_modified_by_email !== user?.email;
+
   const getStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
     switch (status.toLowerCase()) {
       case 'approved':
@@ -166,10 +204,29 @@ const QueryView = () => {
             Back to Folder
           </Button>
           
-          <Button onClick={() => navigate(`/query/edit/${query.id}`)}>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit Query
-          </Button>
+          <div className="flex gap-2">
+            {canApproveOrReject && (
+              <>
+                <Button 
+                  onClick={() => handleStatusChange('approved')} 
+                  disabled={updating}
+                >
+                  {updating ? 'Processing...' : 'Approve'}
+                </Button>
+                <Button 
+                  onClick={() => handleStatusChange('draft')} 
+                  disabled={updating}
+                  variant="outline"
+                >
+                  {updating ? 'Processing...' : 'Reject'}
+                </Button>
+              </>
+            )}
+            <Button onClick={() => navigate(`/query/edit/${query.id}`)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit Query
+            </Button>
+          </div>
         </div>
 
         <Card>
