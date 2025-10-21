@@ -122,6 +122,7 @@ const Query = () => {
             status: 'draft',
             project_id: query.project_id,
             user_id: user?.id,
+            last_modified_by_email: user?.email || '',
           })
           .select()
           .single();
@@ -136,6 +137,7 @@ const Query = () => {
             description: query.description,
             sql_content: query.sql_content,
             status: 'draft',
+            last_modified_by_email: user?.email || '',
           })
           .eq('id', id);
 
