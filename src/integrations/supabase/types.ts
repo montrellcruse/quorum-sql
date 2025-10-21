@@ -44,6 +44,7 @@ export type Database = {
       projects: {
         Row: {
           created_at: string
+          created_by_email: string | null
           description: string | null
           id: string
           name: string
@@ -52,6 +53,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by_email?: string | null
           description?: string | null
           id?: string
           name: string
@@ -60,6 +62,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by_email?: string | null
           description?: string | null
           id?: string
           name?: string
@@ -103,6 +106,7 @@ export type Database = {
       sql_queries: {
         Row: {
           created_at: string
+          created_by_email: string | null
           description: string | null
           id: string
           last_modified_by_email: string | null
@@ -115,6 +119,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by_email?: string | null
           description?: string | null
           id?: string
           last_modified_by_email?: string | null
@@ -127,6 +132,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by_email?: string | null
           description?: string | null
           id?: string
           last_modified_by_email?: string | null

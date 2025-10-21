@@ -16,6 +16,7 @@ interface Project {
   name: string;
   description: string | null;
   created_at: string;
+  created_by_email: string | null;
 }
 
 interface SearchResult {
@@ -87,6 +88,7 @@ const Dashboard = () => {
           name: newProject.name,
           description: newProject.description,
           user_id: user?.id,
+          created_by_email: user?.email || '',
         });
 
       if (error) throw error;
@@ -306,6 +308,11 @@ const Dashboard = () => {
               >
                 <CardHeader>
                   <CardTitle>{project.name}</CardTitle>
+                  {project.created_by_email && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Created by {project.created_by_email}
+                    </p>
+                  )}
                   {project.description && (
                     <CardDescription>{project.description}</CardDescription>
                   )}
