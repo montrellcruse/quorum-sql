@@ -500,7 +500,7 @@ const QueryEdit = () => {
 
             <div>
               <Label htmlFor="sql_content">SQL Content</Label>
-              <div style={{ border: '1px solid #e0e0e0', borderRadius: '0.375rem', overflow: 'hidden' }}>
+              <div className="overflow-hidden rounded-md border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
                 <Editor
                   height="300px"
                   defaultLanguage="sql"
