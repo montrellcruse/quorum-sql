@@ -271,19 +271,19 @@ const Dashboard = () => {
   }
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-4 sm:p-6 md:p-8">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">SQL Query Manager</h1>
-            <p className="text-muted-foreground">Welcome back, {user.email}</p>
+        <header className="mb-6 sm:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold">SQL Query Manager</h1>
+            <p className="text-sm sm:text-base text-muted-foreground break-words">Welcome back, {user.email}</p>
             {activeTeam && userTeams.length > 1 && (
               <div className="mt-2">
                 <Select value={activeTeam.id} onValueChange={(teamId) => {
                   const team = userTeams.find(t => t.id === teamId);
                   if (team) setActiveTeam(team);
                 }}>
-                  <SelectTrigger className="w-[250px]">
+                  <SelectTrigger className="w-full sm:w-[250px]">
                     <SelectValue placeholder="Select team" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-50">
@@ -300,37 +300,37 @@ const Dashboard = () => {
               <p className="mt-1 text-sm text-muted-foreground">Team: {activeTeam.name}</p>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <ThemeToggle />
-            <Button onClick={() => navigate('/create-team')} variant="outline">
+            <Button onClick={() => navigate('/create-team')} variant="outline" className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
-              Create New Team
+              Create Team
             </Button>
             {isAdmin && (
-              <Button onClick={() => navigate('/team-admin')} variant="outline">
+              <Button onClick={() => navigate('/team-admin')} variant="outline" className="w-full sm:w-auto">
                 <Settings className="mr-2 h-4 w-4" />
-                Team Admin
+                Admin
               </Button>
             )}
-            <Button onClick={handleSignOut} variant="outline">
+            <Button onClick={handleSignOut} variant="outline" className="w-full sm:w-auto">
               Sign Out
             </Button>
           </div>
         </header>
 
         <form onSubmit={handleSearch} className="mb-6">
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input 
                 type="text" 
-                placeholder="Search queries by title, description, or SQL content..." 
+                placeholder="Search queries..." 
                 value={searchTerm} 
                 onChange={e => setSearchTerm(e.target.value)} 
                 className="pl-10" 
               />
             </div>
-            <Button type="submit" disabled={searching}>
+            <Button type="submit" disabled={searching} className="w-full sm:w-auto">
               {searching ? 'Searching...' : 'Search'}
             </Button>
           </div>
@@ -339,27 +339,27 @@ const Dashboard = () => {
         {searchResults.length > 0 && (
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Search Results</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">Search Results</CardTitle>
               <CardDescription>
                 Found {searchResults.length} {searchResults.length === 1 ? 'query' : 'queries'}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {searchResults.map(result => (
                   <div 
                     key={result.id} 
                     onClick={() => navigate(`/query/view/${result.id}`)} 
-                    className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
+                    className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 sm:p-4 transition-colors hover:bg-accent"
                   >
-                    <FileText className="mt-1 h-5 w-5 text-muted-foreground" />
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{result.title}</h4>
-                      <p className="text-sm text-muted-foreground">
+                    <FileText className="mt-1 h-5 w-5 flex-shrink-0 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold break-words">{result.title}</h4>
+                      <p className="text-sm text-muted-foreground break-words">
                         Folder: {result.folder_name}
                       </p>
                       {result.description && (
-                        <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
+                        <p className="mt-1 text-sm text-muted-foreground line-clamp-2 break-words">
                           {result.description}
                         </p>
                       )}
