@@ -14,6 +14,11 @@ import { checkUserTeamMembership, checkPendingInvitations } from '@/utils/teamUt
 
 const ALLOWED_DOMAIN = '@azdes.gov';
 const IS_DEV = import.meta.env.DEV;
+const DEV_TEST_EMAILS = ['admin@test.local', 'test@test.local'];
+
+const isDevTestAccount = (email: string) => {
+  return IS_DEV && DEV_TEST_EMAILS.includes(email.toLowerCase());
+};
 
 const Auth = () => {
   const [loading, setLoading] = useState(false);
@@ -27,8 +32,8 @@ const Auth = () => {
   useEffect(() => {
     const redirectUser = async () => {
       if (user && user.email) {
-        // Validate domain
-        if (!user.email.endsWith(ALLOWED_DOMAIN)) {
+        // Validate domain (allow dev test accounts in development)
+        if (!isDevTestAccount(user.email) && !user.email.endsWith(ALLOWED_DOMAIN)) {
           await supabase.auth.signOut();
           toast({
             title: 'Access Denied',
