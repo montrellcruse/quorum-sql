@@ -47,8 +47,8 @@ const TeamAdmin = () => {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState('member');
   const [approvalQuota, setApprovalQuota] = useState(1);
-  const [handoverDialogOpen, setHandoverDialogOpen] = useState(false);
-  const [selectedNewAdmin, setSelectedNewAdmin] = useState<string>('');
+  const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false);
+  const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -292,8 +292,29 @@ const TeamAdmin = () => {
     }
   };
 
-  const handleRemoveMember = async (memberId: string) => {
+  const handleRemoveMember = async (memberId: string, memberRole: string) => {
     try {
+      // If removing an admin, check if they're the last admin
+      if (memberRole === 'admin') {
+        const { count, error: countError } = await supabase
+          .from('team_members')
+          .select('id', { count: 'exact', head: true })
+          .eq('team_id', selectedTeamId)
+          .eq('role', 'admin');
+
+        if (countError) throw countError;
+
+        if (count === null || count <= 1) {
+          toast({
+            title: 'Cannot Remove',
+            description: 'Cannot remove the last admin. Please transfer ownership or promote another admin first.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
+      // Proceed with removal
       const { error } = await supabase
         .from('team_members')
         .delete()
@@ -317,7 +338,29 @@ const TeamAdmin = () => {
 
   const handleToggleRole = async (memberId: string, currentRole: string) => {
     const newRole = currentRole === 'admin' ? 'member' : 'admin';
+    
     try {
+      // If demoting from admin to member, check if they're the last admin
+      if (currentRole === 'admin' && newRole === 'member') {
+        const { count, error: countError } = await supabase
+          .from('team_members')
+          .select('id', { count: 'exact', head: true })
+          .eq('team_id', selectedTeamId)
+          .eq('role', 'admin');
+
+        if (countError) throw countError;
+
+        if (count === null || count <= 1) {
+          toast({
+            title: 'Cannot Demote',
+            description: 'Cannot demote the last admin.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
+      // Proceed with role change
       const { error } = await supabase
         .from('team_members')
         .update({ role: newRole })
@@ -363,24 +406,35 @@ const TeamAdmin = () => {
     }
   };
 
-  const handleHandoverAdmin = async () => {
-    if (!selectedNewAdmin) return;
+  const handleTransferOwnership = async () => {
+    if (!selectedNewOwner) return;
 
     try {
-      const { error } = await supabase
+      // Step 1: Ensure new owner has 'admin' role in team_members
+      const { error: roleError } = await supabase
+        .from('team_members')
+        .update({ role: 'admin' })
+        .eq('team_id', selectedTeamId)
+        .eq('user_id', selectedNewOwner);
+
+      if (roleError) throw roleError;
+
+      // Step 2: Update admin_id (ownership) in teams table
+      const { error: ownerError } = await supabase
         .from('teams')
-        .update({ admin_id: selectedNewAdmin })
+        .update({ admin_id: selectedNewOwner })
         .eq('id', selectedTeamId);
 
-      if (error) throw error;
+      if (ownerError) throw ownerError;
 
       toast({
         title: 'Success',
-        description: 'Admin role handed over successfully.',
+        description: 'Ownership transferred successfully.',
       });
-      setHandoverDialogOpen(false);
+      
+      setTransferOwnershipDialogOpen(false);
       fetchTeamDetails();
-      // Recheck admin access as current user might no longer be admin
+      fetchTeamMembers();
       checkAdminAccess();
     } catch (error: any) {
       toast({
@@ -541,7 +595,7 @@ const TeamAdmin = () => {
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => handleRemoveMember(member.id)}
+                        onClick={() => handleRemoveMember(member.id, member.role)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -552,25 +606,25 @@ const TeamAdmin = () => {
             </CardContent>
           </Card>
 
-          {/* Handover Admin */}
+          {/* Transfer Ownership */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Handover Admin</CardTitle>
+              <CardTitle>Transfer Ownership</CardTitle>
               <CardDescription>
-                Transfer team ownership to another admin
+                Transfer team ownership to another member
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button
                 variant="outline"
-                onClick={() => setHandoverDialogOpen(true)}
-                disabled={adminMembers.length <= 1}
+                onClick={() => setTransferOwnershipDialogOpen(true)}
+                disabled={members.length <= 1}
               >
-                Handover Admin Role
+                Transfer Ownership
               </Button>
-              {adminMembers.length <= 1 && (
+              {members.length <= 1 && (
                 <p className="text-sm text-muted-foreground mt-2">
-                  You need at least one other admin to handover the role.
+                  You need at least one other member to transfer ownership.
                 </p>
               )}
             </CardContent>
@@ -608,28 +662,29 @@ const TeamAdmin = () => {
         </>
       )}
 
-      {/* Handover Dialog */}
-      <AlertDialog open={handoverDialogOpen} onOpenChange={setHandoverDialogOpen}>
+      {/* Transfer Ownership Dialog */}
+      <AlertDialog open={transferOwnershipDialogOpen} onOpenChange={setTransferOwnershipDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Handover Admin Role</AlertDialogTitle>
+            <AlertDialogTitle>Transfer Ownership</AlertDialogTitle>
             <AlertDialogDescription>
-              Select a new admin to transfer team ownership. This action cannot be
-              undone.
+              Transfer team ownership to another member. The new owner will become 
+              the primary admin of the team. You will remain an admin but lose 
+              ownership privileges. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-4">
-            <Label htmlFor="new-admin">Select New Admin</Label>
-            <Select value={selectedNewAdmin} onValueChange={setSelectedNewAdmin}>
-              <SelectTrigger id="new-admin">
-                <SelectValue placeholder="Select an admin" />
+            <Label htmlFor="new-owner">Select New Owner</Label>
+            <Select value={selectedNewOwner} onValueChange={setSelectedNewOwner}>
+              <SelectTrigger id="new-owner">
+                <SelectValue placeholder="Select a member" />
               </SelectTrigger>
               <SelectContent>
-                {adminMembers
+                {members
                   .filter(m => m.user_id !== selectedTeam?.admin_id)
                   .map(member => (
                     <SelectItem key={member.user_id} value={member.user_id}>
-                      {member.email}
+                      {member.email} ({member.role})
                     </SelectItem>
                   ))}
               </SelectContent>
@@ -638,10 +693,10 @@ const TeamAdmin = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleHandoverAdmin}
-              disabled={!selectedNewAdmin}
+              onClick={handleTransferOwnership}
+              disabled={!selectedNewOwner}
             >
-              Confirm Handover
+              Confirm Transfer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
