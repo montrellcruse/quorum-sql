@@ -38,18 +38,20 @@ const AcceptInvites = () => {
 
   const fetchPendingInvitations = async () => {
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('user_id', user!.id)
-        .single();
-
-      if (!profile) return;
+      // Use email directly from the auth user session
+      const userEmail = user!.email;
+      
+      if (!userEmail) {
+        console.error('No email found for user');
+        const hasMembership = await checkUserTeamMembership(user!.id);
+        navigate(hasMembership ? '/dashboard' : '/create-team');
+        return;
+      }
 
       const { data, error } = await supabase
         .from('team_invitations')
         .select('id, team_id, invited_email, role, teams(name)')
-        .eq('invited_email', profile.email)
+        .eq('invited_email', userEmail)
         .eq('status', 'pending');
 
       if (error) throw error;

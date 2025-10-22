@@ -22,6 +22,7 @@ export const checkUserTeamMembership = async (userId: string): Promise<boolean> 
 
 export const checkPendingInvitations = async (email: string): Promise<boolean> => {
   try {
+    // Check directly in team_invitations using the email parameter
     const { data, error } = await supabase
       .from('team_invitations')
       .select('id')
