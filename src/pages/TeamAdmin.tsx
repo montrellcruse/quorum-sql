@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTeam } from '@/contexts/TeamContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,6 +36,7 @@ interface TeamInvitation {
 
 const TeamAdmin = () => {
   const { user, loading: authLoading } = useAuth();
+  const { activeTeam } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -114,7 +116,12 @@ const TeamAdmin = () => {
       }
 
       setTeams(adminTeams);
-      setSelectedTeamId(adminTeams[0].id);
+      
+      // Check if activeTeam is in the admin teams list
+      const activeTeamIsAdmin = activeTeam && adminTeams.some(t => t.id === activeTeam.id);
+      
+      // Default to activeTeam if it's in admin list, otherwise first admin team
+      setSelectedTeamId(activeTeamIsAdmin ? activeTeam.id : adminTeams[0].id);
     } catch (error: any) {
       toast({
         title: 'Error',
