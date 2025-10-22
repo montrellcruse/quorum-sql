@@ -9,12 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import Editor from '@monaco-editor/react';
+import Editor, { DiffEditor } from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ArrowLeft, Edit, Clock, Trash2, Copy, Check } from 'lucide-react';
-import ReactDiffViewer from 'react-diff-viewer';
 
 interface Query {
   id: string;
@@ -569,16 +568,33 @@ const QueryView = () => {
                   )}
                 </div>
                 
-                <div className="rounded-lg overflow-hidden border">
-                  <ReactDiffViewer
-                    oldValue={previousHistory?.sql_content || ''}
-                    newValue={selectedHistory.sql_content}
-                    splitView={true}
-                    leftTitle={previousHistory ? `Previous Version (${formatDate(previousHistory.created_at)})` : 'No Previous Version'}
-                    rightTitle={`Selected Version (${formatDate(selectedHistory.created_at)})`}
-                    showDiffOnly={false}
-                    useDarkTheme={theme === 'dark'}
-                  />
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm font-medium">
+                    <span className="text-muted-foreground">
+                      {previousHistory ? `Previous Version (${formatDate(previousHistory.created_at)})` : 'No Previous Version'}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {`Selected Version (${formatDate(selectedHistory.created_at)})`}
+                    </span>
+                  </div>
+                  <div className="overflow-hidden rounded-md border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+                    <DiffEditor
+                      height="500px"
+                      language="sql"
+                      original={previousHistory?.sql_content || ''}
+                      modified={selectedHistory.sql_content}
+                      theme={theme === 'dark' ? 'vs-dark' : 'light'}
+                      options={{
+                        readOnly: true,
+                        renderSideBySide: true,
+                        minimap: { enabled: false },
+                        scrollBeyondLastLine: false,
+                        fontSize: 14,
+                        wordWrap: 'on',
+                        automaticLayout: true,
+                      }}
+                    />
+                  </div>
                 </div>
                 
                 <Button onClick={() => setHistoryModalOpen(false)} className="w-full">
