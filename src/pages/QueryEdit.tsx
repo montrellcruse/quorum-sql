@@ -258,13 +258,13 @@ const QueryEdit = () => {
 
       if (error) throw error;
 
+      // Refresh local state before showing success
+      await fetchQuery();
+
       toast({
         title: 'Success',
         description: 'Query converted to draft',
       });
-
-      // Refresh local state
-      fetchQuery();
     } catch (error: any) {
       toast({
         title: 'Error',
