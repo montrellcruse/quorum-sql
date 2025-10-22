@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import CodeEditor from '@uiw/react-textarea-code-editor';
 import rehypePrism from 'rehype-prism-plus';
+import '@/styles/code-editor.css';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -450,22 +451,24 @@ const QueryView = () => {
           <CardContent>
             <div>
               <Label>SQL Content</Label>
-              <CodeEditor
-                value={query.sql_content}
-                language="sql"
-                readOnly={true}
-                padding={15}
-                rehypePlugins={[[rehypePrism, { showLineNumbers: true }]]}
-                data-color-mode="light"
-                style={{
-                  fontSize: 14,
-                  fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
-                  backgroundColor: '#f4f4f4',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '0.375rem',
-                  minHeight: '300px',
-                }}
-              />
+              <div className="code-editor-with-lines">
+                <CodeEditor
+                  value={query.sql_content}
+                  language="sql"
+                  readOnly={true}
+                  padding={15}
+                  rehypePlugins={[rehypePrism]}
+                  data-color-mode="light"
+                  style={{
+                    fontSize: 14,
+                    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
+                    backgroundColor: '#f4f4f4',
+                    border: '1px solid #e0e0e0',
+                    borderRadius: '0.375rem',
+                    minHeight: '300px',
+                  }}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
