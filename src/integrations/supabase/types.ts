@@ -321,6 +321,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_query_with_quota: {
+        Args: {
+          _approver_user_id: string
+          _query_history_id: string
+          _query_id: string
+        }
+        Returns: Json
+      }
       can_create_team: {
         Args: { _admin_id: string }
         Returns: boolean
