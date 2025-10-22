@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, FileText, Edit, Trash2, Folder as FolderIcon, Home } from 'lucide-react';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
@@ -407,7 +406,6 @@ const Folder = () => {
                 )}
               </div>
               <div className="flex gap-2">
-                <ThemeToggle />
                 {canEditFolder() && (
                   <Button variant="outline" size="sm" onClick={handleEditFolder}>
                     <Edit className="mr-2 h-4 w-4" />
