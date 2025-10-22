@@ -153,6 +153,16 @@ const QueryEdit = () => {
       return;
     }
 
+    // Security: Validate SQL content length
+    if (query.sql_content.length > 100000) {
+      toast({
+        title: 'Error',
+        description: 'SQL content exceeds maximum length of 100,000 characters',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       let queryId = id;
