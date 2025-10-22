@@ -425,11 +425,6 @@ const Dashboard = () => {
               >
                 <CardHeader>
                   <CardTitle>{project.name}</CardTitle>
-                  {project.created_by_email && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Created by {project.created_by_email}
-                    </p>
-                  )}
                   {project.description && <CardDescription>{project.description}</CardDescription>}
                 </CardHeader>
               </Card>
