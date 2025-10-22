@@ -8,6 +8,12 @@ interface AuthContextType {
   loading: boolean;
 }
 
+// Dev-only test accounts that bypass domain validation
+const DEV_TEST_EMAILS = ['admin@test.local', 'test@test.local'];
+const isDevTestAccount = (email: string) => {
+  return import.meta.env.DEV && DEV_TEST_EMAILS.includes(email.toLowerCase());
+};
+
 const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
@@ -35,7 +41,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (session?.user) {
           const userEmail = session.user.email;
           
-          if (userEmail && !userEmail.endsWith('@azdes.gov')) {
+          // Skip validation for dev test accounts
+          if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith('@azdes.gov')) {
             // Sign out the user immediately
             await supabase.auth.signOut();
             console.error('Invalid email domain. Only @azdes.gov emails are allowed.');
@@ -59,7 +66,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (session?.user) {
         const userEmail = session.user.email;
         
-        if (userEmail && !userEmail.endsWith('@azdes.gov')) {
+        // Skip validation for dev test accounts
+        if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith('@azdes.gov')) {
           supabase.auth.signOut();
           console.error('Invalid email domain. Only @azdes.gov emails are allowed.');
           setSession(null);
