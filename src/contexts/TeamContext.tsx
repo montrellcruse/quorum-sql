@@ -12,6 +12,7 @@ interface TeamContextType {
   activeTeam: Team | null;
   userTeams: Team[];
   setActiveTeam: (team: Team) => void;
+  refreshTeams: () => Promise<void>;
   loading: boolean;
 }
 
@@ -19,6 +20,7 @@ const TeamContext = createContext<TeamContextType>({
   activeTeam: null,
   userTeams: [],
   setActiveTeam: () => {},
+  refreshTeams: async () => {},
   loading: true,
 });
 
@@ -100,7 +102,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <TeamContext.Provider value={{ activeTeam, userTeams, setActiveTeam, loading }}>
+    <TeamContext.Provider value={{ activeTeam, userTeams, setActiveTeam, refreshTeams: fetchUserTeams, loading }}>
       {children}
     </TeamContext.Provider>
   );

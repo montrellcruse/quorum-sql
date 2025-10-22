@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTeam } from '@/contexts/TeamContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +12,7 @@ import { Loader2 } from 'lucide-react';
 
 const CreateTeam = () => {
   const { user, loading: authLoading } = useAuth();
+  const { refreshTeams } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -56,6 +58,9 @@ const CreateTeam = () => {
         description: 'Team created successfully!',
       });
 
+      // Refresh teams in context before navigating to ensure new team is loaded
+      await refreshTeams();
+      
       navigate('/dashboard');
     } catch (error: any) {
       toast({
