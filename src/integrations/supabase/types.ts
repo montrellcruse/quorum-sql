@@ -22,6 +22,7 @@ export type Database = {
           id: string
           name: string
           parent_folder_id: string | null
+          team_id: string | null
           updated_at: string
           user_id: string
         }
@@ -32,6 +33,7 @@ export type Database = {
           id?: string
           name: string
           parent_folder_id?: string | null
+          team_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -42,6 +44,7 @@ export type Database = {
           id?: string
           name?: string
           parent_folder_id?: string | null
+          team_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -51,6 +54,13 @@ export type Database = {
             columns: ["parent_folder_id"]
             isOneToOne: false
             referencedRelation: "folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "folders_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -130,6 +140,7 @@ export type Database = {
           last_modified_by_email: string | null
           sql_content: string
           status: string
+          team_id: string | null
           title: string
           updated_at: string
           user_id: string
@@ -143,6 +154,7 @@ export type Database = {
           last_modified_by_email?: string | null
           sql_content: string
           status?: string
+          team_id?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -156,6 +168,7 @@ export type Database = {
           last_modified_by_email?: string | null
           sql_content?: string
           status?: string
+          team_id?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -168,7 +181,73 @@ export type Database = {
             referencedRelation: "folders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sql_queries_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      team_members: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          admin_id: string
+          approval_quota: number
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          admin_id: string
+          approval_quota?: number
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string
+          approval_quota?: number
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -181,6 +260,14 @@ export type Database = {
           full_path: string
           id: string
         }[]
+      }
+      is_team_admin: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_team_member: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
       }
       update_query_status: {
         Args: {
