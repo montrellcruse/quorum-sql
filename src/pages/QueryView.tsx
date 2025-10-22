@@ -12,7 +12,7 @@ import Editor from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Edit, Clock, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit, Clock, Trash2, Copy, Check } from 'lucide-react';
 import ReactDiffViewer from 'react-diff-viewer';
 
 interface Query {
@@ -62,6 +62,7 @@ const QueryView = () => {
   const [approvalQuota, setApprovalQuota] = useState(1);
   const [latestHistoryId, setLatestHistoryId] = useState<string | null>(null);
   const [hasUserApproved, setHasUserApproved] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -330,6 +331,22 @@ const QueryView = () => {
     }
   };
 
+  const handleCopySql = async () => {
+    if (!query?.sql_content) return;
+
+    try {
+      await navigator.clipboard.writeText(query.sql_content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to copy to clipboard',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const canApprove = query?.status === 'pending_approval' && 
                      query?.last_modified_by_email !== user?.email &&
                      !hasUserApproved;
@@ -448,7 +465,27 @@ const QueryView = () => {
           </CardHeader>
           <CardContent>
             <div>
-              <Label>SQL Content</Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label>SQL Content</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopySql}
+                  className="h-8"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="mr-2 h-4 w-4" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copy SQL
+                    </>
+                  )}
+                </Button>
+              </div>
               <div style={{ border: '1px solid #e0e0e0', borderRadius: '0.375rem', overflow: 'hidden' }}>
                 <Editor
                   height="300px"
