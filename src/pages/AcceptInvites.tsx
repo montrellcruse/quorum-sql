@@ -187,7 +187,7 @@ const AcceptInvites = () => {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <main className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>Team Invitations</CardTitle>
@@ -229,7 +229,7 @@ const AcceptInvites = () => {
           ))}
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 };
 

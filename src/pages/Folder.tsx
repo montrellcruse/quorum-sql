@@ -365,7 +365,7 @@ const Folder = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6">
           <Breadcrumb>
@@ -624,7 +624,7 @@ const Folder = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </div>
+    </main>
   );
 };
 

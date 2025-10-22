@@ -271,7 +271,7 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-8">
       <div className="mx-auto max-w-7xl">
         <header className="mb-8 flex items-center justify-between">
           <div>
@@ -441,7 +441,7 @@ const Dashboard = () => {
           </Card>
         )}
       </div>
-    </div>
+    </main>
   );
 };
 
