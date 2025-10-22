@@ -417,7 +417,8 @@ const QueryEdit = () => {
     }
   };
 
-  const isEditable = query?.status === 'draft';
+  // All team members can edit any query
+  const isEditable = true;
 
   if (loading || loadingQuery) {
     return (
@@ -469,8 +470,8 @@ const QueryEdit = () => {
             <CardTitle>{isNewQuery ? 'New Query' : 'Edit Query'}</CardTitle>
             <CardDescription>
               {isNewQuery ? 'Create a new SQL query' : 
-               query.status === 'pending_approval' ? 'Query pending approval' :
-               query.status === 'approved' ? 'Approved query' :
+               query.status === 'pending_approval' ? 'Editing query (currently pending approval)' :
+               query.status === 'approved' ? 'Editing approved query (will create new version)' :
                'Edit SQL query'}
             </CardDescription>
           </CardHeader>
@@ -482,7 +483,6 @@ const QueryEdit = () => {
                 value={query.title}
                 onChange={(e) => setQuery({ ...query, title: e.target.value })}
                 placeholder="Enter query title"
-                disabled={!isEditable}
               />
             </div>
 
@@ -494,7 +494,6 @@ const QueryEdit = () => {
                 onChange={(e) => setQuery({ ...query, description: e.target.value })}
                 placeholder="Enter query description"
                 rows={3}
-                disabled={!isEditable}
               />
             </div>
 
@@ -507,7 +506,7 @@ const QueryEdit = () => {
                   value={query.sql_content}
                   onChange={(value) => setQuery({ ...query, sql_content: value || '' })}
                   options={{
-                    readOnly: !isEditable,
+                    readOnly: false,
                     minimap: { enabled: false },
                     fontSize: 14,
                     lineNumbers: 'on',
