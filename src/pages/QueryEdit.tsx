@@ -8,9 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import CodeEditor from '@uiw/react-textarea-code-editor';
-import rehypePrism from 'rehype-prism-plus';
-import '@/styles/code-editor.css';
+import CodeMirror from '@uiw/react-codemirror';
+import { sql } from '@codemirror/lang-sql';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Save, Trash2, FolderInput } from 'lucide-react';
 import {
@@ -500,26 +499,21 @@ const QueryEdit = () => {
 
             <div>
               <Label htmlFor="sql_content">SQL Content</Label>
-              <div className="code-editor-with-lines">
-                <CodeEditor
-                  value={query.sql_content}
-                  language="sql"
-                  placeholder="Enter your SQL query here"
-                  onChange={(e) => setQuery({ ...query, sql_content: e.target.value })}
-                  padding={15}
-                  disabled={!isEditable}
-                  rehypePlugins={[rehypePrism]}
-                  data-color-mode="light"
-                  style={{
-                    fontSize: 14,
-                    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
-                    backgroundColor: '#f4f4f4',
-                    border: '1px solid #e0e0e0',
-                    borderRadius: '0.375rem',
-                    minHeight: '300px',
-                  }}
-                />
-              </div>
+              <CodeMirror
+                value={query.sql_content}
+                extensions={[sql()]}
+                basicSetup={{ lineNumbers: true }}
+                onChange={(value) => setQuery({ ...query, sql_content: value })}
+                editable={isEditable}
+                theme="light"
+                style={{
+                  fontSize: 14,
+                  fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '0.375rem',
+                  minHeight: '300px',
+                }}
+              />
             </div>
 
             {query.status === 'draft' && (
