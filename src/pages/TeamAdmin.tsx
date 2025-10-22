@@ -183,74 +183,59 @@ const TeamAdmin = () => {
     try {
       const email = newUserEmail.trim();
 
-      // Check if user already exists in the system
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('user_id')
-        .eq('email', email)
+      // Check if a pending invitation already exists
+      const { data: existingInvite, error: checkError } = await supabase
+        .from('team_invitations')
+        .select('id')
+        .eq('team_id', selectedTeamId)
+        .eq('invited_email', email)
+        .eq('status', 'pending')
         .maybeSingle();
 
-      if (profile) {
-        // User exists - add them directly to the team
-        const { error } = await supabase
-          .from('team_members')
-          .insert({
-            team_id: selectedTeamId,
-            user_id: profile.user_id,
-            role: newUserRole,
-          });
-
-        if (error) {
-          if (error.code === '23505') {
-            toast({
-              title: 'Error',
-              description: 'User is already a member of this team.',
-              variant: 'destructive',
-            });
-          } else {
-            throw error;
-          }
-          return;
-        }
-
-        toast({
-          title: 'Success',
-          description: 'User added to team successfully.',
-        });
-        fetchTeamMembers();
-      } else {
-        // User doesn't exist - create pending invitation
-        const { error } = await supabase
-          .from('team_invitations')
-          .insert({
-            team_id: selectedTeamId,
-            invited_email: email,
-            role: newUserRole,
-            status: 'pending',
-          });
-
-        if (error) {
-          if (error.code === '23505') {
-            toast({
-              title: 'Error',
-              description: 'An invitation has already been sent to this email.',
-              variant: 'destructive',
-            });
-          } else {
-            throw error;
-          }
-          return;
-        }
-
-        toast({
-          title: 'Success',
-          description: 'Invitation sent successfully. The user will be added when they sign up.',
-        });
-        fetchPendingInvitations();
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError;
       }
 
+      if (existingInvite) {
+        toast({
+          title: 'Error',
+          description: 'This user has a pending invite.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Create pending invitation
+      const { error } = await supabase
+        .from('team_invitations')
+        .insert({
+          team_id: selectedTeamId,
+          invited_email: email,
+          role: newUserRole,
+          status: 'pending',
+        });
+
+      if (error) {
+        if (error.code === '23505') {
+          toast({
+            title: 'Error',
+            description: 'This user has a pending invite.',
+            variant: 'destructive',
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Invitation sent successfully.',
+      });
+      
       setNewUserEmail('');
       setNewUserRole('member');
+      fetchPendingInvitations();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -466,7 +451,7 @@ const TeamAdmin = () => {
                   </Button>
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  If the user exists, they'll be added immediately. Otherwise, they'll receive an invitation when they sign up.
+                  Users will be added to the team when they sign up with this email address.
                 </p>
               </form>
 
