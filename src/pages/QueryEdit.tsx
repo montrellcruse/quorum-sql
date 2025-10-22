@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import CodeEditor from '@uiw/react-textarea-code-editor';
+import rehypePrism from 'rehype-prism-plus';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Save, Trash2, FolderInput } from 'lucide-react';
 import {
@@ -505,6 +506,8 @@ const QueryEdit = () => {
                 onChange={(e) => setQuery({ ...query, sql_content: e.target.value })}
                 padding={15}
                 disabled={!isEditable}
+                rehypePlugins={[[rehypePrism, { showLineNumbers: true }]]}
+                data-color-mode="light"
                 style={{
                   fontSize: 14,
                   fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
