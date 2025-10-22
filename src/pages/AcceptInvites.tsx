@@ -86,24 +86,25 @@ const AcceptInvites = () => {
 
       if (memberError) throw memberError;
 
-      // Update invitation status
-      const { error: updateError } = await supabase
+      // Delete the invitation record
+      const { error: deleteError } = await supabase
         .from('team_invitations')
-        .update({ status: 'accepted' })
+        .delete()
         .eq('id', invitationId);
 
-      if (updateError) throw updateError;
+      if (deleteError) throw deleteError;
 
       toast({
         title: 'Success',
         description: 'Invitation accepted successfully.',
       });
 
-      // Remove from local state
-      setInvitations(prev => prev.filter(inv => inv.id !== invitationId));
+      // Remove from local state and check if we should redirect
+      const updatedInvitations = invitations.filter(inv => inv.id !== invitationId);
+      setInvitations(updatedInvitations);
 
-      // If no more invites, redirect
-      if (invitations.length === 1) {
+      // If no more invites, redirect to dashboard
+      if (updatedInvitations.length === 0) {
         navigate('/dashboard');
       }
     } catch (error: any) {
@@ -120,9 +121,10 @@ const AcceptInvites = () => {
   const handleDecline = async (invitationId: string) => {
     setProcessingId(invitationId);
     try {
+      // Delete the invitation record
       const { error } = await supabase
         .from('team_invitations')
-        .update({ status: 'declined' })
+        .delete()
         .eq('id', invitationId);
 
       if (error) throw error;
@@ -132,11 +134,12 @@ const AcceptInvites = () => {
         description: 'Invitation declined.',
       });
 
-      // Remove from local state
-      setInvitations(prev => prev.filter(inv => inv.id !== invitationId));
+      // Remove from local state and check if we should redirect
+      const updatedInvitations = invitations.filter(inv => inv.id !== invitationId);
+      setInvitations(updatedInvitations);
 
       // If no more invites, redirect based on team membership
-      if (invitations.length === 1) {
+      if (updatedInvitations.length === 0) {
         const hasMembership = await checkUserTeamMembership(user!.id);
         navigate(hasMembership ? '/dashboard' : '/create-team');
       }
