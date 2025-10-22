@@ -22,6 +22,7 @@ interface Folder {
   created_at: string;
   parent_folder_id: string | null;
   team_id: string | null;
+  user_id: string;
 }
 
 interface Query {
@@ -232,6 +233,20 @@ const Folder = () => {
     }
   };
 
+  const canEditFolder = () => {
+    if (!folder || !user || !activeTeam) return false;
+    const isOwner = folder.user_id === user.id;
+    const isAdmin = activeTeam.role === 'admin';
+    return isOwner || isAdmin;
+  };
+
+  const canDeleteFolder = () => {
+    if (!folder || !user || !activeTeam) return false;
+    const isOwner = folder.user_id === user.id;
+    const isAdmin = activeTeam.role === 'admin';
+    return isOwner || isAdmin;
+  };
+
   const handleDeleteFolder = async () => {
     if (queries.length > 0) {
       toast({
@@ -391,14 +406,18 @@ const Folder = () => {
                 )}
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleEditFolder}>
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit Folder
-                </Button>
-                <Button variant="destructive" size="sm" onClick={handleDeleteFolder}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Folder
-                </Button>
+                {canEditFolder() && (
+                  <Button variant="outline" size="sm" onClick={handleEditFolder}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit Folder
+                  </Button>
+                )}
+                {canDeleteFolder() && (
+                  <Button variant="destructive" size="sm" onClick={handleDeleteFolder}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Folder
+                  </Button>
+                )}
               </div>
             </div>
           </CardHeader>
