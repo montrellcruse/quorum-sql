@@ -8,8 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import CodeMirror from '@uiw/react-codemirror';
-import { sql } from '@codemirror/lang-sql';
+import Editor from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -450,20 +449,22 @@ const QueryView = () => {
           <CardContent>
             <div>
               <Label>SQL Content</Label>
-              <CodeMirror
-                value={query.sql_content}
-                extensions={[sql()]}
-                basicSetup={{ lineNumbers: true }}
-                editable={false}
-                theme="light"
-                style={{
-                  fontSize: 14,
-                  fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '0.375rem',
-                  minHeight: '300px',
-                }}
-              />
+              <div style={{ border: '1px solid #e0e0e0', borderRadius: '0.375rem', overflow: 'hidden' }}>
+                <Editor
+                  height="300px"
+                  defaultLanguage="sql"
+                  value={query.sql_content}
+                  options={{
+                    readOnly: true,
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    lineNumbers: 'on',
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                  }}
+                  theme="light"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
