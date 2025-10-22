@@ -377,23 +377,26 @@ const QueryView = () => {
   }
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-4 sm:p-6 md:p-8">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-4">
           <Button
             variant="ghost"
             onClick={() => navigate(`/folder/${query.folder_id}`)}
+            size="sm"
+            className="w-fit"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Folder
+            <ArrowLeft className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Back to Folder</span>
           </Button>
           
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {query?.status === 'pending_approval' && (
               <>
                 <Button 
                   onClick={handleApprove} 
                   disabled={updating || !canApprove}
+                  className="w-full sm:w-auto"
                 >
                   {updating ? 'Processing...' : hasUserApproved ? 'Already Approved' : 'Approve'}
                 </Button>
@@ -402,23 +405,25 @@ const QueryView = () => {
                     onClick={handleReject} 
                     disabled={updating}
                     variant="outline"
+                    className="w-full sm:w-auto"
                   >
                     {updating ? 'Processing...' : 'Reject'}
                   </Button>
                 )}
               </>
             )}
-            <Button onClick={() => navigate(`/query/edit/${query.id}`)}>
-              <Edit className="mr-2 h-4 w-4" />
-              Edit Query
+            <Button onClick={() => navigate(`/query/edit/${query.id}`)} className="w-full sm:w-auto">
+              <Edit className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Edit</span>
             </Button>
             {canDeleteQuery() && (
               <Button 
                 onClick={() => setDeleteDialogOpen(true)} 
                 variant="destructive"
+                className="w-full sm:w-auto"
               >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Query
+                <Trash2 className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Delete</span>
               </Button>
             )}
           </div>
@@ -426,28 +431,30 @@ const QueryView = () => {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2 mb-2">
-              <CardTitle>{query.title}</CardTitle>
-              <Badge variant={getStatusVariant(query.status)}>
-                {query.status === 'pending_approval' ? 'Pending Approval' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
-              </Badge>
-              {query.status === 'pending_approval' && (
-                <Badge variant="outline">
-                  Approvals: {approvals.length} / {approvalQuota}
+            <div className="flex flex-col gap-2 mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <CardTitle className="text-lg sm:text-xl break-words">{query.title}</CardTitle>
+                <Badge variant={getStatusVariant(query.status)} className="w-fit">
+                  {query.status === 'pending_approval' ? 'Pending' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
                 </Badge>
-              )}
+                {query.status === 'pending_approval' && (
+                  <Badge variant="outline" className="w-fit">
+                    Approvals: {approvals.length} / {approvalQuota}
+                  </Badge>
+                )}
+              </div>
             </div>
             {query.description && (
-              <CardDescription>{query.description}</CardDescription>
+              <CardDescription className="break-words">{query.description}</CardDescription>
             )}
             <div className="mt-4 space-y-1 text-sm">
               {query.created_by_email && (
-                <p className="text-muted-foreground">
+                <p className="text-muted-foreground break-words">
                   Created by {query.created_by_email}
                 </p>
               )}
               {query.last_modified_by_email && (
-                <p className="text-muted-foreground">
+                <p className="text-muted-foreground break-words">
                   Last modified by {query.last_modified_by_email}
                 </p>
               )}
@@ -455,13 +462,13 @@ const QueryView = () => {
           </CardHeader>
           <CardContent>
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                 <Label>SQL Content</Label>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleCopySql}
-                  className="h-8"
+                  className="w-full sm:w-auto"
                 >
                   {copied ? (
                     <>
@@ -479,6 +486,7 @@ const QueryView = () => {
               <div className="overflow-hidden rounded-md border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
                 <Editor
                   height="300px"
+                  className="sm:h-[400px]"
                   defaultLanguage="sql"
                   value={query.sql_content}
                   options={{
@@ -488,6 +496,7 @@ const QueryView = () => {
                     lineNumbers: 'on',
                     scrollBeyondLastLine: false,
                     automaticLayout: true,
+                    wordWrap: 'on',
                   }}
                   theme={theme === "dark" ? "vs-dark" : "light"}
                 />
@@ -498,7 +507,7 @@ const QueryView = () => {
 
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Change History</CardTitle>
+            <CardTitle className="text-lg sm:text-xl">Change History</CardTitle>
             <CardDescription>
               View all previous versions of this query
             </CardDescription>
@@ -514,18 +523,18 @@ const QueryView = () => {
                     onClick={() => handleHistoryClick(record, index)}
                     className="w-full flex items-start justify-between rounded-lg border p-3 text-left transition-colors hover:bg-accent"
                   >
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{record.modified_by_email}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm break-words">{record.modified_by_email}</p>
                       <p className="text-xs text-muted-foreground">
                         {formatDate(record.created_at)}
                       </p>
                       {record.change_reason && (
-                        <p className="text-xs text-muted-foreground mt-1 italic">
+                        <p className="text-xs text-muted-foreground mt-1 italic break-words">
                           {record.change_reason}
                         </p>
                       )}
                     </div>
-                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <Clock className="h-4 w-4 flex-shrink-0 text-muted-foreground ml-2" />
                   </button>
                 ))}
               </div>

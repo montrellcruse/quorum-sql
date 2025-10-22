@@ -468,27 +468,28 @@ const TeamAdmin = () => {
   const adminMembers = members.filter(m => m.role === 'admin');
 
   return (
-    <main className="container mx-auto p-6 max-w-4xl">
+    <main className="container mx-auto p-4 sm:p-6 max-w-4xl">
       <Button
         variant="ghost"
         onClick={() => navigate('/dashboard')}
         className="mb-6"
+        size="sm"
       >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Dashboard
+        <ArrowLeft className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:inline">Back to Dashboard</span>
       </Button>
 
-      <h1 className="text-3xl font-bold mb-6">Team Administration</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6">Team Administration</h1>
 
       {/* Team Selection */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Select Team</CardTitle>
+          <CardTitle className="text-lg sm:text-xl">Select Team</CardTitle>
           <CardDescription>Choose a team to manage</CardDescription>
         </CardHeader>
         <CardContent>
           <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Select a team" />
             </SelectTrigger>
             <SelectContent>
@@ -507,7 +508,7 @@ const TeamAdmin = () => {
           {/* User Management */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Team Members</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">Team Members</CardTitle>
               <CardDescription>Manage team members and their roles</CardDescription>
             </CardHeader>
             <CardContent>
@@ -522,12 +523,13 @@ const TeamAdmin = () => {
                       value={newUserEmail}
                       onChange={(e) => setNewUserEmail(e.target.value)}
                       required
+                      className="w-full"
                     />
                   </div>
                   <div>
                     <Label htmlFor="role">Role</Label>
                     <Select value={newUserRole} onValueChange={setNewUserRole}>
-                      <SelectTrigger id="role">
+                      <SelectTrigger id="role" className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -552,10 +554,10 @@ const TeamAdmin = () => {
                     {invitations.map(invitation => (
                       <div
                         key={invitation.id}
-                        className="flex items-center justify-between p-3 border rounded-lg"
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 border rounded-lg"
                       >
-                        <div>
-                          <p className="font-medium">{invitation.invited_email}</p>
+                        <div className="min-w-0">
+                          <p className="font-medium break-words">{invitation.invited_email}</p>
                           <p className="text-sm text-muted-foreground capitalize">
                             {invitation.role} • Pending
                           </p>
@@ -564,9 +566,10 @@ const TeamAdmin = () => {
                           size="sm"
                           variant="destructive"
                           onClick={() => handleRevokeInvitation(invitation.id)}
+                          className="w-full sm:w-auto sm:flex-shrink-0"
                         >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Revoke
+                          <Trash2 className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden sm:inline">Revoke</span>
                         </Button>
                       </div>
                     ))}
@@ -580,31 +583,33 @@ const TeamAdmin = () => {
                 {members.map(member => (
                   <div
                     key={member.id}
-                    className="flex items-center justify-between p-3 border rounded-lg"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 border rounded-lg"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       {member.role === 'admin' ? (
-                        <Shield className="h-5 w-5 text-primary" />
+                        <Shield className="h-5 w-5 flex-shrink-0 text-primary" />
                       ) : (
-                        <ShieldOff className="h-5 w-5 text-muted-foreground" />
+                        <ShieldOff className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
                       )}
-                      <div>
-                        <p className="font-medium">{member.email}</p>
+                      <div className="min-w-0">
+                        <p className="font-medium break-words">{member.email}</p>
                         <p className="text-sm text-muted-foreground capitalize">
                           {member.role}
                         </p>
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       {/* Only show role toggle if NOT the owner */}
                       {!isTeamOwner(member.user_id) && (
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => handleToggleRole(member.id, member.role)}
+                          className="w-full sm:w-auto"
                         >
-                          <UserCog className="h-4 w-4 mr-1" />
-                          Make {member.role === 'admin' ? 'Member' : 'Admin'}
+                          <UserCog className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden sm:inline">Make {member.role === 'admin' ? 'Member' : 'Admin'}</span>
+                          <span className="sm:hidden">{member.role === 'admin' ? 'Member' : 'Admin'}</span>
                         </Button>
                       )}
                       
@@ -614,6 +619,7 @@ const TeamAdmin = () => {
                           size="sm"
                           variant="destructive"
                           onClick={() => handleRemoveMember(member.id, member.role)}
+                          className="w-full sm:w-auto"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -659,14 +665,14 @@ const TeamAdmin = () => {
           {/* Approval Quota */}
           <Card>
             <CardHeader>
-              <CardTitle>Approval Quota</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">Approval Quota</CardTitle>
               <CardDescription>
                 Set the number of approvals required for queries
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleUpdateApprovalQuota}>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <div className="flex-1">
                     <Label htmlFor="quota">Approval Quota</Label>
                     <Input
@@ -676,9 +682,10 @@ const TeamAdmin = () => {
                       value={approvalQuota}
                       onChange={(e) => setApprovalQuota(parseInt(e.target.value))}
                       required
+                      className="w-full"
                     />
                   </div>
-                  <Button type="submit" className="mt-auto">
+                  <Button type="submit" className="sm:mt-auto w-full sm:w-auto">
                     Update
                   </Button>
                 </div>
