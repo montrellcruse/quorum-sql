@@ -62,70 +62,18 @@ const CreateTeam = () => {
     setCreating(true);
 
     try {
-      // Get current session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError || !session) {
-        console.error('Session error:', sessionError);
-        throw new Error('No valid session. Please sign in again.');
-      }
-
-      // Verify authentication
-      const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !currentUser) {
-        console.error('Auth error:', authError);
-        throw new Error('Authentication required. Please sign in again.');
-      }
-
-      // Debug logging
-      console.log('Creating team with user ID:', currentUser.id);
-      console.log('Session expires at:', new Date(session.expires_at! * 1000));
-      console.log('Current time:', new Date());
-      console.log('Session token present:', !!session.access_token);
-
-      // Verify user exists in profiles
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, user_id')
-        .eq('user_id', currentUser.id)
-        .single();
-
-      if (profileError || !profileData) {
-        console.error('Profile error:', profileError);
-        console.error('User ID:', currentUser.id);
-        throw new Error('User profile not found. Please sign out and sign in again.');
-      }
-
-      console.log('Profile data:', profileData);
-
-      // Create team with verified user ID
+      // Use security definer function for atomic team creation
       const { data: teamData, error: teamError } = await supabase
-        .from('teams')
-        .insert({
-          name: teamName.trim(),
-          admin_id: currentUser.id,
-          approval_quota: 1,
+        .rpc('create_team_with_admin', {
+          _team_name: teamName.trim(),
+          _approval_quota: 1
         })
-        .select()
         .single();
 
       if (teamError) {
         console.error('Team creation error:', teamError);
-        console.error('Attempted admin_id:', currentUser.id);
         throw teamError;
       }
-
-      // Add user as admin member
-      const { error: memberError } = await supabase
-        .from('team_members')
-        .insert({
-          team_id: teamData.id,
-          user_id: currentUser.id,
-          role: 'admin',
-        });
-
-      if (memberError) throw memberError;
 
       toast({
         title: 'Success',
