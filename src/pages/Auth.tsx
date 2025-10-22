@@ -115,12 +115,32 @@ const Auth = () => {
         title: 'Success!',
         description: 'Account created successfully. Redirecting...',
       });
-      // Check team membership and redirect accordingly
-      const hasTeam = await checkUserTeamMembership((await supabase.auth.getUser()).data.user?.id || '');
-      if (hasTeam) {
-        navigate('/dashboard');
-      } else {
-        navigate('/create-team');
+      
+      // Get the newly created user
+      const { data: { user: newUser } } = await supabase.auth.getUser();
+      
+      if (newUser) {
+        // Process any pending invitations for this email
+        const { data: processResult, error: processError } = await supabase
+          .rpc('process_pending_invitations', { _user_id: newUser.id });
+        
+        if (!processError && processResult && processResult.length > 0) {
+          const count = processResult[0].processed_count;
+          if (count > 0) {
+            toast({
+              title: 'Welcome!',
+              description: `You've been added to ${count} team${count > 1 ? 's' : ''}.`,
+            });
+          }
+        }
+        
+        // Check team membership and redirect accordingly
+        const hasTeam = await checkUserTeamMembership(newUser.id);
+        if (hasTeam) {
+          navigate('/dashboard');
+        } else {
+          navigate('/create-team');
+        }
       }
     }
   };

@@ -25,6 +25,14 @@ interface TeamMember {
   email?: string;
 }
 
+interface TeamInvitation {
+  id: string;
+  invited_email: string;
+  role: string;
+  status: string;
+  created_at: string;
+}
+
 const TeamAdmin = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -34,8 +42,10 @@ const TeamAdmin = () => {
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState('member');
   const [approvalQuota, setApprovalQuota] = useState(1);
   const [handoverDialogOpen, setHandoverDialogOpen] = useState(false);
   const [selectedNewAdmin, setSelectedNewAdmin] = useState<string>('');
@@ -52,6 +62,7 @@ const TeamAdmin = () => {
     if (selectedTeamId) {
       fetchTeamDetails();
       fetchTeamMembers();
+      fetchPendingInvitations();
     }
   }, [selectedTeamId]);
 
@@ -145,55 +156,124 @@ const TeamAdmin = () => {
     }
   };
 
+  const fetchPendingInvitations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('team_invitations')
+        .select('*')
+        .eq('team_id', selectedTeamId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setInvitations(data || []);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserEmail.trim()) return;
 
     try {
-      // Find user by email
+      const email = newUserEmail.trim();
+
+      // Check if user already exists in the system
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('user_id')
-        .eq('email', newUserEmail.trim())
-        .single();
+        .eq('email', email)
+        .maybeSingle();
 
-      if (profileError || !profile) {
-        toast({
-          title: 'Error',
-          description: 'User not found with this email.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Add to team
-      const { error } = await supabase
-        .from('team_members')
-        .insert({
-          team_id: selectedTeamId,
-          user_id: profile.user_id,
-          role: 'member',
-        });
-
-      if (error) {
-        if (error.code === '23505') {
-          toast({
-            title: 'Error',
-            description: 'User is already a member of this team.',
-            variant: 'destructive',
+      if (profile) {
+        // User exists - add them directly to the team
+        const { error } = await supabase
+          .from('team_members')
+          .insert({
+            team_id: selectedTeamId,
+            user_id: profile.user_id,
+            role: newUserRole,
           });
-        } else {
-          throw error;
+
+        if (error) {
+          if (error.code === '23505') {
+            toast({
+              title: 'Error',
+              description: 'User is already a member of this team.',
+              variant: 'destructive',
+            });
+          } else {
+            throw error;
+          }
+          return;
         }
-        return;
+
+        toast({
+          title: 'Success',
+          description: 'User added to team successfully.',
+        });
+        fetchTeamMembers();
+      } else {
+        // User doesn't exist - create pending invitation
+        const { error } = await supabase
+          .from('team_invitations')
+          .insert({
+            team_id: selectedTeamId,
+            invited_email: email,
+            role: newUserRole,
+            status: 'pending',
+          });
+
+        if (error) {
+          if (error.code === '23505') {
+            toast({
+              title: 'Error',
+              description: 'An invitation has already been sent to this email.',
+              variant: 'destructive',
+            });
+          } else {
+            throw error;
+          }
+          return;
+        }
+
+        toast({
+          title: 'Success',
+          description: 'Invitation sent successfully. The user will be added when they sign up.',
+        });
+        fetchPendingInvitations();
       }
+
+      setNewUserEmail('');
+      setNewUserRole('member');
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRevokeInvitation = async (invitationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('team_invitations')
+        .delete()
+        .eq('id', invitationId);
+
+      if (error) throw error;
 
       toast({
         title: 'Success',
-        description: 'User invited successfully.',
+        description: 'Invitation revoked successfully.',
       });
-      setNewUserEmail('');
-      fetchTeamMembers();
+      fetchPendingInvitations();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -357,8 +437,8 @@ const TeamAdmin = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleInviteUser} className="mb-6">
-                <div className="flex gap-2">
-                  <div className="flex-1">
+                <div className="space-y-4">
+                  <div>
                     <Label htmlFor="email">Invite User by Email</Label>
                     <Input
                       id="email"
@@ -369,11 +449,57 @@ const TeamAdmin = () => {
                       required
                     />
                   </div>
-                  <Button type="submit" className="mt-auto">
-                    Invite
+                  <div>
+                    <Label htmlFor="role">Role</Label>
+                    <Select value={newUserRole} onValueChange={setNewUserRole}>
+                      <SelectTrigger id="role">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button type="submit" className="w-full">
+                    Invite User
                   </Button>
                 </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  If the user exists, they'll be added immediately. Otherwise, they'll receive an invitation when they sign up.
+                </p>
               </form>
+
+              {invitations.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="font-semibold mb-3">Pending Invitations</h3>
+                  <div className="space-y-2">
+                    {invitations.map(invitation => (
+                      <div
+                        key={invitation.id}
+                        className="flex items-center justify-between p-3 border rounded-lg"
+                      >
+                        <div>
+                          <p className="font-medium">{invitation.invited_email}</p>
+                          <p className="text-sm text-muted-foreground capitalize">
+                            {invitation.role} • Pending
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRevokeInvitation(invitation.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Revoke
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <h3 className="font-semibold mb-3">Current Members</h3>
 
               <div className="space-y-2">
                 {members.map(member => (
