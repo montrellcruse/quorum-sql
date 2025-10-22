@@ -287,6 +287,16 @@ export type Database = {
         Args: { _admin_id: string }
         Returns: boolean
       }
+      create_team_with_admin: {
+        Args: { _approval_quota?: number; _team_name: string }
+        Returns: {
+          admin_id: string
+          approval_quota: number
+          created_at: string
+          team_id: string
+          team_name: string
+        }[]
+      }
       get_all_folder_paths: {
         Args: Record<PropertyKey, never>
         Returns: {
