@@ -12,7 +12,7 @@ interface TeamInvitation {
   team_id: string;
   invited_email: string;
   role: string;
-  teams: {
+  teams?: {
     name: string;
   };
 }
@@ -48,21 +48,43 @@ const AcceptInvites = () => {
         return;
       }
 
-      const { data, error } = await supabase
+      // Step 1: Fetch invitations without nested relation
+      const { data: invitationsData, error: invitationsError } = await supabase
         .from('team_invitations')
-        .select('id, team_id, invited_email, role, teams(name)')
+        .select('id, team_id, invited_email, role')
         .eq('invited_email', userEmail)
         .eq('status', 'pending');
 
-      if (error) throw error;
-
-      setInvitations(data || []);
+      if (invitationsError) throw invitationsError;
 
       // If no pending invites, redirect based on team membership
-      if (!data || data.length === 0) {
+      if (!invitationsData || invitationsData.length === 0) {
         const hasMembership = await checkUserTeamMembership(user!.id);
         navigate(hasMembership ? '/dashboard' : '/create-team');
+        return;
       }
+
+      // Step 2: Fetch team data separately
+      const teamIds = invitationsData.map(inv => inv.team_id);
+      const { data: teamsData, error: teamsError } = await supabase
+        .from('teams')
+        .select('id, name')
+        .in('id', teamIds);
+
+      if (teamsError) {
+        console.error('Error fetching teams:', teamsError);
+      }
+
+      // Step 3: Map team data to invitations
+      const invitationsWithTeams: TeamInvitation[] = invitationsData.map(inv => {
+        const team = teamsData?.find(t => t.id === inv.team_id);
+        return {
+          ...inv,
+          teams: team ? { name: team.name } : undefined
+        };
+      });
+
+      setInvitations(invitationsWithTeams);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -179,7 +201,9 @@ const AcceptInvites = () => {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold">{invitation.teams.name}</h3>
+                    <h3 className="font-semibold">
+                      {invitation.teams?.name || 'Team Invitation'}
+                    </h3>
                     <p className="text-sm text-muted-foreground">
                       Role: {invitation.role}
                     </p>
