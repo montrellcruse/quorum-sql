@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import CodeEditor from '@uiw/react-textarea-code-editor';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -448,11 +449,18 @@ const QueryView = () => {
           <CardContent>
             <div>
               <Label>SQL Content</Label>
-              <Textarea
+              <CodeEditor
                 value={query.sql_content}
-                readOnly
-                rows={15}
-                className="font-mono text-sm mt-2"
+                language="sql"
+                readOnly={true}
+                padding={15}
+                style={{
+                  fontSize: 14,
+                  fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
+                  backgroundColor: '#f9fafb',
+                  borderRadius: '0.375rem',
+                  minHeight: '300px',
+                }}
               />
             </div>
           </CardContent>

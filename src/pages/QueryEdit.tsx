@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import CodeEditor from '@uiw/react-textarea-code-editor';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Save, Trash2, FolderInput } from 'lucide-react';
 import {
@@ -497,14 +498,20 @@ const QueryEdit = () => {
 
             <div>
               <Label htmlFor="sql_content">SQL Content</Label>
-              <Textarea
-                id="sql_content"
+              <CodeEditor
                 value={query.sql_content}
+                language="sql"
+                placeholder="Enter your SQL query here"
                 onChange={(e) => setQuery({ ...query, sql_content: e.target.value })}
-                placeholder="Enter your SQL query here..."
-                rows={12}
-                className="font-mono text-sm"
+                padding={15}
                 disabled={!isEditable}
+                style={{
+                  fontSize: 14,
+                  fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
+                  backgroundColor: '#f6f8fa',
+                  borderRadius: '0.375rem',
+                  minHeight: '300px',
+                }}
               />
             </div>
 
