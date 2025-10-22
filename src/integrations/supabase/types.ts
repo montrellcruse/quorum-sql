@@ -329,10 +329,7 @@ export type Database = {
         }
         Returns: Json
       }
-      can_create_team: {
-        Args: { _admin_id: string }
-        Returns: boolean
-      }
+      can_create_team: { Args: { _admin_id: string }; Returns: boolean }
       create_team_with_admin: {
         Args: { _approval_quota?: number; _team_name: string }
         Returns: {
@@ -344,20 +341,14 @@ export type Database = {
         }[]
       }
       get_all_folder_paths: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           full_path: string
           id: string
         }[]
       }
-      get_folder_team_id: {
-        Args: { _folder_id: string }
-        Returns: string
-      }
-      get_query_team_id: {
-        Args: { _query_id: string }
-        Returns: string
-      }
+      get_folder_team_id: { Args: { _folder_id: string }; Returns: string }
+      get_query_team_id: { Args: { _query_id: string }; Returns: string }
       is_team_admin: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
@@ -372,6 +363,14 @@ export type Database = {
           processed_count: number
           team_ids: string[]
         }[]
+      }
+      reject_query_with_authorization: {
+        Args: {
+          _query_history_id: string
+          _query_id: string
+          _rejecter_user_id: string
+        }
+        Returns: Json
       }
       update_query_status: {
         Args: {

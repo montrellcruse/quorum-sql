@@ -75,6 +75,28 @@ const QueryEdit = () => {
   const isNewQuery = id === 'new';
   const folderId = location.state?.folderId;
 
+  // SQL content validation
+  const validateSqlContent = (content: string): { valid: boolean; error?: string } => {
+    if (!content || content.trim().length === 0) {
+      return { valid: false, error: 'SQL content cannot be empty' };
+    }
+    
+    if (content.length > 100000) {
+      return { valid: false, error: 'SQL content exceeds maximum length of 100KB' };
+    }
+    
+    // Basic SQL syntax check - ensure it contains SQL keywords
+    const sqlKeywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'WITH'];
+    const upperContent = content.toUpperCase();
+    const hasSqlKeyword = sqlKeywords.some(keyword => upperContent.includes(keyword));
+    
+    if (!hasSqlKeyword) {
+      return { valid: false, error: 'Content does not appear to be valid SQL' };
+    }
+    
+    return { valid: true };
+  };
+
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
@@ -153,11 +175,12 @@ const QueryEdit = () => {
       return;
     }
 
-    // Security: Validate SQL content length
-    if (query.sql_content.length > 100000) {
+    // Validate SQL content using the validation function
+    const validation = validateSqlContent(query.sql_content);
+    if (!validation.valid) {
       toast({
-        title: 'Error',
-        description: 'SQL content exceeds maximum length of 100,000 characters',
+        title: 'Validation Error',
+        description: validation.error,
         variant: 'destructive',
       });
       return;
@@ -227,7 +250,6 @@ const QueryEdit = () => {
           });
 
         if (historyError) {
-          console.error('History insert error:', { message: historyError?.message });
           throw historyError;
         }
         
