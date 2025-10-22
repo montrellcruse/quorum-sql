@@ -201,68 +201,41 @@ const QueryView = () => {
   const handleApprove = async () => {
     if (!query || !id || !user || !latestHistoryId) return;
     
-    // Check if user already approved
-    if (hasUserApproved) {
-      toast({
-        title: 'Already Approved',
-        description: 'You have already approved this change.',
-        variant: 'default',
-      });
-      return;
-    }
-
     setUpdating(true);
     try {
-      // Add approval
-      const { error: approvalError } = await supabase
-        .from('query_approvals')
-        .insert({
-          query_history_id: latestHistoryId,
-          user_id: user.id,
+      // Call the security definer function
+      const { data, error } = await supabase.rpc('approve_query_with_quota', {
+        _query_id: id,
+        _query_history_id: latestHistoryId,
+        _approver_user_id: user.id,
+      });
+
+      if (error) throw error;
+
+      const result = data as any;
+
+      if (!result.success) {
+        toast({
+          title: 'Error',
+          description: result.error,
+          variant: 'destructive',
         });
+        return;
+      }
 
-      if (approvalError) throw approvalError;
-
-      // Fetch updated approval count
-      const { data: approvalsData, error: countError } = await supabase
-        .from('query_approvals')
-        .select('id')
-        .eq('query_history_id', latestHistoryId);
-
-      if (countError) throw countError;
-
-      const approvalCount = approvalsData?.length || 0;
-
-      // Check if quota met
-      if (approvalCount >= approvalQuota) {
-        // Update query status to approved
-        const { error: queryError } = await supabase
-          .from('sql_queries')
-          .update({ status: 'approved' })
-          .eq('id', id);
-
-        if (queryError) throw queryError;
-
-        // Update history status to approved
-        const { error: historyError } = await supabase
-          .from('query_history')
-          .update({ status: 'approved' })
-          .eq('id', latestHistoryId);
-
-        if (historyError) throw historyError;
-
+      if (result.approved) {
         toast({
           title: 'Success',
-          description: `Query fully approved (${approvalCount}/${approvalQuota} approvals reached)`,
+          description: `${result.message} (${result.approval_count}/${result.approval_quota} approvals reached)`,
         });
       } else {
         toast({
           title: 'Approval Recorded',
-          description: `Approval recorded (${approvalCount}/${approvalQuota} approvals)`,
+          description: `${result.message} (${result.approval_count}/${result.approval_quota} approvals)`,
         });
       }
 
-      // Refresh data
+      // Force full refresh of all data
       await fetchQuery();
       await fetchHistory();
       await fetchApprovals();
