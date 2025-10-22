@@ -25,7 +25,16 @@ const Auth = () => {
   // Redirect if already logged in
   useEffect(() => {
     const redirectUser = async () => {
-      if (user) {
+      if (user && user.email) {
+        // Check for pending invitations first
+        const hasPendingInvites = await checkPendingInvitations(user.email);
+        
+        if (hasPendingInvites) {
+          navigate('/accept-invites');
+          return;
+        }
+        
+        // If no pending invitations, check team membership
         const hasTeam = await checkUserTeamMembership(user.id);
         if (hasTeam) {
           navigate('/dashboard');
