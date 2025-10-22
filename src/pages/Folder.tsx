@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTeam } from '@/contexts/TeamContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +21,7 @@ interface Folder {
   description: string | null;
   created_at: string;
   parent_folder_id: string | null;
+  team_id: string | null;
 }
 
 interface Query {
@@ -40,6 +42,7 @@ interface BreadcrumbFolder {
 const Folder = () => {
   const { id } = useParams<{ id: string }>();
   const { user, loading } = useAuth();
+  const { activeTeam } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [folder, setFolder] = useState<Folder | null>(null);
@@ -311,6 +314,7 @@ const Folder = () => {
           parent_folder_id: id,
           user_id: user?.id,
           created_by_email: user?.email || '',
+          team_id: activeTeam?.id || folder?.team_id,
         });
 
       if (error) throw error;
