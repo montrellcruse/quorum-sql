@@ -181,7 +181,7 @@ const QueryView = () => {
       const userApproval = (approvalsData || []).some(a => a.user_id === user?.id);
       setHasUserApproved(userApproval);
     } catch (error: any) {
-      console.error('Error fetching approvals:', { message: error?.message });
+      // Error fetching approvals - silently fail as this is not critical
     }
   };
 
@@ -246,7 +246,6 @@ const QueryView = () => {
       await fetchHistory();
       await fetchApprovals();
     } catch (error: any) {
-      console.error('Approval error:', { message: error?.message });
       toast({
         title: 'Error',
         description: error.message,
@@ -258,33 +257,24 @@ const QueryView = () => {
   };
 
   const handleReject = async () => {
-    if (!query || !id || !latestHistoryId) return;
+    if (!query || !id || !latestHistoryId || !user?.id) return;
     
     setUpdating(true);
     try {
-      // Update query status to draft
-      const { error: queryError } = await supabase
-        .from('sql_queries')
-        .update({ status: 'draft' })
-        .eq('id', id);
+      // Use secure RPC function with authorization checks
+      const { data, error } = await supabase.rpc('reject_query_with_authorization', {
+        _query_id: id,
+        _query_history_id: latestHistoryId,
+        _rejecter_user_id: user.id,
+      });
 
-      if (queryError) throw queryError;
+      if (error) throw error;
 
-      // Update history status to rejected
-      const { error: historyError } = await supabase
-        .from('query_history')
-        .update({ status: 'rejected' })
-        .eq('id', latestHistoryId);
+      const result = data as { success: boolean; error?: string; message?: string };
 
-      if (historyError) throw historyError;
-
-      // Clear all approvals for this history record
-      const { error: clearError } = await supabase
-        .from('query_approvals')
-        .delete()
-        .eq('query_history_id', latestHistoryId);
-
-      if (clearError) throw clearError;
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to reject query');
+      }
 
       toast({
         title: 'Success',
@@ -295,10 +285,9 @@ const QueryView = () => {
       await fetchQuery();
       await fetchHistory();
     } catch (error: any) {
-      console.error('Rejection error:', { message: error?.message });
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || 'Failed to reject query',
         variant: 'destructive',
       });
     } finally {

@@ -9,13 +9,11 @@ export const checkUserTeamMembership = async (userId: string): Promise<boolean> 
       .limit(1);
 
     if (error) {
-      console.error('Error checking team membership:', { message: error?.message });
       return false;
     }
 
     return data && data.length > 0;
   } catch (error: any) {
-    console.error('Error checking team membership:', { message: error?.message });
     return false;
   }
 };
@@ -31,13 +29,11 @@ export const checkPendingInvitations = async (email: string): Promise<boolean> =
       .limit(1);
 
     if (error) {
-      console.error('Error checking pending invitations:', { message: error?.message });
       return false;
     }
 
     return data && data.length > 0;
   } catch (error: any) {
-    console.error('Error checking pending invitations:', { message: error?.message });
     return false;
   }
 };
