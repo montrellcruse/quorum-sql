@@ -47,7 +47,7 @@ const CreateTeam = () => {
         .single();
 
       if (teamError) {
-        console.error('Team creation error:', teamError);
+        console.error('Team creation error:', { message: teamError?.message });
         throw teamError;
       }
 

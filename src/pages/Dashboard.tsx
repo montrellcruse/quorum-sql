@@ -73,7 +73,7 @@ const Dashboard = () => {
       if (error) throw error;
       setIsAdmin(data && data.length > 0);
     } catch (error: any) {
-      console.error('Error checking admin status:', error);
+      console.error('Error checking admin status:', { message: error?.message });
     }
   };
 

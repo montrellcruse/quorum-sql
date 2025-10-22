@@ -72,7 +72,7 @@ const AcceptInvites = () => {
         .in('id', teamIds);
 
       if (teamsError) {
-        console.error('Error fetching teams:', teamsError);
+        console.error('Error fetching teams:', { message: teamsError?.message });
       }
 
       // Step 3: Map team data to invitations

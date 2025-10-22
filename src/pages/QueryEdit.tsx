@@ -217,7 +217,7 @@ const QueryEdit = () => {
           });
 
         if (historyError) {
-          console.error('History insert error:', historyError);
+          console.error('History insert error:', { message: historyError?.message });
           throw historyError;
         }
         
