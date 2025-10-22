@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
+import { checkUserTeamMembership } from '@/utils/teamUtils';
 
 const ALLOWED_DOMAIN = '@example.com';
 
@@ -23,9 +24,17 @@ const Auth = () => {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
+    const redirectUser = async () => {
+      if (user) {
+        const hasTeam = await checkUserTeamMembership(user.id);
+        if (hasTeam) {
+          navigate('/dashboard');
+        } else {
+          navigate('/create-team');
+        }
+      }
+    };
+    redirectUser();
   }, [user, navigate]);
 
   const validateEmail = (email: string): boolean => {
@@ -106,7 +115,13 @@ const Auth = () => {
         title: 'Success!',
         description: 'Account created successfully. Redirecting...',
       });
-      navigate('/dashboard');
+      // Check team membership and redirect accordingly
+      const hasTeam = await checkUserTeamMembership((await supabase.auth.getUser()).data.user?.id || '');
+      if (hasTeam) {
+        navigate('/dashboard');
+      } else {
+        navigate('/create-team');
+      }
     }
   };
 
@@ -137,7 +152,13 @@ const Auth = () => {
         title: 'Welcome back!',
         description: 'Successfully signed in.',
       });
-      navigate('/dashboard');
+      // Check team membership and redirect accordingly
+      const hasTeam = await checkUserTeamMembership((await supabase.auth.getUser()).data.user?.id || '');
+      if (hasTeam) {
+        navigate('/dashboard');
+      } else {
+        navigate('/create-team');
+      }
     }
   };
 
