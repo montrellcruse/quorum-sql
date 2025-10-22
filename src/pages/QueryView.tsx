@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTeam } from '@/contexts/TeamContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +22,7 @@ interface Query {
   status: string;
   folder_id: string;
   team_id: string;
+  user_id: string;
   created_by_email: string | null;
   last_modified_by_email: string | null;
 }
@@ -43,6 +45,7 @@ interface Approval {
 const QueryView = () => {
   const { id } = useParams<{ id: string }>();
   const { user, loading } = useAuth();
+  const { activeTeam } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [query, setQuery] = useState<Query | null>(null);
@@ -333,6 +336,13 @@ const QueryView = () => {
   const canReject = query?.status === 'pending_approval' && 
                     query?.last_modified_by_email !== user?.email;
 
+  const canDeleteQuery = () => {
+    if (!query || !user || !activeTeam) return false;
+    const isOwner = query.user_id === user.id;
+    const isAdmin = activeTeam.role === 'admin';
+    return isOwner || isAdmin;
+  };
+
   const getStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
     switch (status.toLowerCase()) {
       case 'approved':
@@ -394,13 +404,15 @@ const QueryView = () => {
               <Edit className="mr-2 h-4 w-4" />
               Edit Query
             </Button>
-            <Button 
-              onClick={() => setDeleteDialogOpen(true)} 
-              variant="destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete Query
-            </Button>
+            {canDeleteQuery() && (
+              <Button 
+                onClick={() => setDeleteDialogOpen(true)} 
+                variant="destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Query
+              </Button>
+            )}
           </div>
         </div>
 
