@@ -181,7 +181,7 @@ const QueryView = () => {
       const userApproval = (approvalsData || []).some(a => a.user_id === user?.id);
       setHasUserApproved(userApproval);
     } catch (error: any) {
-      console.error('Error fetching approvals:', error);
+      console.error('Error fetching approvals:', { message: error?.message });
     }
   };
 
@@ -246,7 +246,7 @@ const QueryView = () => {
       await fetchHistory();
       await fetchApprovals();
     } catch (error: any) {
-      console.error('Approval error:', error);
+      console.error('Approval error:', { message: error?.message });
       toast({
         title: 'Error',
         description: error.message,
@@ -295,7 +295,7 @@ const QueryView = () => {
       await fetchQuery();
       await fetchHistory();
     } catch (error: any) {
-      console.error('Rejection error:', error);
+      console.error('Rejection error:', { message: error?.message });
       toast({
         title: 'Error',
         description: error.message,

@@ -85,8 +85,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         setActiveTeamState(null);
       }
-    } catch (error) {
-      console.error('Error fetching user teams:', error);
+    } catch (error: any) {
+      console.error('Error fetching user teams:', { message: error?.message });
       setUserTeams([]);
       setActiveTeamState(null);
     } finally {
