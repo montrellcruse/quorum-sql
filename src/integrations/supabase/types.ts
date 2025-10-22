@@ -92,6 +92,35 @@ export type Database = {
         }
         Relationships: []
       }
+      query_approvals: {
+        Row: {
+          created_at: string
+          id: string
+          query_history_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          query_history_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          query_history_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "query_approvals_query_history_id_fkey"
+            columns: ["query_history_id"]
+            isOneToOne: false
+            referencedRelation: "query_history"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       query_history: {
         Row: {
           change_reason: string | null

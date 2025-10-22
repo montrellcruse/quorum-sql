@@ -20,6 +20,7 @@ interface Query {
   sql_content: string;
   status: string;
   folder_id: string;
+  team_id: string;
   created_by_email: string | null;
   last_modified_by_email: string | null;
 }
@@ -30,6 +31,13 @@ interface HistoryRecord {
   created_at: string;
   sql_content: string;
   change_reason: string | null;
+  status: string;
+}
+
+interface Approval {
+  id: string;
+  user_id: string;
+  created_at: string;
 }
 
 const QueryView = () => {
@@ -46,6 +54,10 @@ const QueryView = () => {
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [approvalQuota, setApprovalQuota] = useState(1);
+  const [latestHistoryId, setLatestHistoryId] = useState<string | null>(null);
+  const [hasUserApproved, setHasUserApproved] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -59,6 +71,12 @@ const QueryView = () => {
       fetchHistory();
     }
   }, [user, id]);
+
+  useEffect(() => {
+    if (query?.status === 'pending_approval') {
+      fetchApprovals();
+    }
+  }, [query?.status, latestHistoryId]);
 
   const fetchQuery = async () => {
     try {
@@ -102,12 +120,20 @@ const QueryView = () => {
         .from('query_history')
         .select('*')
         .eq('query_id', id)
-        .eq('status', 'approved')
         .order('created_at', { ascending: false })
         .limit(100);
 
       if (error) throw error;
-      setHistory(data || []);
+      
+      // Get approved history for display
+      const approvedHistory = (data || []).filter(h => h.status === 'approved');
+      setHistory(approvedHistory);
+      
+      // Get latest pending approval history
+      const pendingHistory = (data || []).find(h => h.status === 'pending_approval');
+      if (pendingHistory) {
+        setLatestHistoryId(pendingHistory.id);
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -116,6 +142,40 @@ const QueryView = () => {
       });
     } finally {
       setLoadingHistory(false);
+    }
+  };
+
+  const fetchApprovals = async () => {
+    if (!latestHistoryId) return;
+
+    try {
+      // Fetch team approval quota
+      const { data: queryData, error: queryError } = await supabase
+        .from('sql_queries')
+        .select('team_id, teams(approval_quota)')
+        .eq('id', id)
+        .single();
+
+      if (queryError) throw queryError;
+      
+      const quota = (queryData as any)?.teams?.approval_quota || 1;
+      setApprovalQuota(quota);
+
+      // Fetch approvals for this history record
+      const { data: approvalsData, error: approvalsError } = await supabase
+        .from('query_approvals')
+        .select('*')
+        .eq('query_history_id', latestHistoryId);
+
+      if (approvalsError) throw approvalsError;
+      
+      setApprovals(approvalsData || []);
+      
+      // Check if current user has approved
+      const userApproval = (approvalsData || []).some(a => a.user_id === user?.id);
+      setHasUserApproved(userApproval);
+    } catch (error: any) {
+      console.error('Error fetching approvals:', error);
     }
   };
 
@@ -138,45 +198,125 @@ const QueryView = () => {
     setHistoryModalOpen(true);
   };
 
-  const handleStatusChange = async (newStatus: string) => {
-    if (!query || !id || !user) return;
+  const handleApprove = async () => {
+    if (!query || !id || !user || !latestHistoryId) return;
+    
+    // Check if user already approved
+    if (hasUserApproved) {
+      toast({
+        title: 'Already Approved',
+        description: 'You have already approved this change.',
+        variant: 'default',
+      });
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      // Add approval
+      const { error: approvalError } = await supabase
+        .from('query_approvals')
+        .insert({
+          query_history_id: latestHistoryId,
+          user_id: user.id,
+        });
+
+      if (approvalError) throw approvalError;
+
+      // Fetch updated approval count
+      const { data: approvalsData, error: countError } = await supabase
+        .from('query_approvals')
+        .select('id')
+        .eq('query_history_id', latestHistoryId);
+
+      if (countError) throw countError;
+
+      const approvalCount = approvalsData?.length || 0;
+
+      // Check if quota met
+      if (approvalCount >= approvalQuota) {
+        // Update query status to approved
+        const { error: queryError } = await supabase
+          .from('sql_queries')
+          .update({ status: 'approved' })
+          .eq('id', id);
+
+        if (queryError) throw queryError;
+
+        // Update history status to approved
+        const { error: historyError } = await supabase
+          .from('query_history')
+          .update({ status: 'approved' })
+          .eq('id', latestHistoryId);
+
+        if (historyError) throw historyError;
+
+        toast({
+          title: 'Success',
+          description: `Query fully approved (${approvalCount}/${approvalQuota} approvals reached)`,
+        });
+      } else {
+        toast({
+          title: 'Approval Recorded',
+          description: `Approval recorded (${approvalCount}/${approvalQuota} approvals)`,
+        });
+      }
+
+      // Refresh data
+      await fetchQuery();
+      await fetchHistory();
+      await fetchApprovals();
+    } catch (error: any) {
+      console.error('Approval error:', error);
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!query || !id || !latestHistoryId) return;
     
     setUpdating(true);
     try {
-      // Call the secure server-side function to update query status
-      // This enforces peer review and prevents approval bypass
-      const { data, error } = await supabase.rpc('update_query_status', {
-        _query_id: id,
-        _new_status: newStatus,
-        _modifier_email: user.email || '',
-      });
+      // Update query status to draft
+      const { error: queryError } = await supabase
+        .from('sql_queries')
+        .update({ status: 'draft' })
+        .eq('id', id);
 
-      if (error) throw error;
+      if (queryError) throw queryError;
 
-      // Parse the response from the function
-      const result = data as { success: boolean; error?: string; message?: string };
-      
-      if (result && !result.success) {
-        toast({
-          title: 'Error',
-          description: result.error || 'Failed to update query status',
-          variant: 'destructive',
-        });
-        return;
-      }
+      // Update history status to rejected
+      const { error: historyError } = await supabase
+        .from('query_history')
+        .update({ status: 'rejected' })
+        .eq('id', latestHistoryId);
+
+      if (historyError) throw historyError;
+
+      // Clear all approvals for this history record
+      const { error: clearError } = await supabase
+        .from('query_approvals')
+        .delete()
+        .eq('query_history_id', latestHistoryId);
+
+      if (clearError) throw clearError;
 
       toast({
         title: 'Success',
-        description: newStatus === 'approved' 
-          ? 'Query approved' 
-          : 'Query rejected and returned to draft',
+        description: 'Query rejected and returned to draft',
       });
 
-      // Refresh query data and history
+      // Refresh data
       await fetchQuery();
       await fetchHistory();
     } catch (error: any) {
-      console.error('Status change error:', error);
+      console.error('Rejection error:', error);
       toast({
         title: 'Error',
         description: error.message,
@@ -213,8 +353,12 @@ const QueryView = () => {
     }
   };
 
-  const canApproveOrReject = query?.status === 'pending_approval' && 
-                              query?.last_modified_by_email !== user?.email;
+  const canApprove = query?.status === 'pending_approval' && 
+                     query?.last_modified_by_email !== user?.email &&
+                     !hasUserApproved;
+  
+  const canReject = query?.status === 'pending_approval' && 
+                    query?.last_modified_by_email !== user?.email;
 
   const getStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
     switch (status.toLowerCase()) {
@@ -254,21 +398,23 @@ const QueryView = () => {
           </Button>
           
           <div className="flex gap-2">
-            {canApproveOrReject && (
+            {query?.status === 'pending_approval' && (
               <>
                 <Button 
-                  onClick={() => handleStatusChange('approved')} 
-                  disabled={updating}
+                  onClick={handleApprove} 
+                  disabled={updating || !canApprove}
                 >
-                  {updating ? 'Processing...' : 'Approve'}
+                  {updating ? 'Processing...' : hasUserApproved ? 'Already Approved' : 'Approve'}
                 </Button>
-                <Button 
-                  onClick={() => handleStatusChange('draft')} 
-                  disabled={updating}
-                  variant="outline"
-                >
-                  {updating ? 'Processing...' : 'Reject'}
-                </Button>
+                {canReject && (
+                  <Button 
+                    onClick={handleReject} 
+                    disabled={updating}
+                    variant="outline"
+                  >
+                    {updating ? 'Processing...' : 'Reject'}
+                  </Button>
+                )}
               </>
             )}
             <Button onClick={() => navigate(`/query/edit/${query.id}`)}>
@@ -292,6 +438,11 @@ const QueryView = () => {
               <Badge variant={getStatusVariant(query.status)}>
                 {query.status === 'pending_approval' ? 'Pending Approval' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
               </Badge>
+              {query.status === 'pending_approval' && (
+                <Badge variant="outline">
+                  Approvals: {approvals.length} / {approvalQuota}
+                </Badge>
+              )}
             </div>
             {query.description && (
               <CardDescription>{query.description}</CardDescription>
