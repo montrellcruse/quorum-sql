@@ -457,7 +457,8 @@ const QueryView = () => {
                 style={{
                   fontSize: 14,
                   fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
-                  backgroundColor: '#f9fafb',
+                  backgroundColor: '#f4f4f4',
+                  border: '1px solid #e0e0e0',
                   borderRadius: '0.375rem',
                   minHeight: '300px',
                 }}
