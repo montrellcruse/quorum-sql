@@ -16,36 +16,12 @@ const CreateTeam = () => {
   
   const [teamName, setTeamName] = useState('');
   const [creating, setCreating] = useState(false);
-  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/auth');
-    } else if (user) {
-      checkTeamMembership();
     }
   }, [user, authLoading, navigate]);
-
-  const checkTeamMembership = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('id')
-        .eq('user_id', user?.id)
-        .limit(1);
-
-      if (error) throw error;
-
-      // If user is already a member of a team, redirect to dashboard
-      if (data && data.length > 0) {
-        navigate('/dashboard');
-      }
-    } catch (error: any) {
-      console.error('Error checking team membership:', error);
-    } finally {
-      setChecking(false);
-    }
-  };
 
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +68,7 @@ const CreateTeam = () => {
     }
   };
 
-  if (authLoading || checking) {
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
