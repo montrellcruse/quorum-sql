@@ -365,9 +365,9 @@ const Folder = () => {
   }
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-4 sm:p-6 md:p-8">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-6">
+        <div className="mb-6 overflow-x-auto">
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
@@ -398,24 +398,24 @@ const Folder = () => {
 
         <Card className="mb-6">
           <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <CardTitle>{folder.name}</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-xl sm:text-2xl break-words">{folder.name}</CardTitle>
                 {folder.description && (
-                  <CardDescription>{folder.description}</CardDescription>
+                  <CardDescription className="break-words">{folder.description}</CardDescription>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 sm:flex-shrink-0">
                 {canEditFolder() && (
-                  <Button variant="outline" size="sm" onClick={handleEditFolder}>
-                    <Edit className="mr-2 h-4 w-4" />
-                    Edit Folder
+                  <Button variant="outline" size="sm" onClick={handleEditFolder} className="flex-1 sm:flex-none">
+                    <Edit className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Edit</span>
                   </Button>
                 )}
                 {canDeleteFolder() && (
-                  <Button variant="destructive" size="sm" onClick={handleDeleteFolder}>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Folder
+                  <Button variant="destructive" size="sm" onClick={handleDeleteFolder} className="flex-1 sm:flex-none">
+                    <Trash2 className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Delete</span>
                   </Button>
                 )}
               </div>
@@ -425,9 +425,9 @@ const Folder = () => {
 
         {childFolders.length > 0 && (
           <>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Folders</h2>
-              <Button onClick={() => setNewFolderDialogOpen(true)} variant="outline">
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-xl sm:text-2xl font-bold">Folders</h2>
+              <Button onClick={() => setNewFolderDialogOpen(true)} variant="outline" className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
                 New Folder
               </Button>
@@ -457,16 +457,16 @@ const Folder = () => {
 
         {childFolders.length === 0 && (
           <div className="mb-4">
-            <Button onClick={() => setNewFolderDialogOpen(true)} variant="outline">
+            <Button onClick={() => setNewFolderDialogOpen(true)} variant="outline" className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               New Folder
             </Button>
           </div>
         )}
 
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold">SQL Queries</h2>
-          <Button onClick={() => navigate('/query/edit/new', { state: { folderId: id } })}>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h2 className="text-xl sm:text-2xl font-bold">SQL Queries</h2>
+          <Button onClick={() => navigate('/query/edit/new', { state: { folderId: id } })} className="w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             New Query
           </Button>
@@ -477,33 +477,35 @@ const Folder = () => {
             {queries.map((query) => (
               <Card key={query.id}>
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
                       <div
                         className="cursor-pointer"
                         onClick={() => navigate(`/query/view/${query.id}`)}
                       >
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-5 w-5 text-muted-foreground" />
-                          <CardTitle className="text-lg hover:underline">{query.title}</CardTitle>
-                          <Badge variant={getStatusVariant(query.status)}>
-                            {query.status === 'pending_approval' ? 'Pending Approval' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+                            <CardTitle className="text-base sm:text-lg hover:underline break-words">{query.title}</CardTitle>
+                          </div>
+                          <Badge variant={getStatusVariant(query.status)} className="w-fit">
+                            {query.status === 'pending_approval' ? 'Pending' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
                           </Badge>
                         </div>
                         <div className="mt-2 space-y-1">
                           {query.created_by_email && (
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground break-words">
                               Created by {query.created_by_email}
                             </p>
                           )}
                           {query.last_modified_by_email && (
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground break-words">
                               Last modified by {query.last_modified_by_email}
                             </p>
                           )}
                         </div>
                         {query.description && (
-                          <CardDescription className="mt-2">
+                          <CardDescription className="mt-2 break-words">
                             {query.description}
                           </CardDescription>
                         )}
@@ -512,6 +514,8 @@ const Folder = () => {
                     <Button
                       onClick={() => navigate(`/query/edit/${query.id}`)}
                       variant="outline"
+                      size="sm"
+                      className="w-full sm:w-auto sm:flex-shrink-0"
                     >
                       Edit
                     </Button>

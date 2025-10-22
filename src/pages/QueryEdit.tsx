@@ -465,32 +465,37 @@ const QueryEdit = () => {
   }
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-4 sm:p-6 md:p-8">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <Button
             variant="ghost"
             onClick={() => navigate(`/folder/${query.folder_id}`)}
+            size="sm"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Folder
+            <ArrowLeft className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Back to Folder</span>
           </Button>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {!isNewQuery && (
               <>
                 <Button
                   variant="outline"
                   onClick={handleOpenMoveDialog}
+                  size="sm"
+                  className="w-full sm:w-auto"
                 >
-                  <FolderInput className="mr-2 h-4 w-4" />
+                  <FolderInput className="h-4 w-4 sm:mr-2" />
                   Move
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => navigate(`/query/view/${query.id}`)}
+                  size="sm"
+                  className="w-full sm:w-auto"
                 >
-                  View Query
+                  View
                 </Button>
               </>
             )}
@@ -499,7 +504,7 @@ const QueryEdit = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>{isNewQuery ? 'New Query' : 'Edit Query'}</CardTitle>
+            <CardTitle className="text-lg sm:text-xl">{isNewQuery ? 'New Query' : 'Edit Query'}</CardTitle>
             <CardDescription>
               {isNewQuery ? 'Create a new SQL query' : 
                query.status === 'pending_approval' ? 'Editing query (currently pending approval)' :
@@ -515,6 +520,7 @@ const QueryEdit = () => {
                 value={query.title}
                 onChange={(e) => setQuery({ ...query, title: e.target.value })}
                 placeholder="Enter query title"
+                className="w-full"
               />
             </div>
 
@@ -526,6 +532,7 @@ const QueryEdit = () => {
                 onChange={(e) => setQuery({ ...query, description: e.target.value })}
                 placeholder="Enter query description"
                 rows={3}
+                className="w-full"
               />
             </div>
 
@@ -534,6 +541,7 @@ const QueryEdit = () => {
               <div className="overflow-hidden rounded-md border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
                 <Editor
                   height="300px"
+                  className="sm:h-[400px]"
                   defaultLanguage="sql"
                   value={query.sql_content}
                   onChange={(value) => setQuery({ ...query, sql_content: value || '' })}
@@ -544,6 +552,7 @@ const QueryEdit = () => {
                     lineNumbers: 'on',
                     scrollBeyondLastLine: false,
                     automaticLayout: true,
+                    wordWrap: 'on',
                   }}
                   theme={theme === "dark" ? "vs-dark" : "light"}
                 />
@@ -552,7 +561,7 @@ const QueryEdit = () => {
 
             {query.status === 'draft' && (
               <div className="space-y-2">
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button 
                     onClick={() => handleSave('draft')} 
                     disabled={saving} 
