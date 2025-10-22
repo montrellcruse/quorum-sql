@@ -8,8 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import CodeMirror from '@uiw/react-codemirror';
-import { sql } from '@codemirror/lang-sql';
+import Editor from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Save, Trash2, FolderInput } from 'lucide-react';
 import {
@@ -499,21 +498,23 @@ const QueryEdit = () => {
 
             <div>
               <Label htmlFor="sql_content">SQL Content</Label>
-              <CodeMirror
-                value={query.sql_content}
-                extensions={[sql()]}
-                basicSetup={{ lineNumbers: true }}
-                onChange={(value) => setQuery({ ...query, sql_content: value })}
-                editable={isEditable}
-                theme="light"
-                style={{
-                  fontSize: 14,
-                  fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '0.375rem',
-                  minHeight: '300px',
-                }}
-              />
+              <div style={{ border: '1px solid #e0e0e0', borderRadius: '0.375rem', overflow: 'hidden' }}>
+                <Editor
+                  height="300px"
+                  defaultLanguage="sql"
+                  value={query.sql_content}
+                  onChange={(value) => setQuery({ ...query, sql_content: value || '' })}
+                  options={{
+                    readOnly: !isEditable,
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    lineNumbers: 'on',
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                  }}
+                  theme="light"
+                />
+              </div>
             </div>
 
             {query.status === 'draft' && (
