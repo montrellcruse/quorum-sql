@@ -55,16 +55,12 @@ const Dashboard = () => {
       checkAdminStatus();
     }
   }, [user]);
-
   const checkAdminStatus = async () => {
     try {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('id')
-        .eq('user_id', user?.id)
-        .eq('role', 'admin')
-        .limit(1);
-
+      const {
+        data,
+        error
+      } = await supabase.from('team_members').select('id').eq('user_id', user?.id).eq('role', 'admin').limit(1);
       if (error) throw error;
       setIsAdmin(data && data.length > 0);
     } catch (error: any) {
@@ -214,16 +210,14 @@ const Dashboard = () => {
       <div className="mx-auto max-w-7xl">
         <header className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">DAAS BI Query Manager</h1>
+            <h1 className="text-3xl font-bold">SQL Query Manager</h1>
             <p className="text-muted-foreground">Welcome back, {user.email}</p>
           </div>
           <div className="flex gap-2">
-            {isAdmin && (
-              <Button onClick={() => navigate('/team-admin')} variant="outline">
+            {isAdmin && <Button onClick={() => navigate('/team-admin')} variant="outline">
                 <Settings className="mr-2 h-4 w-4" />
                 Team Admin
-              </Button>
-            )}
+              </Button>}
             <Button onClick={handleSignOut} variant="outline">
               Sign Out
             </Button>
