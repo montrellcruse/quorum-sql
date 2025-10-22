@@ -22,7 +22,7 @@ export type Database = {
           id: string
           name: string
           parent_folder_id: string | null
-          team_id: string | null
+          team_id: string
           updated_at: string
           user_id: string
         }
@@ -33,7 +33,7 @@ export type Database = {
           id?: string
           name: string
           parent_folder_id?: string | null
-          team_id?: string | null
+          team_id: string
           updated_at?: string
           user_id: string
         }
@@ -44,7 +44,7 @@ export type Database = {
           id?: string
           name?: string
           parent_folder_id?: string | null
-          team_id?: string | null
+          team_id?: string
           updated_at?: string
           user_id?: string
         }
@@ -169,7 +169,7 @@ export type Database = {
           last_modified_by_email: string | null
           sql_content: string
           status: string
-          team_id: string | null
+          team_id: string
           title: string
           updated_at: string
           user_id: string
@@ -183,7 +183,7 @@ export type Database = {
           last_modified_by_email?: string | null
           sql_content: string
           status?: string
-          team_id?: string | null
+          team_id: string
           title: string
           updated_at?: string
           user_id: string
@@ -197,7 +197,7 @@ export type Database = {
           last_modified_by_email?: string | null
           sql_content?: string
           status?: string
-          team_id?: string | null
+          team_id?: string
           title?: string
           updated_at?: string
           user_id?: string
@@ -342,6 +342,14 @@ export type Database = {
           id: string
         }[]
       }
+      get_folder_team_id: {
+        Args: { _folder_id: string }
+        Returns: string
+      }
+      get_query_team_id: {
+        Args: { _query_id: string }
+        Returns: string
+      }
       is_team_admin: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
@@ -370,6 +378,14 @@ export type Database = {
         Returns: {
           team_id: string
         }[]
+      }
+      user_can_access_team: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
+      }
+      user_is_team_admin: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
       }
       user_teams: {
         Args: { _user_id: string }

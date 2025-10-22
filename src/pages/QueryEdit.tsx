@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTeam } from '@/contexts/TeamContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -55,6 +56,7 @@ const QueryEdit = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const { user, loading } = useAuth();
+  const { activeTeam } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [query, setQuery] = useState<Query | null>(null);
@@ -153,6 +155,19 @@ const QueryEdit = () => {
       let queryId = id;
       
       if (isNewQuery) {
+        // Get the folder's team_id
+        const { data: folderData, error: folderError } = await supabase
+          .from('folders')
+          .select('team_id')
+          .eq('id', query.folder_id)
+          .single();
+
+        if (folderError) throw folderError;
+
+        if (!folderData?.team_id) {
+          throw new Error('Folder does not have a team_id');
+        }
+
         const { data, error } = await supabase
           .from('sql_queries')
           .insert({
@@ -161,6 +176,7 @@ const QueryEdit = () => {
             sql_content: query.sql_content,
             status: newStatus,
             folder_id: query.folder_id,
+            team_id: folderData.team_id,
             user_id: user?.id,
             created_by_email: user?.email || '',
             last_modified_by_email: user?.email || '',
