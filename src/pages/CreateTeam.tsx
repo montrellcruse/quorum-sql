@@ -59,24 +59,22 @@ const CreateTeam = () => {
       return;
     }
 
-    if (!user) {
-      toast({
-        title: 'Error',
-        description: 'User not authenticated',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setCreating(true);
 
     try {
-      // Create team
+      // Verify authentication
+      const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !currentUser) {
+        throw new Error('Authentication required. Please sign in again.');
+      }
+
+      // Create team with verified user ID
       const { data: teamData, error: teamError } = await supabase
         .from('teams')
         .insert({
           name: teamName.trim(),
-          admin_id: user.id,
+          admin_id: currentUser.id,
           approval_quota: 1,
         })
         .select()
@@ -89,7 +87,7 @@ const CreateTeam = () => {
         .from('team_members')
         .insert({
           team_id: teamData.id,
-          user_id: user.id,
+          user_id: currentUser.id,
           role: 'admin',
         });
 
