@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Folder from "./pages/Folder";
 import QueryEdit from "./pages/QueryEdit";
 import QueryView from "./pages/QueryView";
+import TeamAdmin from "./pages/TeamAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/folder/:id" element={<Folder />} />
             <Route path="/query/view/:id" element={<QueryView />} />
             <Route path="/query/edit/:id" element={<QueryEdit />} />
+            <Route path="/team-admin" element={<TeamAdmin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
