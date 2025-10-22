@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Plus, Search, FileText, Settings } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Folder {
@@ -300,6 +301,7 @@ const Dashboard = () => {
             )}
           </div>
           <div className="flex gap-2">
+            <ThemeToggle />
             <Button onClick={() => navigate('/create-team')} variant="outline">
               <Plus className="mr-2 h-4 w-4" />
               Create New Team

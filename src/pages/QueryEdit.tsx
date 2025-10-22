@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
+import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -60,6 +61,7 @@ const QueryEdit = () => {
   const { activeTeam } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { theme } = useTheme();
   const [query, setQuery] = useState<Query | null>(null);
   const [loadingQuery, setLoadingQuery] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -512,7 +514,7 @@ const QueryEdit = () => {
                     scrollBeyondLastLine: false,
                     automaticLayout: true,
                   }}
-                  theme="light"
+                  theme={theme === "dark" ? "vs-dark" : "light"}
                 />
               </div>
             </div>
