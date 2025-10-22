@@ -277,6 +277,18 @@ export type Database = {
         }
         Returns: Json
       }
+      user_admin_teams: {
+        Args: { _user_id: string }
+        Returns: {
+          team_id: string
+        }[]
+      }
+      user_teams: {
+        Args: { _user_id: string }
+        Returns: {
+          team_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
