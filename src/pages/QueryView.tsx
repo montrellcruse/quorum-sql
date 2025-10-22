@@ -577,7 +577,7 @@ const QueryView = () => {
                     leftTitle={previousHistory ? `Previous Version (${formatDate(previousHistory.created_at)})` : 'No Previous Version'}
                     rightTitle={`Selected Version (${formatDate(selectedHistory.created_at)})`}
                     showDiffOnly={false}
-                    useDarkTheme={false}
+                    useDarkTheme={theme === 'dark'}
                   />
                 </div>
                 
