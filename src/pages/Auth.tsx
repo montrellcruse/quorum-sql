@@ -78,7 +78,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <main className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>SQL Query Manager</CardTitle>
@@ -102,7 +102,7 @@ const Auth = () => {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 };
 

@@ -468,7 +468,7 @@ const TeamAdmin = () => {
   const adminMembers = members.filter(m => m.role === 'admin');
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
+    <main className="container mx-auto p-6 max-w-4xl">
       <Button
         variant="ghost"
         onClick={() => navigate('/dashboard')}
@@ -727,7 +727,7 @@ const TeamAdmin = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </main>
   );
 };
 

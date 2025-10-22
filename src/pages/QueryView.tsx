@@ -388,7 +388,7 @@ const QueryView = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-8">
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex items-center justify-between">
           <Button
@@ -622,10 +622,10 @@ const QueryView = () => {
                 Delete Query
               </AlertDialogAction>
             </AlertDialogFooter>
-          </AlertDialogContent>
+        </AlertDialogContent>
         </AlertDialog>
       </div>
-    </div>
+    </main>
   );
 };
 
