@@ -283,6 +283,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_create_team: {
+        Args: { _admin_id: string }
+        Returns: boolean
+      }
       get_all_folder_paths: {
         Args: Record<PropertyKey, never>
         Returns: {
