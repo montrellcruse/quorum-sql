@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, FileText } from 'lucide-react';
+import { Plus, Search, FileText, Settings } from 'lucide-react';
 interface Folder {
   id: string;
   name: string;
@@ -43,6 +43,7 @@ const Dashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
@@ -51,8 +52,25 @@ const Dashboard = () => {
   useEffect(() => {
     if (user) {
       fetchProjects();
+      checkAdminStatus();
     }
   }, [user]);
+
+  const checkAdminStatus = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('team_members')
+        .select('id')
+        .eq('user_id', user?.id)
+        .eq('role', 'admin')
+        .limit(1);
+
+      if (error) throw error;
+      setIsAdmin(data && data.length > 0);
+    } catch (error: any) {
+      console.error('Error checking admin status:', error);
+    }
+  };
   const fetchProjects = async () => {
     try {
       const {
@@ -199,9 +217,17 @@ const Dashboard = () => {
             <h1 className="text-3xl font-bold">DAAS BI Query Manager</h1>
             <p className="text-muted-foreground">Welcome back, {user.email}</p>
           </div>
-          <Button onClick={handleSignOut} variant="outline">
-            Sign Out
-          </Button>
+          <div className="flex gap-2">
+            {isAdmin && (
+              <Button onClick={() => navigate('/team-admin')} variant="outline">
+                <Settings className="mr-2 h-4 w-4" />
+                Team Admin
+              </Button>
+            )}
+            <Button onClick={handleSignOut} variant="outline">
+              Sign Out
+            </Button>
+          </div>
         </header>
 
         <form onSubmit={handleSearch} className="mb-6">
