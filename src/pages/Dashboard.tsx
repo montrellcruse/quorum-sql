@@ -214,6 +214,10 @@ const Dashboard = () => {
             <p className="text-muted-foreground">Welcome back, {user.email}</p>
           </div>
           <div className="flex gap-2">
+            <Button onClick={() => navigate('/create-team')} variant="outline">
+              <Plus className="mr-2 h-4 w-4" />
+              Create New Team
+            </Button>
             {isAdmin && <Button onClick={() => navigate('/team-admin')} variant="outline">
                 <Settings className="mr-2 h-4 w-4" />
                 Team Admin
