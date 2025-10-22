@@ -52,6 +52,11 @@ const TeamAdmin = () => {
   const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
 
+  // Helper function to check if a member is the team owner
+  const isTeamOwner = (userId: string) => {
+    return selectedTeam?.admin_id === userId;
+  };
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/auth');
@@ -591,21 +596,35 @@ const TeamAdmin = () => {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleToggleRole(member.id, member.role)}
-                      >
-                        <UserCog className="h-4 w-4 mr-1" />
-                        Make {member.role === 'admin' ? 'Member' : 'Admin'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleRemoveMember(member.id, member.role)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {/* Only show role toggle if NOT the owner */}
+                      {!isTeamOwner(member.user_id) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleToggleRole(member.id, member.role)}
+                        >
+                          <UserCog className="h-4 w-4 mr-1" />
+                          Make {member.role === 'admin' ? 'Member' : 'Admin'}
+                        </Button>
+                      )}
+                      
+                      {/* Only show delete if NOT the owner */}
+                      {!isTeamOwner(member.user_id) && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRemoveMember(member.id, member.role)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                      
+                      {/* Show "Team Owner" badge for the owner */}
+                      {isTeamOwner(member.user_id) && (
+                        <span className="text-sm text-muted-foreground px-3 py-2">
+                          Team Owner
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
