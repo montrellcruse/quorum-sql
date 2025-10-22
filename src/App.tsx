@@ -12,6 +12,7 @@ import QueryEdit from "./pages/QueryEdit";
 import QueryView from "./pages/QueryView";
 import TeamAdmin from "./pages/TeamAdmin";
 import CreateTeam from "./pages/CreateTeam";
+import AcceptInvites from "./pages/AcceptInvites";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/accept-invites" element={<AcceptInvites />} />
             <Route path="/create-team" element={<CreateTeam />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/folder/:id" element={<Folder />} />
