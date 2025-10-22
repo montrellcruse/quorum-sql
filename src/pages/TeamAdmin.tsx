@@ -68,15 +68,16 @@ const TeamAdmin = () => {
 
   const checkAdminAccess = async () => {
     try {
-      const { data, error } = await supabase
+      // Step 1: Get team_member records where user is admin
+      const { data: memberData, error: memberError } = await supabase
         .from('team_members')
-        .select('team_id, role, teams(id, name, approval_quota, admin_id)')
+        .select('team_id')
         .eq('user_id', user?.id)
         .eq('role', 'admin');
 
-      if (error) throw error;
+      if (memberError) throw memberError;
 
-      if (!data || data.length === 0) {
+      if (!memberData || memberData.length === 0) {
         toast({
           title: 'Access Denied',
           description: 'You do not have admin access to any team.',
@@ -86,11 +87,34 @@ const TeamAdmin = () => {
         return;
       }
 
-      const adminTeams = data.map(tm => tm.teams).filter(Boolean) as Team[];
-      setTeams(adminTeams);
-      if (adminTeams.length > 0) {
-        setSelectedTeamId(adminTeams[0].id);
+      // Step 2: Fetch the actual team data using the team IDs
+      const teamIds = memberData.map(tm => tm.team_id);
+      const { data: teamsData, error: teamsError } = await supabase
+        .from('teams')
+        .select('id, name, approval_quota, admin_id')
+        .in('id', teamIds);
+
+      if (teamsError) throw teamsError;
+
+      // Filter out any null values and ensure we have valid teams
+      const adminTeams = (teamsData || []).filter((team): team is Team => 
+        team !== null && 
+        typeof team.id === 'string' && 
+        typeof team.name === 'string'
+      );
+
+      if (adminTeams.length === 0) {
+        toast({
+          title: 'Error',
+          description: 'Could not load team data.',
+          variant: 'destructive',
+        });
+        navigate('/dashboard');
+        return;
       }
+
+      setTeams(adminTeams);
+      setSelectedTeamId(adminTeams[0].id);
     } catch (error: any) {
       toast({
         title: 'Error',
