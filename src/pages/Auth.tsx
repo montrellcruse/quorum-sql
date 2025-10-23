@@ -14,7 +14,7 @@ import { checkUserTeamMembership, checkPendingInvitations } from '@/utils/teamUt
 
 const ALLOWED_DOMAIN = '@azdes.gov';
 const IS_DEV = import.meta.env.DEV;
-const DEV_TEST_EMAILS = ['admin@test.local', 'test@test.local'];
+const DEV_TEST_EMAILS = ['admin@test.local', 'member@test.local'];
 
 const isDevTestAccount = (email: string) => {
   return IS_DEV && DEV_TEST_EMAILS.includes(email.toLowerCase());
