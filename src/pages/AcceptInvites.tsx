@@ -233,7 +233,7 @@ const AcceptInvites = () => {
                     </h3>
                     {invitation.inviter && (
                       <p className="text-sm text-muted-foreground mt-1">
-                        Invited by {invitation.inviter.full_name || invitation.inviter.email}
+                        Invited by {invitation.inviter.email}
                       </p>
                     )}
                     <p className="text-sm text-muted-foreground mt-1">
