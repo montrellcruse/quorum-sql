@@ -223,6 +223,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          invited_by_user_id: string | null
           invited_email: string
           role: string
           status: string
@@ -232,6 +233,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          invited_by_user_id?: string | null
           invited_email: string
           role?: string
           status?: string
@@ -241,6 +243,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          invited_by_user_id?: string | null
           invited_email?: string
           role?: string
           status?: string
