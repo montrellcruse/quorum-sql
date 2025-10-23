@@ -12,8 +12,13 @@ interface TeamInvitation {
   team_id: string;
   invited_email: string;
   role: string;
+  invited_by_user_id?: string;
   teams?: {
     name: string;
+  };
+  inviter?: {
+    full_name: string;
+    email: string;
   };
 }
 
@@ -48,10 +53,10 @@ const AcceptInvites = () => {
         return;
       }
 
-      // Step 1: Fetch invitations without nested relation
+      // Step 1: Fetch invitations with invited_by_user_id
       const { data: invitationsData, error: invitationsError } = await supabase
         .from('team_invitations')
-        .select('id, team_id, invited_email, role')
+        .select('id, team_id, invited_email, role, invited_by_user_id')
         .eq('invited_email', userEmail)
         .eq('status', 'pending');
 
@@ -75,12 +80,34 @@ const AcceptInvites = () => {
         console.error('Error fetching teams:', { message: teamsError?.message });
       }
 
-      // Step 3: Map team data to invitations
+      // Step 3: Fetch inviter profiles
+      const inviterIds = invitationsData
+        .map(inv => inv.invited_by_user_id)
+        .filter((id): id is string => id != null);
+
+      const { data: invitersData, error: invitersError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, email')
+        .in('user_id', inviterIds);
+
+      if (invitersError) {
+        console.error('Error fetching inviters:', { message: invitersError?.message });
+      }
+
+      // Step 4: Map all data together
       const invitationsWithTeams: TeamInvitation[] = invitationsData.map(inv => {
         const team = teamsData?.find(t => t.id === inv.team_id);
+        const inviter = inv.invited_by_user_id 
+          ? invitersData?.find(i => i.user_id === inv.invited_by_user_id)
+          : null;
+        
         return {
           ...inv,
-          teams: team ? { name: team.name } : undefined
+          teams: team ? { name: team.name } : undefined,
+          inviter: inviter ? {
+            full_name: inviter.full_name,
+            email: inviter.email
+          } : undefined
         };
       });
 
@@ -201,11 +228,16 @@ const AcceptInvites = () => {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold">
+                    <h3 className="font-semibold text-lg">
                       {invitation.teams?.name || 'Team Invitation'}
                     </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Role: {invitation.role}
+                    {invitation.inviter && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Invited by {invitation.inviter.full_name || invitation.inviter.email}
+                      </p>
+                    )}
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Role: <span className="capitalize">{invitation.role}</span>
                     </p>
                   </div>
                   <div className="flex gap-2">

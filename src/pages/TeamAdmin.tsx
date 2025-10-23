@@ -249,6 +249,7 @@ const TeamAdmin = () => {
           invited_email: email,
           role: newUserRole,
           status: 'pending',
+          invited_by_user_id: user!.id,
         });
 
       if (error) {
