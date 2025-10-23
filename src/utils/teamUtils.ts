@@ -55,3 +55,22 @@ export const checkPendingInvitationsCount = async (email: string): Promise<numbe
     return 0;
   }
 };
+
+export const getPendingApprovalsCount = async (teamId: string, userEmail: string): Promise<number> => {
+  try {
+    const { count, error } = await supabase
+      .from('sql_queries')
+      .select('*', { count: 'exact', head: true })
+      .eq('team_id', teamId)
+      .eq('status', 'pending_approval')
+      .neq('last_modified_by_email', userEmail);
+
+    if (error) {
+      return 0;
+    }
+
+    return count || 0;
+  } catch (error: any) {
+    return 0;
+  }
+};

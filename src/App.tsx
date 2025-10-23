@@ -18,6 +18,7 @@ const QueryView = lazy(() => import("./pages/QueryView"));
 const TeamAdmin = lazy(() => import("./pages/TeamAdmin"));
 const CreateTeam = lazy(() => import("./pages/CreateTeam"));
 const AcceptInvites = lazy(() => import("./pages/AcceptInvites"));
+const Approvals = lazy(() => import("./pages/Approvals"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/accept-invites" element={<AcceptInvites />} />
+                  <Route path="/approvals" element={<Approvals />} />
                   <Route path="/create-team" element={<CreateTeam />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/folder/:id" element={<Folder />} />

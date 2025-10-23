@@ -10,11 +10,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, FileText, Settings, Mail } from 'lucide-react';
+import { Plus, Search, FileText, Settings, Mail, ClipboardCheck } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { checkPendingInvitationsCount } from '@/utils/teamUtils';
+import { checkPendingInvitationsCount, getPendingApprovalsCount } from '@/utils/teamUtils';
 
 interface Folder {
   id: string;
@@ -50,6 +50,7 @@ const Dashboard = () => {
   const [searching, setSearching] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -74,6 +75,16 @@ const Dashboard = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (user?.email && activeTeam) {
+      fetchPendingApprovalsCount();
+      
+      // Poll every 60 seconds for new approvals
+      const interval = setInterval(fetchPendingApprovalsCount, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [user, activeTeam]);
+
   const checkAdminStatus = async () => {
     try {
       const { data, error } = await supabase
@@ -94,6 +105,12 @@ const Dashboard = () => {
     if (!user?.email) return;
     const count = await checkPendingInvitationsCount(user.email);
     setPendingInvitesCount(count);
+  };
+
+  const fetchPendingApprovalsCount = async () => {
+    if (!user?.email || !activeTeam) return;
+    const count = await getPendingApprovalsCount(activeTeam.id, user.email);
+    setPendingApprovalsCount(count);
   };
 
   const fetchProjects = async () => {
@@ -326,6 +343,13 @@ const Dashboard = () => {
                 <Mail className="mr-2 h-4 w-4" />
                 Pending Invites
                 <Badge className="ml-2">{pendingInvitesCount}</Badge>
+              </Button>
+            )}
+            {pendingApprovalsCount > 0 && (
+              <Button onClick={() => navigate('/approvals')} variant="outline">
+                <ClipboardCheck className="mr-2 h-4 w-4" />
+                Approvals Needed
+                <Badge className="ml-2" variant="destructive">{pendingApprovalsCount}</Badge>
               </Button>
             )}
             <Button onClick={() => navigate('/create-team')} variant="outline">
