@@ -186,7 +186,7 @@ const Approvals = () => {
                     <TableRow
                       key={query.id}
                       className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => navigate(`/query/view/${query.id}`)}
+                      onClick={() => navigate(`/query/view/${query.id}`, { state: { from: 'approvals' } })}
                     >
                       <TableCell>
                         <div className="font-medium">{query.title}</div>
@@ -219,7 +219,7 @@ const Approvals = () => {
                           variant="outline"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/query/view/${query.id}`);
+                            navigate(`/query/view/${query.id}`, { state: { from: 'approvals' } });
                           }}
                         >
                           Review

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
+import { getPendingApprovalsCount } from '@/utils/teamUtils';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,6 +49,7 @@ const QueryView = () => {
   const { user, loading } = useAuth();
   const { activeTeam } = useTeam();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { theme } = useTheme();
   const [query, setQuery] = useState<Query | null>(null);
@@ -241,7 +243,24 @@ const QueryView = () => {
         });
       }
 
-      // Force full refresh of all data
+      // Check if we should redirect back to approvals page
+      if (location.state?.from === 'approvals' && activeTeam && user?.email) {
+        const remainingCount = await getPendingApprovalsCount(activeTeam.id, user.email);
+        
+        if (remainingCount > 0) {
+          toast({
+            title: 'More approvals needed',
+            description: `${remainingCount} ${remainingCount === 1 ? 'query' : 'queries'} still awaiting your review`,
+          });
+          navigate('/approvals');
+          return;
+        } else {
+          navigate('/approvals');
+          return;
+        }
+      }
+
+      // Otherwise refresh data and stay on page
       await fetchQuery();
       await fetchHistory();
       await fetchApprovals();
@@ -281,7 +300,24 @@ const QueryView = () => {
         description: 'Query rejected and returned to draft',
       });
 
-      // Refresh data
+      // If came from approvals page, redirect back
+      if (location.state?.from === 'approvals') {
+        // Check if there are more approvals
+        if (activeTeam && user?.email) {
+          const remainingCount = await getPendingApprovalsCount(activeTeam.id, user.email);
+          
+          if (remainingCount > 0) {
+            toast({
+              title: 'More approvals needed',
+              description: `${remainingCount} ${remainingCount === 1 ? 'query' : 'queries'} still awaiting your review`,
+            });
+          }
+        }
+        navigate('/approvals');
+        return;
+      }
+
+      // Otherwise refresh data and stay on page
       await fetchQuery();
       await fetchHistory();
     } catch (error: any) {
