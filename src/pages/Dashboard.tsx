@@ -10,9 +10,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, FileText, Settings } from 'lucide-react';
+import { Plus, Search, FileText, Settings, Mail } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { checkPendingInvitationsCount } from '@/utils/teamUtils';
 
 interface Folder {
   id: string;
@@ -47,6 +49,7 @@ const Dashboard = () => {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -60,6 +63,16 @@ const Dashboard = () => {
       checkAdminStatus();
     }
   }, [user, activeTeam]);
+
+  useEffect(() => {
+    if (user?.email) {
+      fetchPendingInvitesCount();
+      
+      // Poll every 60 seconds for new invitations
+      const interval = setInterval(fetchPendingInvitesCount, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   const checkAdminStatus = async () => {
     try {
@@ -75,6 +88,12 @@ const Dashboard = () => {
     } catch (error: any) {
       console.error('Error checking admin status:', { message: error?.message });
     }
+  };
+
+  const fetchPendingInvitesCount = async () => {
+    if (!user?.email) return;
+    const count = await checkPendingInvitationsCount(user.email);
+    setPendingInvitesCount(count);
   };
 
   const fetchProjects = async () => {
@@ -302,6 +321,13 @@ const Dashboard = () => {
           </div>
           <div className="flex gap-2">
             <ThemeToggle />
+            {pendingInvitesCount > 0 && (
+              <Button onClick={() => navigate('/accept-invites')} variant="outline">
+                <Mail className="mr-2 h-4 w-4" />
+                Pending Invites
+                <Badge className="ml-2">{pendingInvitesCount}</Badge>
+              </Button>
+            )}
             <Button onClick={() => navigate('/create-team')} variant="outline">
               <Plus className="mr-2 h-4 w-4" />
               Create New Team

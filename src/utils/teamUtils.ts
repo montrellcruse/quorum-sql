@@ -37,3 +37,21 @@ export const checkPendingInvitations = async (email: string): Promise<boolean> =
     return false;
   }
 };
+
+export const checkPendingInvitationsCount = async (email: string): Promise<number> => {
+  try {
+    const { count, error } = await supabase
+      .from('team_invitations')
+      .select('*', { count: 'exact', head: true })
+      .eq('invited_email', email)
+      .eq('status', 'pending');
+
+    if (error) {
+      return 0;
+    }
+
+    return count || 0;
+  } catch (error: any) {
+    return 0;
+  }
+};
