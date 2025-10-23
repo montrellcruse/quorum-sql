@@ -393,9 +393,21 @@ export type Database = {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
+      user_inviters: {
+        Args: { _user_id: string }
+        Returns: {
+          inviter_id: string
+        }[]
+      }
       user_is_team_admin: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
+      }
+      user_pending_invitation_teams: {
+        Args: { _user_id: string }
+        Returns: {
+          team_id: string
+        }[]
       }
       user_teams: {
         Args: { _user_id: string }
