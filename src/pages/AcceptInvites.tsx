@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { checkUserTeamMembership } from '@/utils/teamUtils';
+import { ArrowLeft } from 'lucide-react';
 
 interface TeamInvitation {
   id: string;
@@ -220,10 +221,22 @@ const AcceptInvites = () => {
     <main className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader>
-          <CardTitle>Team Invitations</CardTitle>
-          <CardDescription>
-            You have pending team invitations. Accept or decline them below.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Team Invitations</CardTitle>
+              <CardDescription>
+                You have pending team invitations. Accept or decline them below.
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/dashboard')}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {invitations.map((invitation) => (
