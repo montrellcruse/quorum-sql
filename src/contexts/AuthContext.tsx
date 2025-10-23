@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { createContext, useContext, useEffect, useState } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
@@ -9,7 +9,7 @@ interface AuthContextType {
 }
 
 // Dev-only test accounts that bypass domain validation
-const DEV_TEST_EMAILS = ["admin@test.local", "member@test.local"];
+const DEV_TEST_EMAILS = ['admin@test.local', 'test@test.local'];
 const isDevTestAccount = (email: string) => {
   return import.meta.env.DEV && DEV_TEST_EMAILS.includes(email.toLowerCase());
 };
@@ -23,7 +23,7 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
@@ -35,48 +35,48 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     // Set up auth state listener FIRST
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Validate email domain for authenticated users
-      if (session?.user) {
-        const userEmail = session.user.email;
-
-        // Skip validation for dev test accounts
-        if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith("@azdes.gov")) {
-          // Sign out the user immediately
-          await supabase.auth.signOut();
-          console.error("Invalid email domain. Only @azdes.gov emails are allowed.");
-
-          setSession(null);
-          setUser(null);
-          setLoading(false);
-          return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        // Validate email domain for authenticated users
+        if (session?.user) {
+          const userEmail = session.user.email;
+          
+          // Skip validation for dev test accounts
+          if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith('@azdes.gov')) {
+            // Sign out the user immediately
+            await supabase.auth.signOut();
+            console.error('Invalid email domain. Only @azdes.gov emails are allowed.');
+            
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+            return;
+          }
         }
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
       }
-
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    );
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       // Validate email domain for existing sessions
       if (session?.user) {
         const userEmail = session.user.email;
-
+        
         // Skip validation for dev test accounts
-        if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith("@azdes.gov")) {
+        if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith('@azdes.gov')) {
           supabase.auth.signOut();
-          console.error("Invalid email domain. Only @azdes.gov emails are allowed.");
+          console.error('Invalid email domain. Only @azdes.gov emails are allowed.');
           setSession(null);
           setUser(null);
           setLoading(false);
           return;
         }
       }
-
+      
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -85,5 +85,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  return <AuthContext.Provider value={{ user, session, loading }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, session, loading }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
