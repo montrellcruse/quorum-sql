@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTeam } from '@/contexts/TeamContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +25,7 @@ interface TeamInvitation {
 
 const AcceptInvites = () => {
   const { user, loading } = useAuth();
+  const { refreshTeams } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
@@ -154,8 +156,9 @@ const AcceptInvites = () => {
       const updatedInvitations = invitations.filter(inv => inv.id !== invitationId);
       setInvitations(updatedInvitations);
 
-      // If no more invites, redirect to dashboard
+      // If no more invites, refresh teams and redirect to dashboard
       if (updatedInvitations.length === 0) {
+        await refreshTeams();
         navigate('/dashboard');
       }
     } catch (error: any) {
