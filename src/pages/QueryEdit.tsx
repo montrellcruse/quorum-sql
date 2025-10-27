@@ -239,7 +239,7 @@ const QueryEdit = () => {
 
       // Step 1: If requesting approval, create history record FIRST
       if (newStatus === 'pending_approval') {
-        const { error: historyError } = await supabase
+        const { data: historyData, error: historyError } = await supabase
           .from('query_history')
           .insert({
             query_id: queryId,
@@ -247,26 +247,73 @@ const QueryEdit = () => {
             modified_by_email: user?.email || '',
             status: 'pending_approval',
             change_reason: changeReason.trim() || null,
-          });
+          })
+          .select()
+          .single();
 
         if (historyError) {
           throw historyError;
         }
+
+        // Get team_id for member count check
+        const { data: queryData } = await supabase
+          .from('sql_queries')
+          .select('team_id')
+          .eq('id', queryId)
+          .single();
+
+        if (queryData?.team_id) {
+          // Check team member count
+          const { count } = await supabase
+            .from('team_members')
+            .select('*', { count: 'exact', head: true })
+            .eq('team_id', queryData.team_id);
+
+          // Auto-approve for single-person teams
+          if (count === 1) {
+            // Update query status to approved
+            await supabase
+              .from('sql_queries')
+              .update({ status: 'approved' })
+              .eq('id', queryId);
+
+            // Update history status to approved
+            await supabase
+              .from('query_history')
+              .update({ status: 'approved' })
+              .eq('id', historyData.id);
+
+            toast({
+              title: 'Success',
+              description: 'Query auto-approved (single-person team)',
+            });
+
+            // Reset change reason after successful submission
+            setChangeReason('');
+
+            // Redirect back to folder page
+            navigate(`/folder/${query.folder_id}`);
+            return;
+          }
+        }
         
         // Reset change reason after successful submission
         setChangeReason('');
-      }
 
-      toast({
-        title: 'Success',
-        description: newStatus === 'pending_approval' 
-          ? 'Query submitted for approval and logged to history' 
-          : newStatus === 'approved' 
-          ? 'Query approved' 
-          : newStatus === 'draft' 
-          ? 'Query saved as draft' 
-          : 'Query updated',
-      });
+        toast({
+          title: 'Success',
+          description: 'Query submitted for approval',
+        });
+      } else {
+        toast({
+          title: 'Success',
+          description: newStatus === 'approved' 
+            ? 'Query approved' 
+            : newStatus === 'draft' 
+            ? 'Query saved as draft' 
+            : 'Query updated',
+        });
+      }
 
       // Redirect back to folder page
       navigate(`/folder/${query.folder_id}`);
