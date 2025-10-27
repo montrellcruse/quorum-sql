@@ -12,7 +12,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
 import { checkUserTeamMembership, checkPendingInvitations } from '@/utils/teamUtils';
 
-const ALLOWED_DOMAIN = '@azdes.gov';
+const ALLOWED_DOMAIN = import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '@example.com';
+const GOOGLE_WORKSPACE_DOMAIN = import.meta.env.VITE_GOOGLE_WORKSPACE_DOMAIN || '';
 const IS_DEV = import.meta.env.DEV;
 const DEV_TEST_EMAILS = ['admin@test.local', 'member@test.local'];
 
@@ -73,7 +74,7 @@ const Auth = () => {
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
-          hd: 'azdes.gov' // Google Workspace domain hint
+          ...(GOOGLE_WORKSPACE_DOMAIN && { hd: GOOGLE_WORKSPACE_DOMAIN })
         }
       }
     });
