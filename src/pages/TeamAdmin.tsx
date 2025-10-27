@@ -219,6 +219,30 @@ const TeamAdmin = () => {
     try {
       const email = newUserEmail.trim();
 
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        toast({
+          title: 'Invalid Email',
+          description: 'Please enter a valid email address.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Validate domain (allow dev test accounts)
+      const isDevTestAccount = import.meta.env.DEV && 
+        ['admin@test.local', 'member@test.local'].includes(email.toLowerCase());
+      
+      if (!isDevTestAccount && !email.endsWith('@example.com')) {
+        toast({
+          title: 'Invalid Email Domain',
+          description: 'Only @example.com email addresses can be invited.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       // Check if a pending invitation already exists
       const { data: existingInvite, error: checkError } = await supabase
         .from('team_invitations')
