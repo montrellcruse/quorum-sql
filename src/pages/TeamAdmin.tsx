@@ -231,13 +231,14 @@ const TeamAdmin = () => {
       }
 
       // Validate domain (allow dev test accounts)
+      const ALLOWED_DOMAIN = import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '@example.com';
       const isDevTestAccount = import.meta.env.DEV && 
         ['admin@test.local', 'member@test.local'].includes(email.toLowerCase());
       
-      if (!isDevTestAccount && !email.endsWith('@example.com')) {
+      if (!isDevTestAccount && !email.endsWith(ALLOWED_DOMAIN)) {
         toast({
           title: 'Invalid Email Domain',
-          description: 'Only @example.com email addresses can be invited.',
+          description: `Only ${ALLOWED_DOMAIN} email addresses can be invited.`,
           variant: 'destructive',
         });
         return;

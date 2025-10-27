@@ -14,6 +14,9 @@ const isDevTestAccount = (email: string) => {
   return import.meta.env.DEV && DEV_TEST_EMAILS.includes(email.toLowerCase());
 };
 
+// Get allowed email domain from environment variable
+const ALLOWED_EMAIL_DOMAIN = import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '@example.com';
+
 const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
@@ -42,7 +45,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const userEmail = session.user.email;
           
           // Skip validation for dev test accounts
-          if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith('@example.com')) {
+          if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
             // Sign out the user immediately
             await supabase.auth.signOut();
             console.error('Invalid email domain. Only @example.com emails are allowed.');
@@ -67,7 +70,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const userEmail = session.user.email;
         
         // Skip validation for dev test accounts
-        if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith('@example.com')) {
+        if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
           supabase.auth.signOut();
           console.error('Invalid email domain. Only @example.com emails are allowed.');
           setSession(null);
