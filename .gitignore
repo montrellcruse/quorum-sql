@@ -17,7 +17,6 @@ build
 .cache
 
 # Environment variables - CRITICAL FOR SECURITY
-.env
 .env.local
 .env.*.local
 *.local
