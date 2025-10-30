@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { teamNameSchema } from '@/lib/validationSchemas';
 
 const CreateTeam = () => {
   const { user, loading: authLoading } = useAuth();
@@ -28,10 +29,12 @@ const CreateTeam = () => {
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!teamName.trim()) {
+    // Validate team name using zod schema
+    const validation = teamNameSchema.safeParse(teamName);
+    if (!validation.success) {
       toast({
-        title: 'Error',
-        description: 'Team name is required',
+        title: 'Invalid Team Name',
+        description: validation.error.issues[0].message,
         variant: 'destructive',
       });
       return;
@@ -43,7 +46,7 @@ const CreateTeam = () => {
       // Use security definer function for atomic team creation
       const { data: teamData, error: teamError } = await supabase
         .rpc('create_team_with_admin', {
-          _team_name: teamName.trim(),
+          _team_name: validation.data,
           _approval_quota: 1
         })
         .single();
@@ -102,6 +105,7 @@ const CreateTeam = () => {
                 onChange={(e) => setTeamName(e.target.value)}
                 required
                 disabled={creating}
+                maxLength={100}
               />
               <p className="text-sm text-muted-foreground">
                 This will be the name of your workspace. You can change it later.

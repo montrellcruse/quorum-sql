@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import Editor from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Save, Trash2, FolderInput } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, FolderInput, AlertTriangle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +37,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { querySchema, changeReasonSchema, validateSqlSafety } from '@/lib/validationSchemas';
 
 interface Query {
   id: string;
@@ -71,31 +73,20 @@ const QueryEdit = () => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [changeReason, setChangeReason] = useState('');
+  const [sqlWarnings, setSqlWarnings] = useState<string[]>([]);
   
   const isNewQuery = id === 'new';
   const folderId = location.state?.folderId;
 
-  // SQL content validation
-  const validateSqlContent = (content: string): { valid: boolean; error?: string } => {
-    if (!content || content.trim().length === 0) {
-      return { valid: false, error: 'SQL content cannot be empty' };
+  // Check SQL content for dangerous patterns
+  useEffect(() => {
+    if (query?.sql_content) {
+      const { warnings } = validateSqlSafety(query.sql_content);
+      setSqlWarnings(warnings);
+    } else {
+      setSqlWarnings([]);
     }
-    
-    if (content.length > 100000) {
-      return { valid: false, error: 'SQL content exceeds maximum length of 100KB' };
-    }
-    
-    // Basic SQL syntax check - ensure it contains SQL keywords
-    const sqlKeywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'WITH'];
-    const upperContent = content.toUpperCase();
-    const hasSqlKeyword = sqlKeywords.some(keyword => upperContent.includes(keyword));
-    
-    if (!hasSqlKeyword) {
-      return { valid: false, error: 'Content does not appear to be valid SQL' };
-    }
-    
-    return { valid: true };
-  };
+  }, [query?.sql_content]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -166,24 +157,33 @@ const QueryEdit = () => {
   };
 
   const handleSave = async (newStatus: string) => {
-    if (!query?.title.trim() || !query?.sql_content.trim()) {
+    // Validate query data using zod schema
+    const validation = querySchema.safeParse({
+      title: query?.title,
+      description: query?.description,
+      sql_content: query?.sql_content,
+    });
+
+    if (!validation.success) {
       toast({
-        title: 'Error',
-        description: 'Title and SQL content are required',
+        title: 'Validation Error',
+        description: validation.error.issues[0].message,
         variant: 'destructive',
       });
       return;
     }
 
-    // Validate SQL content using the validation function
-    const validation = validateSqlContent(query.sql_content);
-    if (!validation.valid) {
-      toast({
-        title: 'Validation Error',
-        description: validation.error,
-        variant: 'destructive',
-      });
-      return;
+    // Validate change reason if requesting approval
+    if (newStatus === 'pending_approval') {
+      const reasonValidation = changeReasonSchema.safeParse(changeReason);
+      if (!reasonValidation.success) {
+        toast({
+          title: 'Invalid Change Reason',
+          description: reasonValidation.error.issues[0].message,
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setSaving(true);
@@ -527,6 +527,7 @@ const QueryEdit = () => {
                 onChange={(e) => setQuery({ ...query, title: e.target.value })}
                 placeholder="Enter query title"
                 disabled={!isEditable}
+                maxLength={200}
                 className={!isEditable ? 'cursor-not-allowed opacity-60' : ''}
               />
             </div>
@@ -540,6 +541,7 @@ const QueryEdit = () => {
                 placeholder="Enter query description"
                 rows={3}
                 disabled={!isEditable}
+                maxLength={1000}
                 className={!isEditable ? 'cursor-not-allowed opacity-60' : ''}
               />
             </div>
@@ -574,6 +576,30 @@ const QueryEdit = () => {
                   theme={theme === "dark" ? "vs-dark" : "light"}
                 />
               </div>
+              
+              {/* SQL Safety Warnings */}
+              {sqlWarnings.length > 0 && (
+                <Alert variant="destructive" className="mt-3">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>SQL Safety Warning</AlertTitle>
+                  <AlertDescription>
+                    <div className="mt-2 space-y-1">
+                      <p className="font-semibold text-sm">
+                        This query contains potentially dangerous operations:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 text-sm">
+                        {sqlWarnings.map((warning, idx) => (
+                          <li key={idx}>{warning}</li>
+                        ))}
+                      </ul>
+                      <p className="text-sm mt-2 italic">
+                        ⚠️ Note: SQL queries are stored for reference only and not executed by this application. 
+                        Review carefully before running them manually in your database.
+                      </p>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
 
             {query.status === 'draft' && (

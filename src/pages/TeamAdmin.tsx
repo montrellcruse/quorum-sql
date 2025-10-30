@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, Trash2, UserCog, Shield, ShieldOff } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { emailSchema } from '@/lib/validationSchemas';
 
 interface Team {
   id: string;
@@ -219,26 +220,12 @@ const TeamAdmin = () => {
     try {
       const email = newUserEmail.trim();
 
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
+      // Validate email using zod schema
+      const validation = emailSchema.safeParse(email);
+      if (!validation.success) {
         toast({
           title: 'Invalid Email',
-          description: 'Please enter a valid email address.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Validate domain (allow dev test accounts)
-      const ALLOWED_DOMAIN = import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '@example.com';
-      const isDevTestAccount = import.meta.env.DEV && 
-        ['admin@test.local', 'member@test.local'].includes(email.toLowerCase());
-      
-      if (!isDevTestAccount && !email.endsWith(ALLOWED_DOMAIN)) {
-        toast({
-          title: 'Invalid Email Domain',
-          description: `Only ${ALLOWED_DOMAIN} email addresses can be invited.`,
+          description: validation.error.issues[0].message,
           variant: 'destructive',
         });
         return;
