@@ -375,15 +375,27 @@ export type Database = {
         }
         Returns: Json
       }
-      submit_query_for_approval: {
-        Args: {
-          _change_reason: string
-          _modified_by_email: string
-          _query_id: string
-          _sql_content: string
-        }
-        Returns: Json
-      }
+      submit_query_for_approval:
+        | {
+            Args: {
+              _change_reason: string
+              _modified_by_email: string
+              _query_id: string
+              _sql_content: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _change_reason: string
+              _modified_by_email: string
+              _query_id: string
+              _sql_content: string
+              _team_id: string
+              _user_id: string
+            }
+            Returns: Json
+          }
       update_query_status: {
         Args: {
           _modifier_email: string

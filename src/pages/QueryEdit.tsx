@@ -239,12 +239,14 @@ const QueryEdit = () => {
 
       // Step 1: If requesting approval, use atomic function to handle single-person team auto-approval
       if (newStatus === 'pending_approval') {
-        const { data, error: rpcError } = await supabase.rpc('submit_query_for_approval', {
-          _query_id: queryId,
-          _sql_content: query.sql_content,
-          _modified_by_email: user?.email || '',
-          _change_reason: changeReason.trim() || null,
-        });
+    const { data, error: rpcError } = await supabase.rpc('submit_query_for_approval', {
+      _query_id: queryId,
+      _sql_content: query.sql_content,
+      _modified_by_email: user?.email || '',
+      _change_reason: changeReason.trim() || null,
+      _team_id: activeTeam!.id,
+      _user_id: user!.id,
+    });
 
         if (rpcError) {
           throw rpcError;
