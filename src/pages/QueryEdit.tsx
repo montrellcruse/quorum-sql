@@ -460,8 +460,8 @@ const QueryEdit = () => {
     }
   };
 
-  // All team members can edit any query
-  const isEditable = true;
+  // Only draft queries are editable
+  const isEditable = query.status === 'draft' || isNewQuery;
 
   if (loading || loadingQuery) {
     return (
@@ -526,6 +526,8 @@ const QueryEdit = () => {
                 value={query.title}
                 onChange={(e) => setQuery({ ...query, title: e.target.value })}
                 placeholder="Enter query title"
+                disabled={!isEditable}
+                className={!isEditable ? 'cursor-not-allowed opacity-60' : ''}
               />
             </div>
 
@@ -537,19 +539,32 @@ const QueryEdit = () => {
                 onChange={(e) => setQuery({ ...query, description: e.target.value })}
                 placeholder="Enter query description"
                 rows={3}
+                disabled={!isEditable}
+                className={!isEditable ? 'cursor-not-allowed opacity-60' : ''}
               />
             </div>
 
             <div>
-              <Label htmlFor="sql_content">SQL Content</Label>
-              <div className="overflow-hidden rounded-md border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="sql_content">SQL Content</Label>
+                {!isEditable && (
+                  <span className="text-xs text-muted-foreground">
+                    Read-only. Click "Create New Draft" to edit.
+                  </span>
+                )}
+              </div>
+              <div className={`overflow-hidden rounded-md border ${
+                !isEditable 
+                  ? 'border-gray-300 bg-gray-100 dark:border-gray-600 dark:bg-gray-800' 
+                  : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900'
+              }`}>
                 <Editor
                   height="300px"
                   defaultLanguage="sql"
                   value={query.sql_content}
                   onChange={(value) => setQuery({ ...query, sql_content: value || '' })}
                   options={{
-                    readOnly: false,
+                    readOnly: !isEditable,
                     minimap: { enabled: false },
                     fontSize: 14,
                     lineNumbers: 'on',
