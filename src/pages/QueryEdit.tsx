@@ -461,7 +461,7 @@ const QueryEdit = () => {
   };
 
   // Only draft queries are editable
-  const isEditable = query.status === 'draft' || isNewQuery;
+  const isEditable = (query?.status === 'draft') || isNewQuery;
 
   if (loading || loadingQuery) {
     return (
