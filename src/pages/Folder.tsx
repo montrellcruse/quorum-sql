@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
+import { folderSchema } from '@/lib/validationSchemas';
 
 interface Folder {
   id: string;
@@ -206,12 +207,27 @@ const Folder = () => {
   const handleSaveFolder = async () => {
     if (!folder) return;
 
+    // Validate folder data using zod schema
+    const validation = folderSchema.safeParse({
+      name: editName,
+      description: editDescription,
+    });
+
+    if (!validation.success) {
+      toast({
+        title: 'Invalid Folder Data',
+        description: validation.error.issues[0].message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('folders')
         .update({
-          name: editName,
-          description: editDescription,
+          name: validation.data.name,
+          description: validation.data.description,
         })
         .eq('id', folder.id);
 
@@ -222,7 +238,7 @@ const Folder = () => {
         description: 'Folder updated successfully',
       });
 
-      setFolder({ ...folder, name: editName, description: editDescription });
+      setFolder({ ...folder, name: validation.data.name, description: validation.data.description || null });
       setEditDialogOpen(false);
     } catch (error: any) {
       toast({
@@ -292,10 +308,16 @@ const Folder = () => {
   };
 
   const handleCreateChildFolder = async () => {
-    if (!newFolderName.trim()) {
+    // Validate folder data using zod schema
+    const validation = folderSchema.safeParse({
+      name: newFolderName,
+      description: newFolderDescription,
+    });
+
+    if (!validation.success) {
       toast({
-        title: 'Error',
-        description: 'Folder name is required',
+        title: 'Invalid Folder Data',
+        description: validation.error.issues[0].message,
         variant: 'destructive',
       });
       return;
@@ -306,7 +328,7 @@ const Folder = () => {
       const { data: existingFolder, error: checkError } = await supabase
         .from('folders')
         .select('id')
-        .eq('name', newFolderName.trim())
+        .eq('name', validation.data.name)
         .eq('parent_folder_id', id)
         .maybeSingle();
 
@@ -324,8 +346,8 @@ const Folder = () => {
       const { error } = await supabase
         .from('folders')
         .insert({
-          name: newFolderName,
-          description: newFolderDescription,
+          name: validation.data.name,
+          description: validation.data.description,
           parent_folder_id: id,
           user_id: user?.id,
           created_by_email: user?.email || '',
