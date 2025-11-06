@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ArrowLeft, Edit, Clock, Trash2, Copy, Check } from 'lucide-react';
+import { getDbAdapter } from '@/lib/provider';
 
 interface Query {
   id: string;
@@ -88,25 +89,29 @@ const QueryView = () => {
 
   const fetchQuery = async () => {
     try {
-      const { data, error } = await supabase
-        .from('sql_queries')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (error) throw error;
-      
-      if (!data) {
-        toast({
-          title: 'Error',
-          description: 'Query not found',
-          variant: 'destructive',
-        });
-        navigate('/dashboard');
-        return;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const q = await getDbAdapter().queries.getById(id!);
+        if (!q) {
+          toast({ title: 'Error', description: 'Query not found', variant: 'destructive' });
+          navigate('/dashboard');
+          return;
+        }
+        setQuery(q as any);
+      } else {
+        const { data, error } = await supabase
+          .from('sql_queries')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) {
+          toast({ title: 'Error', description: 'Query not found', variant: 'destructive' });
+          navigate('/dashboard');
+          return;
+        }
+        setQuery(data as any);
       }
-
-      setQuery(data);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -124,23 +129,29 @@ const QueryView = () => {
     
     setLoadingHistory(true);
     try {
-      const { data, error } = await supabase
-        .from('query_history')
-        .select('*')
-        .eq('query_id', id)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-      
-      // Get approved history for display
-      const approvedHistory = (data || []).filter(h => h.status === 'approved');
-      setHistory(approvedHistory);
-      
-      // Get latest pending approval history
-      const pendingHistory = (data || []).find(h => h.status === 'pending_approval');
-      if (pendingHistory) {
-        setLatestHistoryId(pendingHistory.id);
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/queries/${id}/history`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        const approvedHistory = (data || []).filter((h: any) => h.status === 'approved');
+        setHistory(approvedHistory);
+        const pendingHistory = (data || []).find((h: any) => h.status === 'pending_approval');
+        if (pendingHistory) setLatestHistoryId(pendingHistory.id);
+      } else {
+        const { data, error } = await supabase
+          .from('query_history')
+          .select('*')
+          .eq('query_id', id)
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (error) throw error;
+        const approvedHistory = (data || []).filter(h => h.status === 'approved');
+        setHistory(approvedHistory);
+        const pendingHistory = (data || []).find(h => h.status === 'pending_approval');
+        if (pendingHistory) setLatestHistoryId(pendingHistory.id);
       }
     } catch (error: any) {
       toast({
@@ -157,31 +168,36 @@ const QueryView = () => {
     if (!latestHistoryId) return;
 
     try {
-      // Fetch team approval quota
-      const { data: queryData, error: queryError } = await supabase
-        .from('sql_queries')
-        .select('team_id, teams(approval_quota)')
-        .eq('id', id)
-        .single();
-
-      if (queryError) throw queryError;
-      
-      const quota = (queryData as any)?.teams?.approval_quota || 1;
-      setApprovalQuota(quota);
-
-      // Fetch approvals for this history record
-      const { data: approvalsData, error: approvalsError } = await supabase
-        .from('query_approvals')
-        .select('*')
-        .eq('query_history_id', latestHistoryId);
-
-      if (approvalsError) throw approvalsError;
-      
-      setApprovals(approvalsData || []);
-      
-      // Check if current user has approved
-      const userApproval = (approvalsData || []).some(a => a.user_id === user?.id);
-      setHasUserApproved(userApproval);
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/queries/${id}/approvals`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const payload = await res.json();
+        setApprovalQuota(payload.approval_quota || 1);
+        setApprovals(payload.approvals || []);
+        if (payload.latest_history_id) setLatestHistoryId(payload.latest_history_id);
+        const userApproval = (payload.approvals || []).some((a: any) => a.user_id === user?.id);
+        setHasUserApproved(userApproval);
+      } else {
+        const { data: queryData, error: queryError } = await supabase
+          .from('sql_queries')
+          .select('team_id, teams(approval_quota)')
+          .eq('id', id)
+          .single();
+        if (queryError) throw queryError;
+        const quota = (queryData as any)?.teams?.approval_quota || 1;
+        setApprovalQuota(quota);
+        const { data: approvalsData, error: approvalsError } = await supabase
+          .from('query_approvals')
+          .select('*')
+          .eq('query_history_id', latestHistoryId);
+        if (approvalsError) throw approvalsError;
+        setApprovals(approvalsData || []);
+        const userApproval = (approvalsData || []).some(a => a.user_id === user?.id);
+        setHasUserApproved(userApproval);
+      }
     } catch (error: any) {
       // Error fetching approvals - silently fail as this is not critical
     }
@@ -211,36 +227,27 @@ const QueryView = () => {
     
     setUpdating(true);
     try {
-      // Call the security definer function
-      const { data, error } = await supabase.rpc('approve_query_with_quota', {
-        _query_id: id,
-        _query_history_id: latestHistoryId,
-        _approver_user_id: user.id,
-      });
-
-      if (error) throw error;
-
-      const result = data as any;
-
-      if (!result.success) {
-        toast({
-          title: 'Error',
-          description: result.error,
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (result.approved) {
-        toast({
-          title: 'Success',
-          description: `${result.message} (${result.approval_count}/${result.approval_quota} approvals reached)`,
-        });
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        await getDbAdapter().queries.approve(id, latestHistoryId);
+        toast({ title: 'Success', description: 'Approval recorded.' });
       } else {
-        toast({
-          title: 'Approval Recorded',
-          description: `${result.message} (${result.approval_count}/${result.approval_quota} approvals)`,
+        const { data, error } = await supabase.rpc('approve_query_with_quota', {
+          _query_id: id,
+          _query_history_id: latestHistoryId,
+          _approver_user_id: user.id,
         });
+        if (error) throw error;
+        const result = data as any;
+        if (!result.success) {
+          toast({ title: 'Error', description: result.error, variant: 'destructive' });
+          return;
+        }
+        if (result.approved) {
+          toast({ title: 'Success', description: `${result.message} (${result.approval_count}/${result.approval_quota} approvals reached)` });
+        } else {
+          toast({ title: 'Approval Recorded', description: `${result.message} (${result.approval_count}/${result.approval_quota} approvals)` });
+        }
       }
 
       // Check if we should redirect back to approvals page
@@ -280,19 +287,18 @@ const QueryView = () => {
     
     setUpdating(true);
     try {
-      // Use secure RPC function with authorization checks
-      const { data, error } = await supabase.rpc('reject_query_with_authorization', {
-        _query_id: id,
-        _query_history_id: latestHistoryId,
-        _rejecter_user_id: user.id,
-      });
-
-      if (error) throw error;
-
-      const result = data as { success: boolean; error?: string; message?: string };
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to reject query');
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        await getDbAdapter().queries.reject(id, latestHistoryId);
+      } else {
+        const { data, error } = await supabase.rpc('reject_query_with_authorization', {
+          _query_id: id,
+          _query_history_id: latestHistoryId,
+          _rejecter_user_id: user.id,
+        });
+        if (error) throw error;
+        const result = data as { success: boolean; error?: string; message?: string };
+        if (!result.success) throw new Error(result.error || 'Failed to reject query');
       }
 
       toast({
@@ -335,12 +341,16 @@ const QueryView = () => {
     if (!query) return;
 
     try {
-      const { error } = await supabase
-        .from('sql_queries')
-        .delete()
-        .eq('id', query.id);
-
-      if (error) throw error;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        await getDbAdapter().queries.remove(query.id);
+      } else {
+        const { error } = await supabase
+          .from('sql_queries')
+          .delete()
+          .eq('id', query.id);
+        if (error) throw error;
+      }
 
       toast({
         title: 'Success',

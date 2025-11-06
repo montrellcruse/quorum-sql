@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { restAuthAdapter } from '@/lib/auth/restAuthAdapter';
 
 interface AuthContextType {
   user: User | null;
@@ -37,49 +38,68 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
+    const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+    if (provider === 'rest') {
+      // REST mode: fetch session user once
+      restAuthAdapter
+        .getSessionUser()
+        .then((u) => {
+          if (!u) {
+            setUser(null);
+            setSession(null);
+            setLoading(false);
+            return;
+          }
+          const fakeUser = { id: u.id, email: u.email } as unknown as User;
+          // Domain validation
+          const userEmail = u.email;
+          if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
+            setUser(null);
+            setSession(null);
+          } else {
+            setUser(fakeUser);
+            setSession(null);
+          }
+          setLoading(false);
+        })
+        .catch(() => {
+          setUser(null);
+          setSession(null);
+          setLoading(false);
+        });
+      return;
+    }
+
+    // Supabase mode: subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Validate email domain for authenticated users
+      async (_event, session) => {
         if (session?.user) {
           const userEmail = session.user.email;
-          
-          // Skip validation for dev test accounts
           if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
-            // Sign out the user immediately
             await supabase.auth.signOut();
-            console.error('Invalid email domain. Only @azdes.gov emails are allowed.');
-            
             setSession(null);
             setUser(null);
             setLoading(false);
             return;
           }
         }
-        
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      // Validate email domain for existing sessions
       if (session?.user) {
         const userEmail = session.user.email;
-        
-        // Skip validation for dev test accounts
         if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
           supabase.auth.signOut();
-          console.error('Invalid email domain. Only @azdes.gov emails are allowed.');
           setSession(null);
           setUser(null);
           setLoading(false);
           return;
         }
       }
-      
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);

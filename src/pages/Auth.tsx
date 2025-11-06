@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { restAuthAdapter } from '@/lib/auth/restAuthAdapter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,7 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -35,7 +37,11 @@ const Auth = () => {
       if (user && user.email) {
         // Validate domain (allow dev test accounts in development)
         if (!isDevTestAccount(user.email) && !user.email.endsWith(ALLOWED_DOMAIN)) {
-          await supabase.auth.signOut();
+          if (provider === 'rest') {
+            await restAuthAdapter.signOut();
+          } else {
+            await supabase.auth.signOut();
+          }
           toast({
             title: 'Access Denied',
             description: `Only ${ALLOWED_DOMAIN} email addresses are allowed.`,
@@ -66,6 +72,11 @@ const Auth = () => {
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
+    if (provider === 'rest') {
+      toast({ title: 'Not available', description: 'Google sign-in is disabled in REST mode.', variant: 'destructive' });
+      setLoading(false);
+      return;
+    }
     
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -93,21 +104,22 @@ const Auth = () => {
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-
-    if (error) {
-      toast({
-        title: 'Sign In Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
+    try {
+      if (provider === 'rest') {
+        await restAuthAdapter.signInWithPassword!(email.trim(), password);
+        window.location.href = '/dashboard';
+        return;
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (error) throw error;
+      }
+    } catch (error: any) {
+      toast({ title: 'Sign In Failed', description: error.message, variant: 'destructive' });
       setLoading(false);
     }
-    // Don't set loading to false on success - the redirect will happen
   };
 
   return (
@@ -118,19 +130,21 @@ const Auth = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <Button 
-              onClick={handleGoogleSignIn} 
-              className="w-full" 
-              disabled={loading}
-              size="lg"
-            >
-              {loading ? 'Signing in...' : 'Sign in with Google'}
-            </Button>
+            {provider !== 'rest' && (
+              <Button 
+                onClick={handleGoogleSignIn} 
+                className="w-full" 
+                disabled={loading}
+                size="lg"
+              >
+                {loading ? 'Signing in...' : 'Sign in with Google'}
+              </Button>
+            )}
             <p className="text-sm text-muted-foreground text-center">
               Only {ALLOWED_DOMAIN} email addresses are allowed
             </p>
 
-            {IS_DEV && (
+            {(IS_DEV || provider === 'rest') && (
               <>
                 <div className="relative">
                   <Separator />

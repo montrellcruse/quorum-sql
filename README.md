@@ -194,6 +194,47 @@ See [Google OAuth Configuration](#google-oauth-configuration) above.
    VITE_SUPABASE_PUBLISHABLE_KEY=<anon-key-from-output>
    ```
 
+### Using Generic PostgreSQL (No Supabase)
+
+This mode runs a generic Postgres database with a lightweight backend API. It emulates `auth.uid()`/`auth.role()` so existing RLS works.
+
+1. Start services with Docker Compose:
+
+```bash
+docker compose up -d db adminer server
+```
+
+2. Configure frontend env:
+
+```bash
+cp .env.example .env
+echo "VITE_DB_PROVIDER=rest" >> .env
+echo "VITE_API_BASE_URL=http://localhost:8787" >> .env
+```
+
+3. Run the app:
+
+```bash
+npm run dev
+```
+
+Adminer is available at http://localhost:8080 (System: PostgreSQL, Server: db, User: postgres, Password: postgres, Database: appdb).
+
+### Dual Auth (Supabase + Local)
+
+You can enable both auth providers and let users choose:
+
+```bash
+# Frontend
+VITE_DB_PROVIDER=rest
+VITE_AUTH_PROVIDERS=supabase,local
+VITE_API_BASE_URL=http://localhost:8787
+VITE_SUPABASE_URL=...    # if you also want Supabase sign-in
+VITE_SUPABASE_PUBLISHABLE_KEY=...
+```
+
+In this mode, the backend accepts either a local session or a Supabase JWT (verification to be configured via environment on the server).
+
 ### Database Schema
 
 The application uses 8 tables with Row-Level Security:
