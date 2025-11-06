@@ -52,11 +52,18 @@ async function withClient(userId, fn) {
   const client = await pool.connect();
   try {
     if (userId) {
-      await client.query("select set_config('app.user_id', $1, true)", [userId]);
-      await client.query("select set_config('app.role', 'authenticated', true)");
+      // Session-level to persist across explicit transactions; will be reset in finally
+      await client.query("select set_config('app.user_id', $1, false)", [userId]);
+      await client.query("select set_config('app.role', 'authenticated', false)");
     }
     return await fn(client);
   } finally {
+    if (userId) {
+      try {
+        await client.query("select set_config('app.user_id', '', false)");
+        await client.query("select set_config('app.role', '', false)");
+      } catch {}
+    }
     client.release();
   }
 }
