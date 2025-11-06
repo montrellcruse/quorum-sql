@@ -46,75 +46,72 @@ const AcceptInvites = () => {
 
   const fetchPendingInvitations = async () => {
     try {
-      // Use email directly from the auth user session
-      const userEmail = user!.email;
-      
-      if (!userEmail) {
-        console.error('No email found for user');
-        const hasMembership = await checkUserTeamMembership(user!.id);
-        navigate(hasMembership ? '/dashboard' : '/create-team');
-        return;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/invites/mine`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const rows = await res.json();
+        const mapped: TeamInvitation[] = (rows || []).map((r: any) => ({
+          id: r.id,
+          team_id: r.team_id,
+          invited_email: r.invited_email,
+          role: r.role,
+          invited_by_user_id: r.invited_by_user_id,
+          teams: { name: r.team_name },
+          inviter: r.inviter_email ? { full_name: r.inviter_full_name, email: r.inviter_email } : undefined,
+        }));
+        if (!mapped.length) {
+          const hasMembership = await checkUserTeamMembership(user!.id);
+          navigate(hasMembership ? '/dashboard' : '/create-team');
+          return;
+        }
+        setInvitations(mapped);
+      } else {
+        // Supabase path
+        const userEmail = user!.email;
+        if (!userEmail) {
+          const hasMembership = await checkUserTeamMembership(user!.id);
+          navigate(hasMembership ? '/dashboard' : '/create-team');
+          return;
+        }
+        const { data: invitationsData, error: invitationsError } = await supabase
+          .from('team_invitations')
+          .select('id, team_id, invited_email, role, invited_by_user_id')
+          .eq('invited_email', userEmail)
+          .eq('status', 'pending');
+        if (invitationsError) throw invitationsError;
+        if (!invitationsData || invitationsData.length === 0) {
+          const hasMembership = await checkUserTeamMembership(user!.id);
+          navigate(hasMembership ? '/dashboard' : '/create-team');
+          return;
+        }
+        const teamIds = invitationsData.map(inv => inv.team_id);
+        const { data: teamsData } = await supabase
+          .from('teams')
+          .select('id, name')
+          .in('id', teamIds);
+        const inviterIds = invitationsData
+          .map(inv => inv.invited_by_user_id)
+          .filter((id): id is string => id != null);
+        const { data: invitersData } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, email')
+          .in('user_id', inviterIds);
+        const invitationsWithTeams: TeamInvitation[] = invitationsData.map(inv => {
+          const team = teamsData?.find(t => t.id === inv.team_id);
+          const inviter = inv.invited_by_user_id 
+            ? invitersData?.find(i => i.user_id === inv.invited_by_user_id)
+            : null;
+          return {
+            ...inv,
+            teams: team ? { name: team.name } : undefined,
+            inviter: inviter ? { full_name: inviter.full_name, email: inviter.email } : undefined,
+          };
+        });
+        setInvitations(invitationsWithTeams);
       }
-
-      // Step 1: Fetch invitations with invited_by_user_id
-      const { data: invitationsData, error: invitationsError } = await supabase
-        .from('team_invitations')
-        .select('id, team_id, invited_email, role, invited_by_user_id')
-        .eq('invited_email', userEmail)
-        .eq('status', 'pending');
-
-      if (invitationsError) throw invitationsError;
-
-      // If no pending invites, redirect based on team membership
-      if (!invitationsData || invitationsData.length === 0) {
-        const hasMembership = await checkUserTeamMembership(user!.id);
-        navigate(hasMembership ? '/dashboard' : '/create-team');
-        return;
-      }
-
-      // Step 2: Fetch team data separately
-      const teamIds = invitationsData.map(inv => inv.team_id);
-      const { data: teamsData, error: teamsError } = await supabase
-        .from('teams')
-        .select('id, name')
-        .in('id', teamIds);
-
-      if (teamsError) {
-        console.error('Error fetching teams:', { message: teamsError?.message });
-      }
-
-      // Step 3: Fetch inviter profiles
-      const inviterIds = invitationsData
-        .map(inv => inv.invited_by_user_id)
-        .filter((id): id is string => id != null);
-
-      const { data: invitersData, error: invitersError } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, email')
-        .in('user_id', inviterIds);
-
-      if (invitersError) {
-        console.error('Error fetching inviters:', { message: invitersError?.message });
-      }
-
-      // Step 4: Map all data together
-      const invitationsWithTeams: TeamInvitation[] = invitationsData.map(inv => {
-        const team = teamsData?.find(t => t.id === inv.team_id);
-        const inviter = inv.invited_by_user_id 
-          ? invitersData?.find(i => i.user_id === inv.invited_by_user_id)
-          : null;
-        
-        return {
-          ...inv,
-          teams: team ? { name: team.name } : undefined,
-          inviter: inviter ? {
-            full_name: inviter.full_name,
-            email: inviter.email
-          } : undefined
-        };
-      });
-
-      setInvitations(invitationsWithTeams);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -129,24 +126,27 @@ const AcceptInvites = () => {
   const handleAccept = async (invitationId: string, teamId: string, role: string) => {
     setProcessingId(invitationId);
     try {
-      // Add user to team
-      const { error: memberError } = await supabase
-        .from('team_members')
-        .insert({
-          team_id: teamId,
-          user_id: user!.id,
-          role: role,
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/invites/${invitationId}/accept`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
         });
-
-      if (memberError) throw memberError;
-
-      // Delete the invitation record
-      const { error: deleteError } = await supabase
-        .from('team_invitations')
-        .delete()
-        .eq('id', invitationId);
-
-      if (deleteError) throw deleteError;
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { error: memberError } = await supabase
+          .from('team_members')
+          .insert({ team_id: teamId, user_id: user!.id, role });
+        if (memberError) throw memberError;
+        const { error: deleteError } = await supabase
+          .from('team_invitations')
+          .delete()
+          .eq('id', invitationId);
+        if (deleteError) throw deleteError;
+      }
 
       toast({
         title: 'Success',
@@ -176,13 +176,23 @@ const AcceptInvites = () => {
   const handleDecline = async (invitationId: string) => {
     setProcessingId(invitationId);
     try {
-      // Delete the invitation record
-      const { error } = await supabase
-        .from('team_invitations')
-        .delete()
-        .eq('id', invitationId);
-
-      if (error) throw error;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/invites/${invitationId}/decline`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { error } = await supabase
+          .from('team_invitations')
+          .delete()
+          .eq('id', invitationId);
+        if (error) throw error;
+      }
 
       toast({
         title: 'Success',
