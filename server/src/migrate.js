@@ -68,7 +68,13 @@ async function main() {
   try {
     const compatDir = path.join(__dirname, '../migrations');
     const supaDir = path.join(__dirname, '../../supabase/migrations');
-    const migrations = [...readSqlFiles(compatDir), ...readSqlFiles(supaDir)];
+    const applySupabase = (process.env.APPLY_SUPABASE_MIGRATIONS || 'true').toLowerCase() !== 'false';
+    const compatMigrations = readSqlFiles(compatDir);
+    const supabaseMigrations = applySupabase ? readSqlFiles(supaDir) : [];
+    console.log(
+      `Applying migrations from: server/migrations${applySupabase ? ' + supabase/migrations' : ' (supabase skipped)'} `,
+    );
+    const migrations = [...compatMigrations, ...supabaseMigrations];
     await applyMigrations(pool, migrations);
     if (seed) {
       const seedPath = path.join(__dirname, '../seed.sql');
