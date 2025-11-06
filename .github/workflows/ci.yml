@@ -29,6 +29,7 @@ jobs:
       PGPORT: 5432
       PGDATABASE: testdb
       PGUSER: postgres
+      APPLY_SUPABASE_MIGRATIONS: false
       SESSION_SECRET: testsecrettestsecret1234567890
       CORS_ORIGIN: http://localhost:5173
 
