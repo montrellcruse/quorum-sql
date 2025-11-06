@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, feat-**, fix-**, chore-** ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: testdb
+      PGUSER: postgres
+      SESSION_SECRET: testsecrettestsecret1234567890
+      CORS_ORIGIN: http://localhost:5173
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install root deps
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Install server deps
+        run: |
+          cd server
+          npm ci
+
+      - name: Migrate database
+        run: node server/src/migrate.js --seed
+
+      - name: Start server
+        run: |
+          node server/src/index.js &
+          echo $! > server.pid
+
+      - name: Wait for server
+        run: |
+          for i in {1..20}; do
+            curl -sf http://localhost:8787/health && exit 0
+            sleep 2
+          done
+          echo "Server did not start in time" >&2
+          exit 1
+
+      - name: Smoke test
+        run: node server/src/smoke.mjs
+
+      - name: API smoke test
+        run: node server/src/smoke-api.mjs
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then kill $(cat server.pid) || true; fi
