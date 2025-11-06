@@ -123,6 +123,40 @@ This document outlines the comprehensive security measures implemented in the SQ
 - ✅ Client-side role manipulation has no effect
 - ✅ Role enum prevents invalid values
 
+## Data Corrections & Maintenance
+
+### 2025-11-06: Auto-Approval Retroactive Fix
+**Issue:** Queries created before auto-approval logic implementation were stuck in `pending_approval` status for single-member teams.
+
+**Affected Team:** 
+- DAAS-BI (Team ID: `ac34f65d-4cda-447b-ad22-e3db698a23b8`)
+- Member count: 1
+
+**Root Cause:** The `submit_query_for_approval` function was updated to auto-approve queries in single-member teams, but existing queries created before this logic remained in pending state without history records.
+
+**Resolution:**
+1. Created missing `query_history` records with status `'approved'`
+2. Updated `sql_queries` status to `'approved'`
+3. Added change_reason: `'Auto-approved for single-member team (retroactive fix)'`
+4. Preserved original timestamps
+
+**Queries Fixed:** 1 query ("Cases Without 30 Day Visit")
+
+**SQL Executed:**
+```sql
+INSERT INTO query_history (query_id, sql_content, modified_by_email, status, change_reason, created_at)
+SELECT id, sql_content, created_by_email, 'approved', 
+  'Auto-approved for single-member team (retroactive fix)', created_at
+FROM sql_queries WHERE id = '36371240-a2c0-4911-b4e6-c85299b41802';
+
+UPDATE sql_queries SET status = 'approved', updated_at = now()
+WHERE id = '36371240-a2c0-4911-b4e6-c85299b41802';
+```
+
+**Verification:** All affected queries now have proper history records and approved status. Scan confirmed no other queries affected.
+
+---
+
 ## Known Limitations
 
 1. **SQL Query Execution:** Queries are stored for reference only and NOT executed by the application. Users must manually review and execute them in their own database environments.
