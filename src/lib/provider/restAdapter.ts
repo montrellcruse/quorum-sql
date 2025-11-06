@@ -9,14 +9,21 @@ function baseUrl(path: string) {
 }
 
 async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init?.headers as any || {}) };
+  const initHeaders = init?.headers;
+  const headersFromInit: Record<string, string> =
+    initHeaders instanceof Headers
+      ? Object.fromEntries(initHeaders.entries())
+      : (initHeaders as Record<string, string> | undefined) ?? {};
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...headersFromInit };
   const providers = (import.meta.env.VITE_AUTH_PROVIDERS || '').toLowerCase();
   if (providers.includes('supabase')) {
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (token) headers['Authorization'] = `Bearer ${token}`;
-    } catch {}
+    } catch {
+      // ignore: Supabase not configured or session unavailable
+    }
   }
   const res = await fetch(input, {
     credentials: 'include',
