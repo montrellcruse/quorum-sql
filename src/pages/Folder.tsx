@@ -366,13 +366,18 @@ const Folder = () => {
           toast({ title: 'Error', description: 'A folder with this name already exists in this folder.', variant: 'destructive' });
           return;
         }
+        const teamId = activeTeam?.id ?? folder?.team_id;
+        if (!teamId) {
+          toast({ title: 'Error', description: 'Missing team context', variant: 'destructive' });
+          return;
+        }
         await getDbAdapter().folders.create({
           name: validation.data.name,
           description: validation.data.description,
           parent_folder_id: id as string,
           user_id: user?.id as string,
           created_by_email: user?.email || '',
-          team_id: activeTeam?.id || folder?.team_id!,
+          team_id: teamId,
         } as any);
       } else {
         // Supabase path
