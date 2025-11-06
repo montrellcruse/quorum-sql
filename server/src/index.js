@@ -3,12 +3,31 @@ import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import { createPool } from './db.js';
 import { SignJWT, jwtVerify, createRemoteJWKSet } from 'jose';
+import rateLimit from '@fastify/rate-limit';
+import { z } from 'zod';
 
 const fastify = Fastify({ logger: true });
 await fastify.register(cookie);
+
+// CORS allowlist via env CORS_ORIGIN (comma-separated)
+const ALLOW_ORIGINS = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 await fastify.register(cors, {
-  origin: true,
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (process.env.NODE_ENV !== 'production' && ALLOW_ORIGINS.length === 0) return cb(null, true);
+    if (ALLOW_ORIGINS.includes(origin)) return cb(null, true);
+    return cb(new Error('CORS not allowed'), false);
+  },
   credentials: true,
+});
+
+// Basic rate limiting
+await fastify.register(rateLimit, {
+  max: Number(process.env.RATE_LIMIT_MAX || 100),
+  timeWindow: process.env.RATE_LIMIT_WINDOW || '1 minute',
 });
 const pool = createPool();
 
@@ -103,9 +122,10 @@ fastify.get('/auth/me', async (req, reply) => {
 });
 
 fastify.post('/auth/login', async (req, reply) => {
-  const body = req.body || {};
-  const email = body.email?.toString()?.trim().toLowerCase();
-  if (!email) return reply.code(400).send('email required');
+  const Body = z.object({ email: z.string().email() });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const email = parsed.data.email.trim().toLowerCase();
   const row = await withClient(null, async (client) => {
     const { rows } = await client.query('select id, email from auth.users where lower(email) = $1', [email]);
     return rows[0];
@@ -117,12 +137,20 @@ fastify.post('/auth/login', async (req, reply) => {
     .setIssuedAt()
     .setExpirationTime('7d')
     .sign(new TextEncoder().encode(SESSION_SECRET));
-  reply.setCookie('session', token, { httpOnly: true, sameSite: 'lax', path: '/' });
+  const isProd = process.env.NODE_ENV === 'production';
+  reply.setCookie('session', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    secure: isProd,
+    maxAge: 60 * 60 * 24 * 7,
+  });
   return { ok: true };
 });
 
 fastify.post('/auth/logout', async (req, reply) => {
-  reply.clearCookie('session', { path: '/' });
+  const isProd = process.env.NODE_ENV === 'production';
+  reply.clearCookie('session', { path: '/', sameSite: 'lax', secure: isProd });
   return { ok: true };
 });
 
@@ -160,8 +188,10 @@ fastify.get('/teams/:id', async (req, reply) => {
 fastify.post('/teams', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
-  const { name, approval_quota = 1 } = req.body || {};
-  if (!name) return reply.code(400).send('name required');
+  const Body = z.object({ name: z.string().min(1).max(100), approval_quota: z.number().int().min(1).optional() });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const { name, approval_quota = 1 } = parsed.data;
   return withClient(sess.id, async (client) => {
     try {
       const call = await client.query('select * from public.create_team_with_admin($1, $2)', [name, approval_quota]);
@@ -209,9 +239,17 @@ fastify.get('/folders/:id', async (req, reply) => {
 fastify.post('/folders', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
-  const body = req.body || {};
-  const { name, description = null, user_id = sess.id, created_by_email = null, parent_folder_id = null, team_id } = body;
-  if (!name || !team_id) return reply.code(400).send('name and team_id required');
+  const Body = z.object({
+    name: z.string().min(1).max(100),
+    description: z.string().nullable().optional(),
+    user_id: z.string().uuid().optional(),
+    created_by_email: z.string().email().nullable().optional(),
+    parent_folder_id: z.string().uuid().nullable().optional(),
+    team_id: z.string().uuid(),
+  });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const { name, description = null, user_id = sess.id, created_by_email = null, parent_folder_id = null, team_id } = parsed.data;
   return withClient(sess.id, async (client) => {
     const { rows } = await client.query(
       `insert into public.folders(name, description, user_id, created_by_email, parent_folder_id, team_id)
@@ -265,7 +303,10 @@ fastify.patch('/folders/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
   const { id } = req.params;
-  const { name = null, description = null } = req.body || {};
+  const Body = z.object({ name: z.string().min(1).max(100).optional(), description: z.string().nullable().optional() });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const { name = null, description = null } = parsed.data;
   return withClient(sess.id, async (client) => {
     await client.query(
       `update public.folders set name = coalesce($1, name), description = $2 where id = $3`,
@@ -320,7 +361,19 @@ fastify.get('/queries/:id', async (req, reply) => {
 fastify.post('/queries', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
-  const body = req.body || {};
+  const Body = z.object({
+    title: z.string().min(1),
+    description: z.string().nullable().optional(),
+    sql_content: z.string(),
+    status: z.enum(['draft', 'pending_approval', 'approved', 'rejected']).optional(),
+    team_id: z.string().uuid(),
+    folder_id: z.string().uuid().nullable().optional(),
+    created_by_email: z.string().email().nullable().optional(),
+    last_modified_by_email: z.string().email().nullable().optional(),
+  });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const body = parsed.data;
   const fields = ['title', 'description', 'sql_content', 'status', 'team_id', 'folder_id', 'created_by_email', 'last_modified_by_email'];
   const cols = [];
   const vals = [];
@@ -347,7 +400,17 @@ fastify.patch('/queries/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
   const { id } = req.params;
-  const body = req.body || {};
+  const Body = z.object({
+    title: z.string().min(1).optional(),
+    description: z.string().nullable().optional(),
+    sql_content: z.string().optional(),
+    status: z.enum(['draft', 'pending_approval', 'approved', 'rejected']).optional(),
+    folder_id: z.string().uuid().nullable().optional(),
+    last_modified_by_email: z.string().email().nullable().optional(),
+  });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const body = parsed.data;
   const sets = [];
   const params = [];
   let i = 1;
@@ -536,8 +599,10 @@ fastify.post('/teams/:id/invites', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
   const { id } = req.params;
-  const { invited_email, role } = req.body || {};
-  if (!invited_email || !role) return reply.code(400).send('invited_email and role required');
+  const Body = z.object({ invited_email: z.string().email(), role: z.enum(['admin', 'member']) });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const { invited_email, role } = parsed.data;
   return withClient(sess.id, async (client) => {
     // prevent duplicate pending invites
     await client.query(
@@ -566,7 +631,10 @@ fastify.patch('/teams/:id/members/:memberId', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
   const { memberId } = req.params;
-  const { role } = req.body || {};
+  const Body = z.object({ role: z.enum(['admin', 'member']) });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const { role } = parsed.data;
   return withClient(sess.id, async (client) => {
     await client.query(`update public.team_members set role = $1 where id = $2`, [role, memberId]);
     return { ok: true };
@@ -577,7 +645,10 @@ fastify.patch('/teams/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
   const { id } = req.params;
-  const { approval_quota } = req.body || {};
+  const Body = z.object({ approval_quota: z.number().int().min(1) });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const { approval_quota } = parsed.data;
   return withClient(sess.id, async (client) => {
     await client.query(`update public.teams set approval_quota = $1 where id = $2`, [approval_quota, id]);
     return { ok: true };
@@ -588,7 +659,10 @@ fastify.post('/teams/:id/transfer-ownership', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
   const { id } = req.params;
-  const { new_owner_user_id } = req.body || {};
+  const Body = z.object({ new_owner_user_id: z.string().uuid() });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const { new_owner_user_id } = parsed.data;
   return withClient(sess.id, async (client) => {
     // ensure new owner is admin
     await client.query(
@@ -614,7 +688,16 @@ fastify.post('/queries/:id/submit', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
   const { id } = req.params;
-  const { sql, modified_by_email = null, change_reason = null, team_id = null, user_id = null } = req.body || {};
+  const Body = z.object({
+    sql: z.string().optional().nullable(),
+    modified_by_email: z.string().email().nullable().optional(),
+    change_reason: z.string().nullable().optional(),
+    team_id: z.string().uuid().nullable().optional(),
+    user_id: z.string().uuid().nullable().optional(),
+  });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const { sql, modified_by_email = null, change_reason = null, team_id = null, user_id = null } = parsed.data;
   return withClient(sess.id, async (client) => {
     try {
       await client.query('select public.submit_query_for_approval($1, $2, $3, $4, $5, $6)', [
@@ -637,7 +720,10 @@ fastify.post('/queries/:id/approve', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
   const { id } = req.params;
-  const { historyId } = req.body || {};
+  const Body = z.object({ historyId: z.string().uuid() });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const { historyId } = parsed.data;
   return withClient(sess.id, async (client) => {
     await client.query('select public.approve_query_with_quota($1, $2)', [id, historyId]);
     return { ok: true };
@@ -648,7 +734,10 @@ fastify.post('/queries/:id/reject', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send('unauthorized');
   const { id } = req.params;
-  const { historyId, reason = null } = req.body || {};
+  const Body = z.object({ historyId: z.string().uuid(), reason: z.string().nullable().optional() });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) return reply.code(400).send(parsed.error.issues[0]?.message || 'invalid body');
+  const { historyId, reason = null } = parsed.data;
   return withClient(sess.id, async (client) => {
     await client.query('select public.reject_query_with_authorization($1, $2, $3)', [id, historyId, reason]);
     return { ok: true };
