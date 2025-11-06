@@ -1,4 +1,5 @@
 import type { DbAdapter, TeamsRepo, FoldersRepo, QueriesRepo, Team, Folder, SqlQuery, UUID } from './types';
+import { supabase } from '@/integrations/supabase/client';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
 
@@ -8,9 +9,18 @@ function baseUrl(path: string) {
 }
 
 async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init?.headers as any || {}) };
+  const providers = (import.meta.env.VITE_AUTH_PROVIDERS || '').toLowerCase();
+  if (providers.includes('supabase')) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    } catch {}
+  }
   const res = await fetch(input, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    headers,
     ...init,
   });
   if (!res.ok) {
