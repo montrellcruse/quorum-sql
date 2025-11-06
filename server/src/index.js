@@ -52,8 +52,8 @@ async function withClient(userId, fn) {
   const client = await pool.connect();
   try {
     if (userId) {
-      await client.query('set local app.user_id = $1', [userId]);
-      await client.query("set local app.role = 'authenticated'");
+      await client.query("select set_config('app.user_id', $1, true)", [userId]);
+      await client.query("select set_config('app.role', 'authenticated', true)");
     }
     return await fn(client);
   } finally {
@@ -194,12 +194,9 @@ fastify.post('/teams', async (req, reply) => {
   const { name, approval_quota = 1 } = parsed.data;
   return withClient(sess.id, async (client) => {
     try {
-      const call = await client.query('select * from public.create_team_with_admin($1, $2)', [name, approval_quota]);
-      return call.rows?.[0] || { ok: true };
-    } catch (e) {
-      // Fallback manual insert if function not available
+      await client.query('begin');
       const tRes = await client.query(
-        `insert into public.teams(name, approval_quota, admin_id) values ($1, $2, auth.uid()) returning *`,
+        `insert into public.teams(name, approval_quota, admin_id) values ($1, $2, auth.uid()) returning id, name, approval_quota, admin_id, created_at`,
         [name, approval_quota]
       );
       const team = tRes.rows[0];
@@ -207,7 +204,11 @@ fastify.post('/teams', async (req, reply) => {
         `insert into public.team_members(team_id, user_id, role) values($1, auth.uid(), 'admin') on conflict do nothing`,
         [team.id]
       );
+      await client.query('commit');
       return team;
+    } catch (e) {
+      await client.query('rollback');
+      return reply.code(400).send(e?.message || 'failed to create team');
     }
   });
 });
