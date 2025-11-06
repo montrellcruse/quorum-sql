@@ -61,12 +61,12 @@ jobs:
 
       - name: Start server
         run: |
-          node server/src/index.js &
+          node server/src/index.js 2>&1 | tee server.log &
           echo $! > server.pid
 
       - name: Wait for server
         run: |
-          for i in {1..20}; do
+          for i in {1..60}; do
             curl -sf http://localhost:8787/health && exit 0
             sleep 2
           done
@@ -83,3 +83,10 @@ jobs:
         if: always()
         run: |
           if [ -f server.pid ]; then kill $(cat server.pid) || true; fi
+
+      - name: Upload server log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log
+          path: server.log
