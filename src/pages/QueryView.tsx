@@ -214,29 +214,6 @@ const QueryView = () => {
     }).format(date);
   };
 
-  const handleDiffEditorMount = (editor: any) => {
-    // Get references to both the original (left) and modified (right) editors
-    const originalEditor = editor.getOriginalEditor();
-    const modifiedEditor = editor.getModifiedEditor();
-    
-    // Force word wrap on both editors with comprehensive options
-    const wrapOptions = {
-      wordWrap: 'on' as const,
-      wrappingStrategy: 'advanced' as const,
-      wrappingIndent: 'none' as const,
-      wordWrapColumn: 80,
-      automaticLayout: true,
-    };
-    
-    originalEditor.updateOptions(wrapOptions);
-    modifiedEditor.updateOptions(wrapOptions);
-    
-    // Force a layout update after a short delay to ensure changes are applied
-    setTimeout(() => {
-      editor.layout();
-    }, 100);
-  };
-
   const handleHistoryClick = (record: HistoryRecord, index: number) => {
     setSelectedHistory(record);
     // Get the previous version (next in array since sorted descending)
@@ -642,7 +619,6 @@ const QueryView = () => {
                       original={previousHistory?.sql_content || ''}
                       modified={selectedHistory.sql_content}
                       theme={theme === 'dark' ? 'vs-dark' : 'light'}
-                      onMount={handleDiffEditorMount}
                       options={{
                         readOnly: true,
                         renderSideBySide: true,
@@ -650,7 +626,6 @@ const QueryView = () => {
                         scrollBeyondLastLine: false,
                         fontSize: 14,
                         wordWrap: 'on',
-                        wrappingStrategy: 'advanced',
                         automaticLayout: true,
                       }}
                     />

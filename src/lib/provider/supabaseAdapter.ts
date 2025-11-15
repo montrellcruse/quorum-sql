@@ -54,7 +54,7 @@ const folders: FoldersRepo = {
   async create(input) {
     const { data, error } = await supabase
       .from('folders')
-      .insert([input as any])
+      .insert(input)
       .select('*')
       .single();
     if (error) throw error;
@@ -89,7 +89,7 @@ const queries: QueriesRepo = {
   async create(input) {
     const { data, error } = await supabase
       .from('sql_queries')
-      .insert([input as any])
+      .insert(input)
       .select('*')
       .single();
     if (error) throw error;
@@ -109,20 +109,27 @@ const queries: QueriesRepo = {
       .eq('id', id);
     if (error) throw error;
   },
-  async submitForApproval(id, sql, opts) {
-    // This method is not used for Supabase - RPC is called directly with user context
-    // See QueryEdit.tsx line 262 for actual implementation
-    throw new Error('submitForApproval should not be called on Supabase adapter. Use supabase.rpc("submit_query_for_approval") directly.');
+  async submitForApproval(id, sql) {
+    const { error } = await supabase.rpc('submit_query_for_approval', {
+      _query_id: id,
+      _sql_content: sql,
+    });
+    if (error) throw error;
   },
   async approve(id, historyId) {
-    // This method is not used for Supabase - RPC is called directly with user context
-    // See QueryView.tsx line 235 for actual implementation
-    throw new Error('approve should not be called on Supabase adapter. Use supabase.rpc("approve_query_with_quota") directly.');
+    const { error } = await supabase.rpc('approve_query_with_quota', {
+      _query_id: id,
+      _query_history_id: historyId,
+    });
+    if (error) throw error;
   },
   async reject(id, historyId, reason) {
-    // This method is not used for Supabase - RPC is called directly with user context
-    // See QueryView.tsx line 294 for actual implementation
-    throw new Error('reject should not be called on Supabase adapter. Use supabase.rpc("reject_query_with_authorization") directly.');
+    const { error } = await supabase.rpc('reject_query_with_authorization', {
+      _query_id: id,
+      _query_history_id: historyId,
+      _reason: reason ?? null,
+    });
+    if (error) throw error;
   },
 };
 
