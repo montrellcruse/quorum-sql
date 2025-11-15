@@ -214,6 +214,23 @@ const QueryView = () => {
     }).format(date);
   };
 
+  const handleDiffEditorMount = (editor: any) => {
+    // Get references to both the original (left) and modified (right) editors
+    const originalEditor = editor.getOriginalEditor();
+    const modifiedEditor = editor.getModifiedEditor();
+    
+    // Force word wrap on both editors
+    originalEditor.updateOptions({
+      wordWrap: 'on',
+      wrappingStrategy: 'advanced',
+    });
+    
+    modifiedEditor.updateOptions({
+      wordWrap: 'on',
+      wrappingStrategy: 'advanced',
+    });
+  };
+
   const handleHistoryClick = (record: HistoryRecord, index: number) => {
     setSelectedHistory(record);
     // Get the previous version (next in array since sorted descending)
@@ -619,6 +636,7 @@ const QueryView = () => {
                       original={previousHistory?.sql_content || ''}
                       modified={selectedHistory.sql_content}
                       theme={theme === 'dark' ? 'vs-dark' : 'light'}
+                      onMount={handleDiffEditorMount}
                       options={{
                         readOnly: true,
                         renderSideBySide: true,
