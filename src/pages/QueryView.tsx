@@ -219,16 +219,22 @@ const QueryView = () => {
     const originalEditor = editor.getOriginalEditor();
     const modifiedEditor = editor.getModifiedEditor();
     
-    // Force word wrap on both editors
-    originalEditor.updateOptions({
-      wordWrap: 'on',
-      wrappingStrategy: 'advanced',
-    });
+    // Force word wrap on both editors with comprehensive options
+    const wrapOptions = {
+      wordWrap: 'on' as const,
+      wrappingStrategy: 'advanced' as const,
+      wrappingIndent: 'none' as const,
+      wordWrapColumn: 80,
+      automaticLayout: true,
+    };
     
-    modifiedEditor.updateOptions({
-      wordWrap: 'on',
-      wrappingStrategy: 'advanced',
-    });
+    originalEditor.updateOptions(wrapOptions);
+    modifiedEditor.updateOptions(wrapOptions);
+    
+    // Force a layout update after a short delay to ensure changes are applied
+    setTimeout(() => {
+      editor.layout();
+    }, 100);
   };
 
   const handleHistoryClick = (record: HistoryRecord, index: number) => {
