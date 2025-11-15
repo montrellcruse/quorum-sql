@@ -627,6 +627,7 @@ const QueryView = () => {
                         fontSize: 14,
                         wordWrap: 'on',
                         automaticLayout: true,
+                        useInlineViewWhenSpaceIsLimited: false,
                       }}
                     />
                   </div>
