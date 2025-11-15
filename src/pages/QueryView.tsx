@@ -626,6 +626,7 @@ const QueryView = () => {
                         scrollBeyondLastLine: false,
                         fontSize: 14,
                         wordWrap: 'on',
+                        wrappingStrategy: 'advanced',
                         automaticLayout: true,
                       }}
                     />
