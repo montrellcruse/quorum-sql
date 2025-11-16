@@ -225,7 +225,7 @@ export type Database = {
           id: string
           invited_by_user_id: string | null
           invited_email: string
-          role: string
+          role: Database["public"]["Enums"]["app_role"]
           status: string
           team_id: string
           updated_at: string
@@ -235,7 +235,7 @@ export type Database = {
           id?: string
           invited_by_user_id?: string | null
           invited_email: string
-          role?: string
+          role?: Database["public"]["Enums"]["app_role"]
           status?: string
           team_id: string
           updated_at?: string
@@ -245,7 +245,7 @@ export type Database = {
           id?: string
           invited_by_user_id?: string | null
           invited_email?: string
-          role?: string
+          role?: Database["public"]["Enums"]["app_role"]
           status?: string
           team_id?: string
           updated_at?: string
@@ -264,21 +264,21 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          role: string
+          role: Database["public"]["Enums"]["app_role"]
           team_id: string
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
-          role?: string
+          role?: Database["public"]["Enums"]["app_role"]
           team_id: string
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
-          role?: string
+          role?: Database["public"]["Enums"]["app_role"]
           team_id?: string
           user_id?: string
         }
@@ -442,7 +442,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "member"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -569,6 +569,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "member"],
+    },
   },
 } as const

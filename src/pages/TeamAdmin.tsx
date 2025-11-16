@@ -49,7 +49,7 @@ const TeamAdmin = () => {
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState('member');
+  const [newUserRole, setNewUserRole] = useState<'admin' | 'member'>('member');
   const [approvalQuota, setApprovalQuota] = useState(1);
   const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
@@ -235,7 +235,7 @@ const TeamAdmin = () => {
         }
         const { error } = await supabase
           .from('team_invitations')
-          .insert({ team_id: selectedTeamId, invited_email: email, role: newUserRole, status: 'pending', invited_by_user_id: user!.id });
+          .insert([{ team_id: selectedTeamId, invited_email: email, role: newUserRole, status: 'pending', invited_by_user_id: user!.id }]);
         if (error) throw error;
       }
 
@@ -560,7 +560,10 @@ const TeamAdmin = () => {
                   </div>
                   <div>
                     <Label htmlFor="role">Role</Label>
-                    <Select value={newUserRole} onValueChange={setNewUserRole}>
+                    <Select 
+                      value={newUserRole} 
+                      onValueChange={(value) => setNewUserRole(value as 'admin' | 'member')}
+                    >
                       <SelectTrigger id="role">
                         <SelectValue />
                       </SelectTrigger>
