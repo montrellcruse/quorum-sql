@@ -555,6 +555,7 @@ const TeamAdmin = () => {
                       value={newUserEmail}
                       onChange={(e) => setNewUserEmail(e.target.value)}
                       required
+                      maxLength={255}
                     />
                   </div>
                   <div>
