@@ -46,53 +46,65 @@ const Approvals = () => {
 
     setLoadingQueries(true);
     try {
-      // First get pending queries
-      const { data: queries, error: queriesError } = await supabase
-        .from('sql_queries')
-        .select(`
-          id,
-          title,
-          description,
-          folder_id,
-          last_modified_by_email,
-          updated_at,
-          folders!inner(name)
-        `)
-        .eq('team_id', activeTeam.id)
-        .eq('status', 'pending_approval')
-        .neq('last_modified_by_email', user.email)
-        .order('updated_at', { ascending: false });
-
-      if (queriesError) throw queriesError;
-
-      // Get team's approval quota
-      const { data: teamData, error: teamError } = await supabase
-        .from('teams')
-        .select('approval_quota')
-        .eq('id', activeTeam.id)
-        .single();
-
-      if (teamError) throw teamError;
-
-      // Get approval counts for each query
-      const queriesWithCounts = await Promise.all(
-        (queries || []).map(async (query) => {
-          // Get latest history record
-          const { data: historyData } = await supabase
-            .from('query_history')
-            .select('id')
-            .eq('query_id', query.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-
-          if (historyData) {
-            // Count approvals for this history record
-            const { count } = await supabase
-              .from('query_approvals')
-              .select('*', { count: 'exact', head: true })
-              .eq('query_history_id', historyData.id);
-
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const params = new URLSearchParams({ teamId: activeTeam.id, excludeEmail: user.email });
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/approvals?${params.toString()}`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const rows = await res.json();
+        setPendingQueries(rows || []);
+      } else {
+        // Supabase path
+        const { data: queries, error: queriesError } = await supabase
+          .from('sql_queries')
+          .select(`
+            id,
+            title,
+            description,
+            folder_id,
+            last_modified_by_email,
+            updated_at,
+            folders!inner(name)
+          `)
+          .eq('team_id', activeTeam.id)
+          .eq('status', 'pending_approval')
+          .neq('last_modified_by_email', user.email)
+          .order('updated_at', { ascending: false });
+        if (queriesError) throw queriesError;
+        const { data: teamData, error: teamError } = await supabase
+          .from('teams')
+          .select('approval_quota')
+          .eq('id', activeTeam.id)
+          .single();
+        if (teamError) throw teamError;
+        const queriesWithCounts = await Promise.all(
+          (queries || []).map(async (query) => {
+            const { data: historyData } = await supabase
+              .from('query_history')
+              .select('id')
+              .eq('query_id', query.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+            if (historyData) {
+              const { count } = await supabase
+                .from('query_approvals')
+                .select('*', { count: 'exact', head: true })
+                .eq('query_history_id', historyData.id);
+              return {
+                id: query.id,
+                title: query.title,
+                description: query.description,
+                folder_id: query.folder_id,
+                last_modified_by_email: query.last_modified_by_email,
+                updated_at: query.updated_at,
+                folder_name: (query.folders as any).name,
+                approval_count: count || 0,
+                approval_quota: teamData.approval_quota,
+              };
+            }
             return {
               id: query.id,
               title: query.title,
@@ -101,26 +113,13 @@ const Approvals = () => {
               last_modified_by_email: query.last_modified_by_email,
               updated_at: query.updated_at,
               folder_name: (query.folders as any).name,
-              approval_count: count || 0,
+              approval_count: 0,
               approval_quota: teamData.approval_quota,
             };
-          }
-
-          return {
-            id: query.id,
-            title: query.title,
-            description: query.description,
-            folder_id: query.folder_id,
-            last_modified_by_email: query.last_modified_by_email,
-            updated_at: query.updated_at,
-            folder_name: (query.folders as any).name,
-            approval_count: 0,
-            approval_quota: teamData.approval_quota,
-          };
-        })
-      );
-
-      setPendingQueries(queriesWithCounts);
+          })
+        );
+        setPendingQueries(queriesWithCounts);
+      }
     } catch (error: any) {
       console.error('Error fetching pending queries:', error);
     } finally {

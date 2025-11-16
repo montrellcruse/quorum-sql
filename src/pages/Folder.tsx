@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { getDbAdapter } from '@/lib/provider';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { Button } from '@/components/ui/button';
@@ -79,25 +80,29 @@ const Folder = () => {
 
   const fetchFolder = async () => {
     try {
-      const { data, error } = await supabase
-        .from('folders')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (error) throw error;
-      
-      if (!data) {
-        toast({
-          title: 'Error',
-          description: 'Folder not found',
-          variant: 'destructive',
-        });
-        navigate('/dashboard');
-        return;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const f = await getDbAdapter().folders.getById(id!);
+        if (!f) {
+          toast({ title: 'Error', description: 'Folder not found', variant: 'destructive' });
+          navigate('/dashboard');
+          return;
+        }
+        setFolder(f as any);
+      } else {
+        const { data, error } = await supabase
+          .from('folders')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) {
+          toast({ title: 'Error', description: 'Folder not found', variant: 'destructive' });
+          navigate('/dashboard');
+          return;
+        }
+        setFolder(data as any);
       }
-
-      setFolder(data);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -112,14 +117,23 @@ const Folder = () => {
 
   const fetchQueries = async () => {
     try {
-      const { data, error } = await supabase
-        .from('sql_queries')
-        .select('id, title, status, description, created_at, created_by_email, last_modified_by_email, updated_at')
-        .eq('folder_id', id)
-        .order('updated_at', { ascending: false });
-
-      if (error) throw error;
-      setQueries(data || []);
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/${id}/queries`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const rows = await res.json();
+        setQueries(rows || []);
+      } else {
+        const { data, error } = await supabase
+          .from('sql_queries')
+          .select('id, title, status, description, created_at, created_by_email, last_modified_by_email, updated_at')
+          .eq('folder_id', id)
+          .order('updated_at', { ascending: false });
+        if (error) throw error;
+        setQueries(data || []);
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -133,14 +147,23 @@ const Folder = () => {
 
   const fetchChildFolders = async () => {
     try {
-      const { data, error } = await supabase
-        .from('folders')
-        .select('*')
-        .eq('parent_folder_id', id)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      setChildFolders(data || []);
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/${id}/children`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const rows = await res.json();
+        setChildFolders(rows || []);
+      } else {
+        const { data, error } = await supabase
+          .from('folders')
+          .select('*')
+          .eq('parent_folder_id', id)
+          .order('name', { ascending: true });
+        if (error) throw error;
+        setChildFolders(data || []);
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -154,32 +177,19 @@ const Folder = () => {
 
   const fetchBreadcrumbs = async () => {
     if (!id) return;
-    
     const crumbs: BreadcrumbFolder[] = [];
     let currentId: string | null = id;
-
     try {
+      const adapter = getDbAdapter();
       while (currentId) {
-        const { data, error } = await supabase
-          .from('folders')
-          .select('id, name, parent_folder_id')
-          .eq('id', currentId)
-          .maybeSingle();
-
-        if (error) throw error;
-        if (!data) break;
-
-        crumbs.unshift({ id: data.id, name: data.name });
-        currentId = data.parent_folder_id;
+        const f = await adapter.folders.getById(currentId);
+        if (!f) break;
+        crumbs.unshift({ id: f.id as string, name: f.name as string });
+        currentId = (f as any).parent_folder_id as string | null;
       }
-
       setBreadcrumbs(crumbs);
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
   };
 
@@ -223,15 +233,24 @@ const Folder = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('folders')
-        .update({
-          name: validation.data.name,
-          description: validation.data.description,
-        })
-        .eq('id', folder.id);
-
-      if (error) throw error;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/${folder.id}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: validation.data.name, description: validation.data.description }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { error } = await supabase
+          .from('folders')
+          .update({ name: validation.data.name, description: validation.data.description })
+          .eq('id', folder.id);
+        if (error) throw error;
+      }
 
       toast({
         title: 'Success',
@@ -280,12 +299,22 @@ const Folder = () => {
     if (!folder) return;
 
     try {
-      const { error } = await supabase
-        .from('folders')
-        .delete()
-        .eq('id', folder.id);
-
-      if (error) throw error;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/${folder.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { error } = await supabase
+          .from('folders')
+          .delete()
+          .eq('id', folder.id);
+        if (error) throw error;
+      }
 
       toast({
         title: 'Success',
@@ -324,37 +353,57 @@ const Folder = () => {
     }
 
     try {
-      // Check for duplicate folder name within current parent
-      const { data: existingFolder, error: checkError } = await supabase
-        .from('folders')
-        .select('id')
-        .eq('name', validation.data.name)
-        .eq('parent_folder_id', id)
-        .maybeSingle();
-
-      if (checkError) throw checkError;
-
-      if (existingFolder) {
-        toast({
-          title: 'Error',
-          description: 'A folder with this name already exists in this folder.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const { error } = await supabase
-        .from('folders')
-        .insert({
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        // Duplicate check via children list
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/${id}/children`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const children = await res.json();
+        const dup = (children || []).find((c: any) => c.name?.toLowerCase() === validation.data.name.toLowerCase());
+        if (dup) {
+          toast({ title: 'Error', description: 'A folder with this name already exists in this folder.', variant: 'destructive' });
+          return;
+        }
+        const teamId = activeTeam?.id ?? folder?.team_id;
+        if (!teamId) {
+          toast({ title: 'Error', description: 'Missing team context', variant: 'destructive' });
+          return;
+        }
+        await getDbAdapter().folders.create({
           name: validation.data.name,
           description: validation.data.description,
-          parent_folder_id: id,
-          user_id: user?.id,
+          parent_folder_id: id as string,
+          user_id: user?.id as string,
           created_by_email: user?.email || '',
-          team_id: activeTeam?.id || folder?.team_id,
-        });
-
-      if (error) throw error;
+          team_id: teamId,
+        } as any);
+      } else {
+        // Supabase path
+        const { data: existingFolder, error: checkError } = await supabase
+          .from('folders')
+          .select('id')
+          .eq('name', validation.data.name)
+          .eq('parent_folder_id', id)
+          .maybeSingle();
+        if (checkError) throw checkError;
+        if (existingFolder) {
+          toast({ title: 'Error', description: 'A folder with this name already exists in this folder.', variant: 'destructive' });
+          return;
+        }
+        const { error } = await supabase
+          .from('folders')
+          .insert({
+            name: validation.data.name,
+            description: validation.data.description,
+            parent_folder_id: id,
+            user_id: user?.id,
+            created_by_email: user?.email || '',
+            team_id: activeTeam?.id || folder?.team_id,
+          });
+        if (error) throw error;
+      }
 
       toast({
         title: 'Success',
@@ -569,6 +618,7 @@ const Folder = () => {
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   placeholder="Enter folder name"
+                  maxLength={100}
                 />
               </div>
               <div className="space-y-2">
@@ -579,6 +629,7 @@ const Folder = () => {
                   onChange={(e) => setEditDescription(e.target.value)}
                   placeholder="Enter folder description (optional)"
                   rows={3}
+                  maxLength={500}
                 />
               </div>
             </div>
@@ -624,6 +675,7 @@ const Folder = () => {
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
                   placeholder="Enter folder name"
+                  maxLength={100}
                 />
               </div>
               <div className="space-y-2">
@@ -634,6 +686,7 @@ const Folder = () => {
                   onChange={(e) => setNewFolderDescription(e.target.value)}
                   placeholder="Enter folder description (optional)"
                   rows={3}
+                  maxLength={500}
                 />
               </div>
             </div>

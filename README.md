@@ -30,10 +30,29 @@ A secure, team-based SQL query management application with version control and p
 
 - [Node.js](https://nodejs.org/) v18 or higher
 - [npm](https://www.npmjs.com/) v9 or higher
-- [Supabase account](https://supabase.com) (for backend)
-- [Docker](https://www.docker.com/) (optional, for local Supabase)
+- [Docker](https://www.docker.com/) (optional)
+- Optional: [Supabase account](https://supabase.com) if running in Supabase mode
 
 ### Quick Start
+
+This app runs in two modes — choose one:
+
+1) REST + Postgres (no Supabase)
+
+```bash
+# Start Postgres + Adminer + REST server
+docker compose up -d db adminer server
+
+# Frontend env
+cp .env.example .env
+echo "VITE_DB_PROVIDER=rest" >> .env
+echo "VITE_API_BASE_URL=http://localhost:8787" >> .env
+
+npm install
+npm run dev
+```
+
+2) Supabase mode
 
 1. **Clone the repository**
 
@@ -48,7 +67,7 @@ cd <YOUR_PROJECT_NAME>
 npm install
 ```
 
-3. **Configure environment variables**
+3. **Configure environment variables** (Supabase mode)
 
 Copy `.env.example` to `.env` and update with your values:
 
@@ -56,28 +75,36 @@ Copy `.env.example` to `.env` and update with your values:
 cp .env.example .env
 ```
 
-Required environment variables:
-- `VITE_SUPABASE_URL` - Your Supabase project URL
-- `VITE_SUPABASE_PUBLISHABLE_KEY` - Your Supabase anon/public key
-- `VITE_SUPABASE_PROJECT_ID` - Your Supabase project ID
-- `VITE_ALLOWED_EMAIL_DOMAIN` - Email domain for authentication (e.g., `@yourcompany.com`)
+Frontend variables (common):
+- `VITE_DB_PROVIDER` = `rest` or `supabase`
+- `VITE_API_BASE_URL` (REST mode) = `http://localhost:8787`
+- `VITE_ALLOWED_EMAIL_DOMAIN` = e.g. `@yourcompany.com`
+- Optional `VITE_AUTH_PROVIDERS` = comma list: `supabase,local`
+- Optional `VITE_GOOGLE_WORKSPACE_DOMAIN` (Supabase OAuth hint)
 
-Optional variables:
-- `VITE_GOOGLE_WORKSPACE_DOMAIN` - Google Workspace domain for OAuth hint
-- `VITE_APP_NAME` - Custom application name (default: "SQL Query Manager")
-- `VITE_APP_DESCRIPTION` - Custom description
+Supabase (frontend) if `VITE_DB_PROVIDER=supabase`:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 4. **Setup database**
 
 See [Database Setup](#database-setup) section below.
 
-5. **Start development server**
+5. **Start development server** (Supabase mode)
 
 ```bash
 npm run dev
 ```
 
-The application will be available at `http://localhost:8080`.
+The Vite dev server is available at `http://localhost:5173`.
+
+### Server (REST mode) Environment
+
+Set these for the REST server (Docker compose provides DATABASE_URL by default):
+- `DATABASE_URL` or `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`
+- `SESSION_SECRET` (HS256 for local cookie sessions)
+- Optional `SUPABASE_URL` or `SUPABASE_JWKS_URL` (to verify Supabase JWTs)
+- Optional `CORS_ORIGIN` (comma-separated allowlist for production)
 
 ## ⚙️ Configuration
 
@@ -193,6 +220,47 @@ See [Google OAuth Configuration](#google-oauth-configuration) above.
    VITE_SUPABASE_URL=http://localhost:54321
    VITE_SUPABASE_PUBLISHABLE_KEY=<anon-key-from-output>
    ```
+
+### Using Generic PostgreSQL (No Supabase)
+
+This mode runs a generic Postgres database with a lightweight backend API. It emulates `auth.uid()`/`auth.role()` so existing RLS works.
+
+1. Start services with Docker Compose:
+
+```bash
+docker compose up -d db adminer server
+```
+
+2. Configure frontend env:
+
+```bash
+cp .env.example .env
+echo "VITE_DB_PROVIDER=rest" >> .env
+echo "VITE_API_BASE_URL=http://localhost:8787" >> .env
+```
+
+3. Run the app:
+
+```bash
+npm run dev
+```
+
+Adminer is available at http://localhost:8080 (System: PostgreSQL, Server: db, User: postgres, Password: postgres, Database: appdb).
+
+### Dual Auth (Supabase + Local)
+
+You can enable both auth providers and let users choose:
+
+```bash
+# Frontend
+VITE_DB_PROVIDER=rest
+VITE_AUTH_PROVIDERS=supabase,local
+VITE_API_BASE_URL=http://localhost:8787
+VITE_SUPABASE_URL=...    # if you also want Supabase sign-in
+VITE_SUPABASE_PUBLISHABLE_KEY=...
+```
+
+In this mode, the backend accepts either a local session or a Supabase JWT (verification to be configured via environment on the server).
 
 ### Database Schema
 

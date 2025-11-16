@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, Trash2, UserCog, Shield, ShieldOff } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { emailSchema } from '@/lib/validationSchemas';
+import { getDbAdapter } from '@/lib/provider';
 
 interface Team {
   id: string;
@@ -48,7 +49,7 @@ const TeamAdmin = () => {
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState('member');
+  const [newUserRole, setNewUserRole] = useState<'admin' | 'member'>('member');
   const [approvalQuota, setApprovalQuota] = useState(1);
   const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
@@ -76,45 +77,14 @@ const TeamAdmin = () => {
 
   const checkAdminAccess = async () => {
     try {
-      // Step 1: Get team_member records where user is admin
-      const { data: memberData, error: memberError } = await supabase
-        .from('team_members')
-        .select('team_id')
-        .eq('user_id', user?.id)
-        .eq('role', 'admin');
-
-      if (memberError) throw memberError;
-
-      if (!memberData || memberData.length === 0) {
-        toast({
-          title: 'Access Denied',
-          description: 'You do not have admin access to any team.',
-          variant: 'destructive',
-        });
-        navigate('/dashboard');
-        return;
-      }
-
-      // Step 2: Fetch the actual team data using the team IDs
-      const teamIds = memberData.map(tm => tm.team_id);
-      const { data: teamsData, error: teamsError } = await supabase
-        .from('teams')
-        .select('id, name, approval_quota, admin_id')
-        .in('id', teamIds);
-
-      if (teamsError) throw teamsError;
-
-      // Filter out any null values and ensure we have valid teams
-      const adminTeams = (teamsData || []).filter((team): team is Team => 
-        team !== null && 
-        typeof team.id === 'string' && 
-        typeof team.name === 'string'
-      );
+      const adapter = getDbAdapter();
+      const teamsForUser = await adapter.teams.listForUser();
+      const adminTeams = teamsForUser.filter(t => t.role === 'admin');
 
       if (adminTeams.length === 0) {
         toast({
           title: 'Error',
-          description: 'Could not load team data.',
+          description: 'You do not have admin access to any team.',
           variant: 'destructive',
         });
         navigate('/dashboard');
@@ -142,15 +112,10 @@ const TeamAdmin = () => {
 
   const fetchTeamDetails = async () => {
     try {
-      const { data, error } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', selectedTeamId)
-        .single();
-
-      if (error) throw error;
-      setSelectedTeam(data);
-      setApprovalQuota(data.approval_quota);
+      const team = await getDbAdapter().teams.getById(selectedTeamId);
+      if (!team) throw new Error('Team not found');
+      setSelectedTeam(team);
+      setApprovalQuota(team.approval_quota);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -162,28 +127,32 @@ const TeamAdmin = () => {
 
   const fetchTeamMembers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('id, user_id, role')
-        .eq('team_id', selectedTeamId);
-
-      if (error) throw error;
-
-      // Fetch user emails
-      const userIds = data.map(m => m.user_id);
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, email')
-        .in('user_id', userIds);
-
-      if (profilesError) throw profilesError;
-
-      const membersWithEmails = data.map(member => ({
-        ...member,
-        email: profiles?.find(p => p.user_id === member.user_id)?.email || 'Unknown',
-      }));
-
-      setMembers(membersWithEmails);
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/members`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const rows = await res.json();
+        setMembers(rows || []);
+      } else {
+        const { data, error } = await supabase
+          .from('team_members')
+          .select('id, user_id, role')
+          .eq('team_id', selectedTeamId);
+        if (error) throw error;
+        const userIds = data.map(m => m.user_id);
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('user_id, email')
+          .in('user_id', userIds);
+        if (profilesError) throw profilesError;
+        const membersWithEmails = data.map(member => ({
+          ...member,
+          email: profiles?.find(p => p.user_id === member.user_id)?.email || 'Unknown',
+        }));
+        setMembers(membersWithEmails);
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -195,15 +164,24 @@ const TeamAdmin = () => {
 
   const fetchPendingInvitations = async () => {
     try {
-      const { data, error } = await supabase
-        .from('team_invitations')
-        .select('*')
-        .eq('team_id', selectedTeamId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setInvitations(data || []);
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/invites`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const rows = await res.json();
+        setInvitations(rows || []);
+      } else {
+        const { data, error } = await supabase
+          .from('team_invitations')
+          .select('*')
+          .eq('team_id', selectedTeamId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        setInvitations(data || []);
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -231,50 +209,34 @@ const TeamAdmin = () => {
         return;
       }
 
-      // Check if a pending invitation already exists
-      const { data: existingInvite, error: checkError } = await supabase
-        .from('team_invitations')
-        .select('id')
-        .eq('team_id', selectedTeamId)
-        .eq('invited_email', email)
-        .eq('status', 'pending')
-        .maybeSingle();
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        throw checkError;
-      }
-
-      if (existingInvite) {
-        toast({
-          title: 'Error',
-          description: 'This user has a pending invite.',
-          variant: 'destructive',
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/invites`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ invited_email: email, role: newUserRole }),
         });
-        return;
-      }
-
-      // Create pending invitation
-      const { error } = await supabase
-        .from('team_invitations')
-        .insert({
-          team_id: selectedTeamId,
-          invited_email: email,
-          role: newUserRole,
-          status: 'pending',
-          invited_by_user_id: user!.id,
-        });
-
-      if (error) {
-        if (error.code === '23505') {
-          toast({
-            title: 'Error',
-            description: 'This user has a pending invite.',
-            variant: 'destructive',
-          });
-        } else {
-          throw error;
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { data: existingInvite, error: checkError } = await supabase
+          .from('team_invitations')
+          .select('id')
+          .eq('team_id', selectedTeamId)
+          .eq('invited_email', email)
+          .eq('status', 'pending')
+          .maybeSingle();
+        if (checkError && checkError.code !== 'PGRST116') throw checkError;
+        if (existingInvite) {
+          toast({ title: 'Error', description: 'This user has a pending invite.', variant: 'destructive' });
+          return;
         }
-        return;
+        const { error } = await supabase
+          .from('team_invitations')
+          .insert([{ team_id: selectedTeamId, invited_email: email, role: newUserRole, status: 'pending', invited_by_user_id: user!.id }]);
+        if (error) throw error;
       }
 
       toast({
@@ -296,12 +258,23 @@ const TeamAdmin = () => {
 
   const handleRevokeInvitation = async (invitationId: string) => {
     try {
-      const { error } = await supabase
-        .from('team_invitations')
-        .delete()
-        .eq('id', invitationId);
-
-      if (error) throw error;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/invites/${invitationId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { error } = await supabase
+          .from('team_invitations')
+          .delete()
+          .eq('id', invitationId);
+        if (error) throw error;
+      }
 
       toast({
         title: 'Success',
@@ -321,22 +294,41 @@ const TeamAdmin = () => {
     try {
       // If removing an admin, check if they're the last admin
       if (memberRole === 'admin') {
-        const { count, error: countError } = await supabase
-          .from('team_members')
-          .select('id', { count: 'exact', head: true })
-          .eq('team_id', selectedTeamId)
-          .eq('role', 'admin');
-
-        if (countError) throw countError;
-
-        if (count === null || count <= 1) {
-          toast({
-            title: 'Cannot Remove',
-            description: 'Cannot remove the last admin. Please transfer ownership or promote another admin first.',
-            variant: 'destructive',
-          });
-          return;
+        const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+        if (provider !== 'rest') {
+          const { count, error: countError } = await supabase
+            .from('team_members')
+            .select('id', { count: 'exact', head: true })
+            .eq('team_id', selectedTeamId)
+            .eq('role', 'admin');
+          if (countError) throw countError;
+          if (count === null || count <= 1) {
+            toast({
+              title: 'Cannot Remove',
+              description: 'Cannot remove the last admin. Please transfer ownership or promote another admin first.',
+              variant: 'destructive',
+            });
+            return;
+          }
         }
+        // In REST mode, rely on server/DB constraints or skip soft check
+      }
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/members/${memberId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { error } = await supabase
+          .from('team_members')
+          .delete()
+          .eq('id', memberId);
+        if (error) throw error;
       }
 
       // Proceed with removal
@@ -367,31 +359,39 @@ const TeamAdmin = () => {
     try {
       // If demoting from admin to member, check if they're the last admin
       if (currentRole === 'admin' && newRole === 'member') {
-        const { count, error: countError } = await supabase
-          .from('team_members')
-          .select('id', { count: 'exact', head: true })
-          .eq('team_id', selectedTeamId)
-          .eq('role', 'admin');
-
-        if (countError) throw countError;
-
-        if (count === null || count <= 1) {
-          toast({
-            title: 'Cannot Demote',
-            description: 'Cannot demote the last admin.',
-            variant: 'destructive',
-          });
-          return;
+        const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+        if (provider !== 'rest') {
+          const { count, error: countError } = await supabase
+            .from('team_members')
+            .select('id', { count: 'exact', head: true })
+            .eq('team_id', selectedTeamId)
+            .eq('role', 'admin');
+          if (countError) throw countError;
+          if (count === null || count <= 1) {
+            toast({ title: 'Cannot Demote', description: 'Cannot demote the last admin.', variant: 'destructive' });
+            return;
+          }
         }
       }
 
-      // Proceed with role change
-      const { error } = await supabase
-        .from('team_members')
-        .update({ role: newRole })
-        .eq('id', memberId);
-
-      if (error) throw error;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/members/${memberId}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: newRole }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { error } = await supabase
+          .from('team_members')
+          .update({ role: newRole })
+          .eq('id', memberId);
+        if (error) throw error;
+      }
 
       toast({
         title: 'Success',
@@ -410,12 +410,24 @@ const TeamAdmin = () => {
   const handleUpdateApprovalQuota = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { error } = await supabase
-        .from('teams')
-        .update({ approval_quota: approvalQuota })
-        .eq('id', selectedTeamId);
-
-      if (error) throw error;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ approval_quota: approvalQuota }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { error } = await supabase
+          .from('teams')
+          .update({ approval_quota: approvalQuota })
+          .eq('id', selectedTeamId);
+        if (error) throw error;
+      }
 
       toast({
         title: 'Success',
@@ -435,22 +447,30 @@ const TeamAdmin = () => {
     if (!selectedNewOwner) return;
 
     try {
-      // Step 1: Ensure new owner has 'admin' role in team_members
-      const { error: roleError } = await supabase
-        .from('team_members')
-        .update({ role: 'admin' })
-        .eq('team_id', selectedTeamId)
-        .eq('user_id', selectedNewOwner);
-
-      if (roleError) throw roleError;
-
-      // Step 2: Update admin_id (ownership) in teams table
-      const { error: ownerError } = await supabase
-        .from('teams')
-        .update({ admin_id: selectedNewOwner })
-        .eq('id', selectedTeamId);
-
-      if (ownerError) throw ownerError;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/transfer-ownership`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ new_owner_user_id: selectedNewOwner }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { error: roleError } = await supabase
+          .from('team_members')
+          .update({ role: 'admin' })
+          .eq('team_id', selectedTeamId)
+          .eq('user_id', selectedNewOwner);
+        if (roleError) throw roleError;
+        const { error: ownerError } = await supabase
+          .from('teams')
+          .update({ admin_id: selectedNewOwner })
+          .eq('id', selectedTeamId);
+        if (ownerError) throw ownerError;
+      }
 
       toast({
         title: 'Success',
@@ -535,11 +555,15 @@ const TeamAdmin = () => {
                       value={newUserEmail}
                       onChange={(e) => setNewUserEmail(e.target.value)}
                       required
+                      maxLength={255}
                     />
                   </div>
                   <div>
                     <Label htmlFor="role">Role</Label>
-                    <Select value={newUserRole} onValueChange={setNewUserRole}>
+                    <Select 
+                      value={newUserRole} 
+                      onValueChange={(value) => setNewUserRole(value as 'admin' | 'member')}
+                    >
                       <SelectTrigger id="role">
                         <SelectValue />
                       </SelectTrigger>
