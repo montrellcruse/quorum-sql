@@ -618,6 +618,7 @@ const Folder = () => {
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   placeholder="Enter folder name"
+                  maxLength={100}
                 />
               </div>
               <div className="space-y-2">
@@ -628,6 +629,7 @@ const Folder = () => {
                   onChange={(e) => setEditDescription(e.target.value)}
                   placeholder="Enter folder description (optional)"
                   rows={3}
+                  maxLength={500}
                 />
               </div>
             </div>
@@ -673,6 +675,7 @@ const Folder = () => {
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
                   placeholder="Enter folder name"
+                  maxLength={100}
                 />
               </div>
               <div className="space-y-2">
@@ -683,6 +686,7 @@ const Folder = () => {
                   onChange={(e) => setNewFolderDescription(e.target.value)}
                   placeholder="Enter folder description (optional)"
                   rows={3}
+                  maxLength={500}
                 />
               </div>
             </div>
