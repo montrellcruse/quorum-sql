@@ -123,7 +123,7 @@ const AcceptInvites = () => {
     }
   };
 
-  const handleAccept = async (invitationId: string, teamId: string, role: string) => {
+  const handleAccept = async (invitationId: string, teamId: string, role: 'admin' | 'member') => {
     setProcessingId(invitationId);
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
@@ -139,7 +139,7 @@ const AcceptInvites = () => {
       } else {
         const { error: memberError } = await supabase
           .from('team_members')
-          .insert({ team_id: teamId, user_id: user!.id, role });
+          .insert([{ team_id: teamId, user_id: user!.id, role }]);
         if (memberError) throw memberError;
         const { error: deleteError } = await supabase
           .from('team_invitations')
@@ -268,7 +268,7 @@ const AcceptInvites = () => {
                   </div>
                   <div className="flex gap-2">
                     <Button
-                      onClick={() => handleAccept(invitation.id, invitation.team_id, invitation.role)}
+                      onClick={() => handleAccept(invitation.id, invitation.team_id, invitation.role as 'admin' | 'member')}
                       disabled={processingId === invitation.id}
                     >
                       Accept
