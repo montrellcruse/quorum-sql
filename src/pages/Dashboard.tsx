@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
+import { getDbAdapter } from '@/lib/provider';
+import { restAuthAdapter } from '@/lib/auth/restAuthAdapter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -87,15 +89,10 @@ const Dashboard = () => {
 
   const checkAdminStatus = async () => {
     try {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('id')
-        .eq('user_id', user?.id)
-        .eq('role', 'admin')
-        .limit(1);
-
-      if (error) throw error;
-      setIsAdmin(data && data.length > 0);
+      const adapter = getDbAdapter();
+      const teams = await adapter.teams.listForUser();
+      const current = teams.find(t => t.id === activeTeam?.id);
+      setIsAdmin((current as any)?.role === 'admin');
     } catch (error: any) {
       console.error('Error checking admin status:', { message: error?.message });
     }
@@ -117,15 +114,10 @@ const Dashboard = () => {
     if (!activeTeam) return;
     
     try {
-      const { data, error } = await supabase
-        .from('folders')
-        .select('*')
-        .is('parent_folder_id', null)
-        .eq('team_id', activeTeam.id)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      setProjects(data || []);
+      const adapter = getDbAdapter();
+      const data = await adapter.folders.listByTeam(activeTeam.id);
+      const roots = (data || []).filter((f: any) => f.parent_folder_id == null).sort((a, b) => a.name.localeCompare(b.name));
+      setProjects(roots as any);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -157,18 +149,10 @@ const Dashboard = () => {
     }
     
     try {
-      // Check for duplicate folder name at root level
-      const { data: existingFolder, error: checkError } = await supabase
-        .from('folders')
-        .select('id')
-        .eq('name', newProject.name.trim())
-        .is('parent_folder_id', null)
-        .eq('team_id', activeTeam.id)
-        .maybeSingle();
-
-      if (checkError) throw checkError;
-
-      if (existingFolder) {
+      const adapter = getDbAdapter();
+      const all = await adapter.folders.listByTeam(activeTeam.id);
+      const dup = all.find(f => (f.parent_folder_id == null) && f.name.toLowerCase() === newProject.name.trim().toLowerCase());
+      if (dup) {
         toast({
           title: 'Error',
           description: 'A folder with this name already exists at the root.',
@@ -177,18 +161,14 @@ const Dashboard = () => {
         return;
       }
 
-      const { error } = await supabase
-        .from('folders')
-        .insert({
-          name: newProject.name,
-          description: newProject.description,
-          user_id: user?.id,
-          created_by_email: user?.email || '',
-          parent_folder_id: null,
-          team_id: activeTeam.id
-        });
-
-      if (error) throw error;
+      await adapter.folders.create({
+        name: newProject.name,
+        description: newProject.description,
+        user_id: (user as any)?.id,
+        created_by_email: user?.email || '',
+        parent_folder_id: null,
+        team_id: activeTeam.id,
+      });
 
       toast({
         title: 'Success',
@@ -218,33 +198,17 @@ const Dashboard = () => {
     
     setSearching(true);
     try {
-      const searchPattern = `%${searchTerm}%`;
-      const { data, error } = await supabase
-        .from('sql_queries')
-        .select(`
-          id,
-          title,
-          description,
-          sql_content,
-          folder_id,
-          folders (
-            name
-          )
-        `)
-        .eq('team_id', activeTeam.id)
-        .or(`title.ilike.${searchPattern},description.ilike.${searchPattern},sql_content.ilike.${searchPattern}`);
-
-      if (error) throw error;
-
-      const results: SearchResult[] = (data || []).map((item: any) => ({
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        folder_id: item.folder_id,
-        folder_name: item.folders?.name || 'Unknown Folder'
+      const adapter = getDbAdapter();
+      const data = await adapter.queries.search({ teamId: activeTeam.id, q: searchTerm.trim() });
+      // Folder name not guaranteed in REST adapter results; default to Unknown
+      const map: SearchResult[] = (data || []).map((q: any) => ({
+        id: q.id,
+        title: q.title,
+        description: q.description,
+        folder_id: q.folder_id,
+        folder_name: (q.folder_name as string) || 'Unknown Folder',
       }));
-
-      setSearchResults(results);
+      setSearchResults(map);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -257,19 +221,21 @@ const Dashboard = () => {
   };
 
   const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
+    try {
+      if ((import.meta.env.VITE_DB_PROVIDER || 'supabase') === 'rest') {
+        await restAuthAdapter.signOut();
+      } else {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+      }
+      toast({ title: 'Signed out', description: 'Successfully signed out.' });
+      navigate('/auth');
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error?.message || 'Failed to sign out',
         variant: 'destructive'
       });
-    } else {
-      toast({
-        title: 'Signed out',
-        description: 'Successfully signed out.'
-      });
-      navigate('/auth');
     }
   };
 

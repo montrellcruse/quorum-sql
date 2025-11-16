@@ -43,17 +43,22 @@ const CreateTeam = () => {
     setCreating(true);
 
     try {
-      // Use security definer function for atomic team creation
-      const { data: teamData, error: teamError } = await supabase
-        .rpc('create_team_with_admin', {
-          _team_name: validation.data,
-          _approval_quota: 1
-        })
-        .single();
-
-      if (teamError) {
-        console.error('Team creation error:', { message: teamError?.message });
-        throw teamError;
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: validation.data, approval_quota: 1 }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { error: teamError } = await supabase
+          .rpc('create_team_with_admin', { _team_name: validation.data, _approval_quota: 1 })
+          .single();
+        if (teamError) throw teamError;
       }
 
       toast({
