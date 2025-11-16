@@ -54,7 +54,7 @@ const folders: FoldersRepo = {
   async create(input) {
     const { data, error } = await supabase
       .from('folders')
-      .insert(input)
+      .insert([input as any])
       .select('*')
       .single();
     if (error) throw error;
@@ -89,7 +89,7 @@ const queries: QueriesRepo = {
   async create(input) {
     const { data, error } = await supabase
       .from('sql_queries')
-      .insert(input)
+      .insert([input as any])
       .select('*')
       .single();
     if (error) throw error;
@@ -110,9 +110,24 @@ const queries: QueriesRepo = {
     if (error) throw error;
   },
   async submitForApproval(id, sql) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    
+    // Get query to extract team_id
+    const { data: query, error: queryError } = await supabase
+      .from('sql_queries')
+      .select('team_id')
+      .eq('id', id)
+      .single();
+    if (queryError || !query) throw new Error('Query not found');
+    
     const { error } = await supabase.rpc('submit_query_for_approval', {
       _query_id: id,
       _sql_content: sql,
+      _modified_by_email: user.email!,
+      _change_reason: '',
+      _team_id: query.team_id,
+      _user_id: user.id,
     });
     if (error) throw error;
   },
@@ -120,6 +135,10 @@ const queries: QueriesRepo = {
     const { error } = await supabase.rpc('approve_query_with_quota', {
       _query_id: id,
       _query_history_id: historyId,
+      _approver_user_id: await supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) throw new Error('Not authenticated');
+        return user.id;
+      }),
     });
     if (error) throw error;
   },
@@ -127,7 +146,10 @@ const queries: QueriesRepo = {
     const { error } = await supabase.rpc('reject_query_with_authorization', {
       _query_id: id,
       _query_history_id: historyId,
-      _reason: reason ?? null,
+      _rejecter_user_id: await supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) throw new Error('Not authenticated');
+        return user.id;
+      }),
     });
     if (error) throw error;
   },
