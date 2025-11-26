@@ -68,7 +68,7 @@ const Auth = () => {
       }
     };
     redirectUser();
-  }, [user, navigate, toast]);
+  }, [user, navigate, toast, provider]);
 
   const handleGoogleSignIn = async () => {
     setLoading(true);

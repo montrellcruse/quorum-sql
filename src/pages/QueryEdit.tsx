@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -122,15 +122,15 @@ const QueryEdit = () => {
         fetchQuery();
       }
     }
-  }, [user, id, isNewQuery, folderId]);
+  }, [user, id, isNewQuery, folderId, navigate, toast, fetchQuery]);
 
-  const fetchQuery = async () => {
+  const fetchQuery = useCallback(async () => {
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
         const q = await getDbAdapter().queries.getById(id!);
         if (!q) throw new Error('Query not found');
-        setQuery(q as any);
+        setQuery(q as unknown as Query);
       } else {
         const { data, error } = await supabase
           .from('sql_queries')
@@ -139,19 +139,20 @@ const QueryEdit = () => {
           .maybeSingle();
         if (error) throw error;
         if (!data) throw new Error('Query not found');
-        setQuery(data as any);
+        setQuery(data as unknown as Query);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch query';
       toast({
         title: 'Error',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       navigate('/dashboard');
     } finally {
       setLoadingQuery(false);
     }
-  };
+  }, [id, toast, navigate]);
 
   const handleSave = async (newStatus: string) => {
     // Validate query data using zod schema

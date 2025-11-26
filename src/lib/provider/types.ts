@@ -49,6 +49,9 @@ export type Role = 'admin' | 'member';
 export interface TeamsRepo {
   listForUser(): Promise<(Team & { role?: Role })[]>;
   getById(id: UUID): Promise<Team | null>;
+  create(name: string, approvalQuota?: number): Promise<Team>;
+  update(id: UUID, data: { approval_quota?: number }): Promise<void>;
+  transferOwnership(id: UUID, newOwnerUserId: UUID): Promise<void>;
 }
 
 export interface FoldersRepo {
@@ -110,6 +113,19 @@ export interface QueriesRepo {
   reject(id: UUID, historyId: UUID, reason?: string): Promise<void>;
   getHistory(id: UUID): Promise<QueryHistory[]>;
   getApprovals(id: UUID): Promise<{ approvals: QueryApproval[]; approval_quota: number; latest_history_id?: UUID }>;
+  getPendingForApproval(teamId: UUID, excludeEmail: string): Promise<PendingApprovalQuery[]>;
+}
+
+export interface PendingApprovalQuery {
+  id: UUID;
+  title: string;
+  description: string | null;
+  folder_id: UUID;
+  last_modified_by_email: string;
+  updated_at: string;
+  folder_name: string;
+  approval_count: number;
+  approval_quota: number;
 }
 
 export interface TeamMembersRepo {

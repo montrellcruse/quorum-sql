@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
-import { supabase } from '@/integrations/supabase/client';
+import { useDbProvider } from '@/hooks/useDbProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { teamNameSchema } from '@/lib/validationSchemas';
 const CreateTeam = () => {
   const { user, loading: authLoading } = useAuth();
   const { refreshTeams } = useTeam();
+  const { adapter } = useDbProvider();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -29,7 +30,6 @@ const CreateTeam = () => {
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate team name using zod schema
     const validation = teamNameSchema.safeParse(teamName);
     if (!validation.success) {
       toast({
@@ -43,37 +43,20 @@ const CreateTeam = () => {
     setCreating(true);
 
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
-      if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: validation.data, approval_quota: 1 }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-      } else {
-        const { error: teamError } = await supabase
-          .rpc('create_team_with_admin', { _team_name: validation.data, _approval_quota: 1 })
-          .single();
-        if (teamError) throw teamError;
-      }
+      await adapter.teams.create(validation.data, 1);
 
       toast({
         title: 'Success',
         description: 'Team created successfully!',
       });
 
-      // Refresh teams in context before navigating to ensure new team is loaded
       await refreshTeams();
-      
       navigate('/dashboard');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to create team';
       toast({
         title: 'Error',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
     } finally {
