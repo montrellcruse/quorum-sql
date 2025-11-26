@@ -1,9 +1,16 @@
 const base = process.env.API_BASE || 'http://localhost:8787';
 
+// Dev auth headers for CI testing (requires ENABLE_DEV_AUTH=true)
+const devAuthHeaders = {
+  'Content-Type': 'application/json',
+  'x-dev-user-id': '00000000-0000-0000-0000-000000000001',
+  'x-dev-user-email': 'ci-test@test.dev',
+};
+
 async function req(path, method = 'GET', body) {
   const res = await fetch(base + path, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: devAuthHeaders,
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`${method} ${path} -> HTTP ${res.status} ${await res.text()}`);
