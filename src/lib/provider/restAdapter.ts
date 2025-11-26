@@ -1,4 +1,20 @@
-import type { DbAdapter, TeamsRepo, FoldersRepo, QueriesRepo, Team, Folder, SqlQuery, UUID } from './types';
+import type { 
+  DbAdapter, 
+  TeamsRepo, 
+  FoldersRepo, 
+  QueriesRepo, 
+  TeamMembersRepo,
+  InvitationsRepo,
+  Team, 
+  Folder, 
+  SqlQuery, 
+  UUID,
+  QueryHistory,
+  QueryApproval,
+  TeamMember,
+  TeamInvitation,
+  Role,
+} from './types';
 import { supabase } from '@/integrations/supabase/client';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
@@ -15,6 +31,7 @@ async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
       ? Object.fromEntries(initHeaders.entries())
       : (initHeaders as Record<string, string> | undefined) ?? {};
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...headersFromInit };
+  
   const providers = (import.meta.env.VITE_AUTH_PROVIDERS || '').toLowerCase();
   if (providers.includes('supabase')) {
     try {
@@ -25,15 +42,19 @@ async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
       // ignore: Supabase not configured or session unavailable
     }
   }
+  
   const res = await fetch(input, {
     credentials: 'include',
     headers,
     ...init,
   });
+  
   if (!res.ok) {
     const text = await res.text();
     throw new Error(text || `HTTP ${res.status}`);
   }
+  
+  if (res.status === 204) return undefined as unknown as T;
   return res.json() as Promise<T>;
 }
 
@@ -87,10 +108,59 @@ const queries: QueriesRepo = {
   async reject(id, historyId, reason) {
     await http<void>(baseUrl(`/queries/${id}/reject`), { method: 'POST', body: JSON.stringify({ historyId, reason }) });
   },
+  async getHistory(id: UUID) {
+    return http<QueryHistory[]>(baseUrl(`/queries/${id}/history`));
+  },
+  async getApprovals(id: UUID) {
+    return http<{ approvals: QueryApproval[]; approval_quota: number; latest_history_id?: UUID }>(
+      baseUrl(`/queries/${id}/approvals`)
+    );
+  },
+};
+
+const members: TeamMembersRepo = {
+  async list(teamId: UUID) {
+    return http<TeamMember[]>(baseUrl(`/teams/${teamId}/members`));
+  },
+  async remove(teamId: UUID, memberId: UUID) {
+    await http<void>(baseUrl(`/teams/${teamId}/members/${memberId}`), { method: 'DELETE' });
+  },
+  async updateRole(teamId: UUID, memberId: UUID, role: Role) {
+    await http<void>(baseUrl(`/teams/${teamId}/members/${memberId}`), { 
+      method: 'PATCH', 
+      body: JSON.stringify({ role }) 
+    });
+  },
+};
+
+const invitations: InvitationsRepo = {
+  async listMine() {
+    return http<TeamInvitation[]>(baseUrl('/invites/mine'));
+  },
+  async listByTeam(teamId: UUID) {
+    return http<TeamInvitation[]>(baseUrl(`/teams/${teamId}/invites`));
+  },
+  async create(teamId: UUID, email: string, role: Role) {
+    await http<void>(baseUrl(`/teams/${teamId}/invites`), {
+      method: 'POST',
+      body: JSON.stringify({ invited_email: email, role }),
+    });
+  },
+  async accept(id: UUID) {
+    await http<void>(baseUrl(`/invites/${id}/accept`), { method: 'POST' });
+  },
+  async decline(id: UUID) {
+    await http<void>(baseUrl(`/invites/${id}/decline`), { method: 'POST' });
+  },
+  async revoke(id: UUID) {
+    await http<void>(baseUrl(`/invites/${id}`), { method: 'DELETE' });
+  },
 };
 
 export const createRestAdapter = (): DbAdapter => ({
   teams,
   folders,
   queries,
+  members,
+  invitations,
 });
