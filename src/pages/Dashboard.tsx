@@ -54,6 +54,51 @@ const Dashboard = () => {
   const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
 
+  // Define callbacks BEFORE useEffects that reference them
+  const checkAdminStatus = useCallback(async () => {
+    try {
+      const adapter = getDbAdapter();
+      const teams = await adapter.teams.listForUser();
+      const current = teams.find(t => t.id === activeTeam?.id);
+      setIsAdmin((current as { role?: string })?.role === 'admin');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error checking admin status:', { message });
+    }
+  }, [activeTeam?.id]);
+
+  const fetchPendingInvitesCount = useCallback(async () => {
+    if (!user?.email) return;
+    const count = await checkPendingInvitationsCount(user.email);
+    setPendingInvitesCount(count);
+  }, [user?.email]);
+
+  const fetchPendingApprovalsCount = useCallback(async () => {
+    if (!user?.email || !activeTeam) return;
+    const count = await getPendingApprovalsCount(activeTeam.id, user.email);
+    setPendingApprovalsCount(count);
+  }, [user?.email, activeTeam]);
+
+  const fetchProjects = useCallback(async () => {
+    if (!activeTeam) return;
+    
+    try {
+      const adapter = getDbAdapter();
+      const data = await adapter.folders.listByTeam(activeTeam.id);
+      const roots = (data || []).filter((f: unknown) => (f as Folder & { parent_folder_id?: string }).parent_folder_id == null).sort((a, b) => a.name.localeCompare(b.name));
+      setProjects(roots);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch projects';
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive'
+      });
+    } finally {
+      setLoadingProjects(false);
+    }
+  }, [activeTeam, toast]);
+
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
@@ -86,50 +131,6 @@ const Dashboard = () => {
       return () => clearInterval(interval);
     }
   }, [user?.email, activeTeam, fetchPendingApprovalsCount]);
-
-  const checkAdminStatus = useCallback(async () => {
-    try {
-      const adapter = getDbAdapter();
-      const teams = await adapter.teams.listForUser();
-      const current = teams.find(t => t.id === activeTeam?.id);
-      setIsAdmin((current as { role?: string })?.role === 'admin');
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Error checking admin status:', { message });
-    }
-  }, [activeTeam?.id]);
-
-  const fetchPendingInvitesCount = useCallback(async () => {
-    if (!user?.email) return;
-    const count = await checkPendingInvitationsCount(user.email);
-    setPendingInvitesCount(count);
-  }, [user?.email]);
-
-  const fetchPendingApprovalsCount = useCallback(async () => {
-    if (!user?.email || !activeTeam) return;
-    const count = await getPendingApprovalsCount(activeTeam.id, user.email);
-    setPendingApprovalsCount(count);
-  }, [user?.email, activeTeam]);
-
-  const fetchProjects = useCallback(async () => {
-    if (!activeTeam) return;
-    
-    try {
-      const adapter = getDbAdapter();
-      const data = await adapter.folders.listByTeam(activeTeam.id);
-      const roots = (data || []).filter((f: any) => f.parent_folder_id == null).sort((a, b) => a.name.localeCompare(b.name));
-      setProjects(roots as any);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch projects';
-      toast({
-        title: 'Error',
-        description: message,
-        variant: 'destructive'
-      });
-    } finally {
-      setLoadingProjects(false);
-    }
-  }, [activeTeam, toast]);
 
   const handleCreateProject = async () => {
     if (!newProject.name.trim()) {

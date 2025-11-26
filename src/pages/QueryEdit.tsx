@@ -89,6 +89,37 @@ const QueryEdit = () => {
     }
   }, [query?.sql_content]);
 
+  // Define fetchQuery callback BEFORE useEffect that uses it
+  const fetchQuery = useCallback(async () => {
+    try {
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        const q = await getDbAdapter().queries.getById(id!);
+        if (!q) throw new Error('Query not found');
+        setQuery(q as unknown as Query);
+      } else {
+        const { data, error } = await supabase
+          .from('sql_queries')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error('Query not found');
+        setQuery(data as unknown as Query);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch query';
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+      });
+      navigate('/dashboard');
+    } finally {
+      setLoadingQuery(false);
+    }
+  }, [id, toast, navigate]);
+
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
@@ -123,36 +154,6 @@ const QueryEdit = () => {
       }
     }
   }, [user, id, isNewQuery, folderId, navigate, toast, fetchQuery]);
-
-  const fetchQuery = useCallback(async () => {
-    try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
-      if (provider === 'rest') {
-        const q = await getDbAdapter().queries.getById(id!);
-        if (!q) throw new Error('Query not found');
-        setQuery(q as unknown as Query);
-      } else {
-        const { data, error } = await supabase
-          .from('sql_queries')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
-        if (error) throw error;
-        if (!data) throw new Error('Query not found');
-        setQuery(data as unknown as Query);
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch query';
-      toast({
-        title: 'Error',
-        description: message,
-        variant: 'destructive',
-      });
-      navigate('/dashboard');
-    } finally {
-      setLoadingQuery(false);
-    }
-  }, [id, toast, navigate]);
 
   const handleSave = async (newStatus: string) => {
     // Validate query data using zod schema
