@@ -1,9 +1,10 @@
 const base = process.env.API_BASE || 'http://localhost:8787';
 
 // Dev auth headers for CI testing (requires ENABLE_DEV_AUTH=true)
+// UUID must be valid RFC 4122 format (version 4, variant 1)
 const devAuthHeaders = {
   'Content-Type': 'application/json',
-  'x-dev-user-id': '00000000-0000-0000-0000-000000000001',
+  'x-dev-user-id': '00000000-0000-4000-8000-000000000001',
   'x-dev-user-email': 'ci-test@test.dev',
 };
 
