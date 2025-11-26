@@ -15,6 +15,7 @@ import type {
   TeamMember,
   TeamInvitation,
   Role,
+  PendingApprovalQuery,
 } from './types';
 
 const teams: TeamsRepo = {
@@ -24,8 +25,8 @@ const teams: TeamsRepo = {
       .select('role, teams:team_id(id, name, approval_quota, admin_id)');
     if (error) throw error;
     const mapped = (data || [])
-      .filter((row: any) => row.teams)
-      .map((row: any) => ({ ...(row.teams as Team), role: row.role })) as (Team & { role?: 'admin' | 'member' })[];
+      .filter((row: unknown) => (row as { teams: unknown }).teams)
+      .map((row: unknown) => ({ ...((row as { teams: Team }).teams), role: (row as { role: Role }).role })) as (Team & { role?: 'admin' | 'member' })[];
     return mapped;
   },
   async getById(id: UUID) {
@@ -36,6 +37,56 @@ const teams: TeamsRepo = {
       .single();
     if (error) return null;
     return data as Team;
+  },
+  async create(name: string, approvalQuota = 1) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    
+    // Use RPC if available, otherwise manual insert
+    const { data, error } = await supabase
+      .rpc('create_team_with_admin', { _team_name: name, _approval_quota: approvalQuota })
+      .single();
+    
+    if (error) {
+      // Fallback: manual creation if RPC doesn't exist
+      const { data: team, error: insertError } = await supabase
+        .from('teams')
+        .insert({ name, approval_quota: approvalQuota, admin_id: user.id })
+        .select()
+        .single();
+      if (insertError) throw insertError;
+      
+      // Add creator as admin member
+      await supabase
+        .from('team_members')
+        .insert({ team_id: team.id, user_id: user.id, role: 'admin' });
+      
+      return team as Team;
+    }
+    
+    return data as Team;
+  },
+  async update(id: UUID, updateData: { approval_quota?: number }) {
+    const { error } = await supabase
+      .from('teams')
+      .update(updateData)
+      .eq('id', id);
+    if (error) throw error;
+  },
+  async transferOwnership(id: UUID, newOwnerUserId: UUID) {
+    // Make new owner admin and transfer ownership
+    const { error: memberError } = await supabase
+      .from('team_members')
+      .update({ role: 'admin' })
+      .eq('team_id', id)
+      .eq('user_id', newOwnerUserId);
+    if (memberError) throw memberError;
+    
+    const { error: teamError } = await supabase
+      .from('teams')
+      .update({ admin_id: newOwnerUserId })
+      .eq('id', id);
+    if (teamError) throw teamError;
   },
 };
 
@@ -203,6 +254,66 @@ const queries: QueriesRepo = {
       approval_quota,
       latest_history_id: history.id,
     };
+  },
+  async getPendingForApproval(teamId: UUID, excludeEmail: string) {
+    const { data: queries, error: queriesError } = await supabase
+      .from('sql_queries')
+      .select(`
+        id,
+        title,
+        description,
+        folder_id,
+        last_modified_by_email,
+        updated_at,
+        folders!inner(name)
+      `)
+      .eq('team_id', teamId)
+      .eq('status', 'pending_approval')
+      .neq('last_modified_by_email', excludeEmail)
+      .order('updated_at', { ascending: false });
+    if (queriesError) throw queriesError;
+
+    const { data: teamData, error: teamError } = await supabase
+      .from('teams')
+      .select('approval_quota')
+      .eq('id', teamId)
+      .single();
+    if (teamError) throw teamError;
+
+    const results: PendingApprovalQuery[] = await Promise.all(
+      (queries || []).map(async (query) => {
+        let approvalCount = 0;
+        const { data: historyData } = await supabase
+          .from('query_history')
+          .select('id')
+          .eq('query_id', query.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (historyData) {
+          const { count } = await supabase
+            .from('query_approvals')
+            .select('*', { count: 'exact', head: true })
+            .eq('query_history_id', historyData.id);
+          approvalCount = count || 0;
+        }
+
+        return {
+          id: query.id,
+          title: query.title,
+          description: query.description,
+          folder_id: query.folder_id,
+          last_modified_by_email: query.last_modified_by_email || '',
+          updated_at: query.updated_at || '',
+          folder_name: (query.folders as { name: string }).name,
+          approval_count: approvalCount,
+          approval_quota: teamData.approval_quota,
+        };
+      })
+    );
+
+    return results;
   },
 };
 

@@ -14,6 +14,7 @@ import type {
   TeamMember,
   TeamInvitation,
   Role,
+  PendingApprovalQuery,
 } from './types';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -65,6 +66,24 @@ const teams: TeamsRepo = {
   async getById(id: UUID) {
     return http<Team | null>(baseUrl(`/teams/${id}`));
   },
+  async create(name: string, approvalQuota = 1) {
+    return http<Team>(baseUrl('/teams'), {
+      method: 'POST',
+      body: JSON.stringify({ name, approval_quota: approvalQuota }),
+    });
+  },
+  async update(id: UUID, data: { approval_quota?: number }) {
+    await http<void>(baseUrl(`/teams/${id}`), {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+  async transferOwnership(id: UUID, newOwnerUserId: UUID) {
+    await http<void>(baseUrl(`/teams/${id}/transfer-ownership`), {
+      method: 'POST',
+      body: JSON.stringify({ new_owner_user_id: newOwnerUserId }),
+    });
+  },
 };
 
 const folders: FoldersRepo = {
@@ -115,6 +134,10 @@ const queries: QueriesRepo = {
     return http<{ approvals: QueryApproval[]; approval_quota: number; latest_history_id?: UUID }>(
       baseUrl(`/queries/${id}/approvals`)
     );
+  },
+  async getPendingForApproval(teamId: UUID, excludeEmail: string) {
+    const qs = new URLSearchParams({ teamId, excludeEmail }).toString();
+    return http<PendingApprovalQuery[]>(baseUrl(`/approvals?${qs}`));
   },
 };
 

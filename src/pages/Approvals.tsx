@@ -1,33 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
-import { supabase } from '@/integrations/supabase/client';
+import { useDbProvider } from '@/hooks/useDbProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, FileText, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-
-interface PendingQuery {
-  id: string;
-  title: string;
-  description: string | null;
-  folder_id: string;
-  last_modified_by_email: string;
-  updated_at: string;
-  folder_name: string;
-  approval_count: number;
-  approval_quota: number;
-}
+import type { PendingApprovalQuery } from '@/lib/provider/types';
 
 const Approvals = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const { activeTeam } = useTeam();
-  const [pendingQueries, setPendingQueries] = useState<PendingQuery[]>([]);
+  const { adapter } = useDbProvider();
+  const [pendingQueries, setPendingQueries] = useState<PendingApprovalQuery[]>([]);
   const [loadingQueries, setLoadingQueries] = useState(true);
+
+  const fetchPendingQueries = useCallback(async () => {
+    if (!user?.email || !activeTeam) return;
+
+    setLoadingQueries(true);
+    try {
+      const queries = await adapter.queries.getPendingForApproval(activeTeam.id, user.email);
+      setPendingQueries(queries);
+    } catch (error: unknown) {
+      console.error('Error fetching pending queries:', error);
+    } finally {
+      setLoadingQueries(false);
+    }
+  }, [user?.email, activeTeam, adapter.queries]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -39,93 +43,7 @@ const Approvals = () => {
     if (user && activeTeam) {
       fetchPendingQueries();
     }
-  }, [user, activeTeam]);
-
-  const fetchPendingQueries = async () => {
-    if (!user?.email || !activeTeam) return;
-
-    setLoadingQueries(true);
-    try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
-      if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const params = new URLSearchParams({ teamId: activeTeam.id, excludeEmail: user.email });
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/approvals?${params.toString()}`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const rows = await res.json();
-        setPendingQueries(rows || []);
-      } else {
-        // Supabase path
-        const { data: queries, error: queriesError } = await supabase
-          .from('sql_queries')
-          .select(`
-            id,
-            title,
-            description,
-            folder_id,
-            last_modified_by_email,
-            updated_at,
-            folders!inner(name)
-          `)
-          .eq('team_id', activeTeam.id)
-          .eq('status', 'pending_approval')
-          .neq('last_modified_by_email', user.email)
-          .order('updated_at', { ascending: false });
-        if (queriesError) throw queriesError;
-        const { data: teamData, error: teamError } = await supabase
-          .from('teams')
-          .select('approval_quota')
-          .eq('id', activeTeam.id)
-          .single();
-        if (teamError) throw teamError;
-        const queriesWithCounts = await Promise.all(
-          (queries || []).map(async (query) => {
-            const { data: historyData } = await supabase
-              .from('query_history')
-              .select('id')
-              .eq('query_id', query.id)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .single();
-            if (historyData) {
-              const { count } = await supabase
-                .from('query_approvals')
-                .select('*', { count: 'exact', head: true })
-                .eq('query_history_id', historyData.id);
-              return {
-                id: query.id,
-                title: query.title,
-                description: query.description,
-                folder_id: query.folder_id,
-                last_modified_by_email: query.last_modified_by_email,
-                updated_at: query.updated_at,
-                folder_name: (query.folders as any).name,
-                approval_count: count || 0,
-                approval_quota: teamData.approval_quota,
-              };
-            }
-            return {
-              id: query.id,
-              title: query.title,
-              description: query.description,
-              folder_id: query.folder_id,
-              last_modified_by_email: query.last_modified_by_email,
-              updated_at: query.updated_at,
-              folder_name: (query.folders as any).name,
-              approval_count: 0,
-              approval_quota: teamData.approval_quota,
-            };
-          })
-        );
-        setPendingQueries(queriesWithCounts);
-      }
-    } catch (error: any) {
-      console.error('Error fetching pending queries:', error);
-    } finally {
-      setLoadingQueries(false);
-    }
-  };
+  }, [user, activeTeam, fetchPendingQueries]);
 
   if (loading || loadingQueries) {
     return (
