@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getDbAdapter } from '@/lib/provider';
@@ -76,6 +76,7 @@ const Folder = () => {
       fetchChildFolders();
       fetchBreadcrumbs();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, id]);
 
   const fetchFolder = async () => {

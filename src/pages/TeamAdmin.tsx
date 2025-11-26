@@ -65,6 +65,7 @@ const TeamAdmin = () => {
     } else if (user) {
       checkAdminAccess();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
@@ -73,6 +74,7 @@ const TeamAdmin = () => {
       fetchTeamMembers();
       fetchPendingInvitations();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTeamId]);
 
   const checkAdminAccess = async () => {

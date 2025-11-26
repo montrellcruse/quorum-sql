@@ -106,7 +106,14 @@ export const DANGEROUS_SQL_PATTERNS = [
 ] as const;
 
 /**
- * Validates SQL content and returns warnings for dangerous patterns
+ * Validates SQL content for dangerous patterns that could harm the database.
+ * Checks for DROP, TRUNCATE, file operations, and privilege escalation commands.
+ * @param content - SQL content to validate
+ * @returns Object with hasDangerousPatterns flag and array of warning messages
+ * @example
+ * const { hasDangerousPatterns, warnings } = validateSqlSafety('DROP TABLE users;');
+ * // hasDangerousPatterns: true
+ * // warnings: ['DROP operations can permanently delete data']
  */
 export function validateSqlSafety(content: string): {
   hasDangerousPatterns: boolean;

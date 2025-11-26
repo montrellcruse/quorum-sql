@@ -49,12 +49,53 @@ export type Role = 'admin' | 'member';
 export interface TeamsRepo {
   listForUser(): Promise<(Team & { role?: Role })[]>;
   getById(id: UUID): Promise<Team | null>;
+  create(name: string, approvalQuota?: number): Promise<Team>;
+  update(id: UUID, data: { approval_quota?: number }): Promise<void>;
+  transferOwnership(id: UUID, newOwnerUserId: UUID): Promise<void>;
 }
 
 export interface FoldersRepo {
   listByTeam(teamId: UUID): Promise<Folder[]>;
   getById(id: UUID): Promise<Folder | null>;
   create(input: { team_id: UUID; name: string; parent_folder_id?: UUID | null; description?: string | null; created_by_email?: string | null; user_id?: UUID }): Promise<Folder>;
+}
+
+export interface QueryHistory {
+  id: UUID;
+  query_id: UUID;
+  sql_content: string;
+  modified_by_email: string;
+  change_reason?: string | null;
+  status: QueryStatus;
+  created_at: string;
+}
+
+export interface QueryApproval {
+  id: UUID;
+  query_history_id: UUID;
+  user_id: UUID;
+  created_at: string;
+}
+
+export interface TeamMember {
+  id: UUID;
+  user_id: UUID;
+  team_id: UUID;
+  role: Role;
+  email?: string;
+}
+
+export interface TeamInvitation {
+  id: UUID;
+  team_id: UUID;
+  invited_email: string;
+  role: Role;
+  status: 'pending' | 'accepted' | 'declined';
+  invited_by_user_id?: UUID;
+  created_at: string;
+  team_name?: string;
+  inviter_email?: string;
+  inviter_full_name?: string;
 }
 
 export interface QueriesRepo {
@@ -70,10 +111,42 @@ export interface QueriesRepo {
   ): Promise<void>;
   approve(id: UUID, historyId: UUID): Promise<void>;
   reject(id: UUID, historyId: UUID, reason?: string): Promise<void>;
+  getHistory(id: UUID): Promise<QueryHistory[]>;
+  getApprovals(id: UUID): Promise<{ approvals: QueryApproval[]; approval_quota: number; latest_history_id?: UUID }>;
+  getPendingForApproval(teamId: UUID, excludeEmail: string): Promise<PendingApprovalQuery[]>;
+}
+
+export interface PendingApprovalQuery {
+  id: UUID;
+  title: string;
+  description: string | null;
+  folder_id: UUID;
+  last_modified_by_email: string;
+  updated_at: string;
+  folder_name: string;
+  approval_count: number;
+  approval_quota: number;
+}
+
+export interface TeamMembersRepo {
+  list(teamId: UUID): Promise<TeamMember[]>;
+  remove(teamId: UUID, memberId: UUID): Promise<void>;
+  updateRole(teamId: UUID, memberId: UUID, role: Role): Promise<void>;
+}
+
+export interface InvitationsRepo {
+  listMine(): Promise<TeamInvitation[]>;
+  listByTeam(teamId: UUID): Promise<TeamInvitation[]>;
+  create(teamId: UUID, email: string, role: Role): Promise<void>;
+  accept(id: UUID): Promise<void>;
+  decline(id: UUID): Promise<void>;
+  revoke(id: UUID): Promise<void>;
 }
 
 export interface DbAdapter {
   teams: TeamsRepo;
   folders: FoldersRepo;
   queries: QueriesRepo;
+  members: TeamMembersRepo;
+  invitations: InvitationsRepo;
 }

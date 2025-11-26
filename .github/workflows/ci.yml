@@ -30,8 +30,9 @@ jobs:
       PGDATABASE: testdb
       PGUSER: postgres
       APPLY_SUPABASE_MIGRATIONS: false
-      SESSION_SECRET: testsecrettestsecret1234567890
+      SESSION_SECRET: testsecrettestsecret123456789012
       CORS_ORIGIN: http://localhost:5173
+      ENABLE_DEV_AUTH: true
 
     steps:
       - name: Checkout

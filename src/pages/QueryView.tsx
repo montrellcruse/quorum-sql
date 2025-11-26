@@ -79,12 +79,14 @@ const QueryView = () => {
       fetchQuery();
       fetchHistory();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, id]);
 
   useEffect(() => {
     if (query?.status === 'pending_approval') {
       fetchApprovals();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query?.status, latestHistoryId]);
 
   const fetchQuery = async () => {
