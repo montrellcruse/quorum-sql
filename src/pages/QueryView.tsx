@@ -14,7 +14,7 @@ import Editor, { DiffEditor } from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Edit, Clock, Trash2, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Edit, Clock, Trash2, Copy, Check, RotateCcw } from 'lucide-react';
 import { getDbAdapter } from '@/lib/provider';
 
 interface Query {
@@ -67,6 +67,8 @@ const QueryView = () => {
   const [latestHistoryId, setLatestHistoryId] = useState<string | null>(null);
   const [hasUserApproved, setHasUserApproved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [revertDialogOpen, setRevertDialogOpen] = useState(false);
+  const [reverting, setReverting] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -385,6 +387,54 @@ const QueryView = () => {
     }
   };
 
+  const handleRevert = async () => {
+    if (!selectedHistory || !id || !user) return;
+    
+    setReverting(true);
+    try {
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (provider === 'rest') {
+        await getDbAdapter().queries.update(id, {
+          sql_content: selectedHistory.sql_content,
+          status: 'draft',
+          last_modified_by_email: user.email,
+        });
+      } else {
+        const { error } = await supabase
+          .from('sql_queries')
+          .update({
+            sql_content: selectedHistory.sql_content,
+            status: 'draft',
+            last_modified_by_email: user.email,
+          })
+          .eq('id', id);
+        if (error) throw error;
+      }
+      
+      toast({
+        title: 'Success',
+        description: 'Query reverted to previous version. Submit for approval when ready.',
+      });
+      
+      setRevertDialogOpen(false);
+      setHistoryModalOpen(false);
+      await fetchQuery();
+      await fetchHistory();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setReverting(false);
+    }
+  };
+
+  const canRevert = selectedHistory && 
+                    query?.sql_content !== selectedHistory.sql_content &&
+                    query?.status !== 'pending_approval';
+
   const canApprove = query?.status === 'pending_approval' && 
                      query?.last_modified_by_email !== user?.email &&
                      !hasUserApproved;
@@ -635,13 +685,46 @@ const QueryView = () => {
                   </div>
                 </div>
                 
-                <Button onClick={() => setHistoryModalOpen(false)} className="w-full">
-                  Close
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => setRevertDialogOpen(true)}
+                    variant="outline"
+                    disabled={!canRevert || reverting}
+                    className="flex-1"
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Revert to this Version
+                  </Button>
+                  <Button onClick={() => setHistoryModalOpen(false)} className="flex-1">
+                    Close
+                  </Button>
+                </div>
               </div>
             )}
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={revertDialogOpen} onOpenChange={setRevertDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revert to Previous Version?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will replace the current SQL content with the version from{' '}
+                <strong>{selectedHistory && formatDate(selectedHistory.created_at)}</strong>{' '}
+                by <strong>{selectedHistory?.modified_by_email}</strong>.
+                <br /><br />
+                The query will be set to <strong>draft</strong> status and will need 
+                to go through the approval process again.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={reverting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleRevert} disabled={reverting}>
+                {reverting ? 'Reverting...' : 'Revert'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
@@ -660,7 +743,7 @@ const QueryView = () => {
                 Delete Query
               </AlertDialogAction>
             </AlertDialogFooter>
-        </AlertDialogContent>
+          </AlertDialogContent>
         </AlertDialog>
       </div>
     </main>
