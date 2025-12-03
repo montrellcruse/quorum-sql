@@ -1,14 +1,14 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getDbAdapter } from '@/lib/provider';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, FileText, Edit, Trash2, Folder as FolderIcon, Home } from 'lucide-react';
+import { Plus, FileText, Edit, Trash2, Folder as FolderIcon, Home } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
@@ -94,7 +94,7 @@ const Folder = () => {
         const { data, error } = await supabase
           .from('folders')
           .select('*')
-          .eq('id', id)
+          .eq('id', id!)
           .maybeSingle();
         if (error) throw error;
         if (!data) {
@@ -130,7 +130,7 @@ const Folder = () => {
         const { data, error } = await supabase
           .from('sql_queries')
           .select('id, title, status, description, created_at, created_by_email, last_modified_by_email, updated_at')
-          .eq('folder_id', id)
+          .eq('folder_id', id!)
           .order('updated_at', { ascending: false });
         if (error) throw error;
         setQueries(data || []);
@@ -160,7 +160,7 @@ const Folder = () => {
         const { data, error } = await supabase
           .from('folders')
           .select('*')
-          .eq('parent_folder_id', id)
+          .eq('parent_folder_id', id!)
           .order('name', { ascending: true });
         if (error) throw error;
         setChildFolders(data || []);
@@ -386,7 +386,7 @@ const Folder = () => {
           .from('folders')
           .select('id')
           .eq('name', validation.data.name)
-          .eq('parent_folder_id', id)
+          .eq('parent_folder_id', id!)
           .maybeSingle();
         if (checkError) throw checkError;
         if (existingFolder) {
@@ -398,11 +398,11 @@ const Folder = () => {
           .insert({
             name: validation.data.name,
             description: validation.data.description,
-            parent_folder_id: id,
+            parent_folder_id: id!,
             user_id: user?.id,
             created_by_email: user?.email || '',
             team_id: activeTeam?.id || folder?.team_id,
-          });
+          } as any);
         if (error) throw error;
       }
 

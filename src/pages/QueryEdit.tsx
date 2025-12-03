@@ -101,7 +101,7 @@ const QueryEdit = () => {
         const { data, error } = await supabase
           .from('sql_queries')
           .select('*')
-          .eq('id', id)
+          .eq('id', id!)
           .maybeSingle();
         if (error) throw error;
         if (!data) throw new Error('Query not found');
@@ -192,14 +192,14 @@ const QueryEdit = () => {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (isNewQuery) {
         if (provider === 'rest') {
-          const folder = await getDbAdapter().folders.getById(query.folder_id);
+          const folder = await getDbAdapter().folders.getById(query!.folder_id);
           if (!folder?.team_id) throw new Error('Folder does not have a team_id');
           const created = await getDbAdapter().queries.create({
-            title: query.title,
-            description: query.description,
-            sql_content: query.sql_content,
+            title: query!.title,
+            description: query!.description,
+            sql_content: query!.sql_content,
             status: newStatus as any,
-            folder_id: query.folder_id,
+            folder_id: query!.folder_id,
             team_id: folder.team_id,
             created_by_email: user?.email || '',
             last_modified_by_email: user?.email || '',
@@ -209,16 +209,16 @@ const QueryEdit = () => {
           const { data, error } = await supabase
             .from('sql_queries')
             .insert({
-              title: query.title,
-              description: query.description,
-              sql_content: query.sql_content,
+              title: query!.title,
+              description: query!.description,
+              sql_content: query!.sql_content,
               status: newStatus,
-              folder_id: query.folder_id,
+              folder_id: query!.folder_id,
               team_id: activeTeam!.id,
               user_id: user?.id,
               created_by_email: user?.email || '',
               last_modified_by_email: user?.email || '',
-            })
+            } as any)
             .select()
             .single();
           if (error) throw error;
@@ -227,9 +227,9 @@ const QueryEdit = () => {
       } else {
         if (provider === 'rest') {
           await getDbAdapter().queries.update(id!, {
-            title: query.title,
-            description: query.description,
-            sql_content: query.sql_content,
+            title: query!.title,
+            description: query!.description,
+            sql_content: query!.sql_content,
             status: newStatus as any,
             last_modified_by_email: user?.email || '',
           } as any);
@@ -237,13 +237,13 @@ const QueryEdit = () => {
           const { error } = await supabase
             .from('sql_queries')
             .update({
-              title: query.title,
-              description: query.description,
-              sql_content: query.sql_content,
+              title: query!.title,
+              description: query!.description,
+              sql_content: query!.sql_content,
               status: newStatus,
               last_modified_by_email: user?.email || '',
             })
-            .eq('id', id);
+            .eq('id', id!);
           if (error) throw error;
         }
       }
@@ -252,7 +252,7 @@ const QueryEdit = () => {
       if (newStatus === 'pending_approval') {
         const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
         if (provider === 'rest') {
-          await getDbAdapter().queries.submitForApproval(queryId!, query.sql_content, {
+          await getDbAdapter().queries.submitForApproval(queryId!, query!.sql_content, {
             modified_by_email: user?.email || '',
             change_reason: changeReason.trim() || null,
             team_id: activeTeam!.id,
@@ -262,10 +262,10 @@ const QueryEdit = () => {
           toast({ title: 'Success', description: 'Query submitted for approval' });
         } else {
           const { data, error: rpcError } = await supabase.rpc('submit_query_for_approval', {
-            _query_id: queryId,
-            _sql_content: query.sql_content,
+            _query_id: queryId!,
+            _sql_content: query!.sql_content,
             _modified_by_email: user?.email || '',
-            _change_reason: changeReason.trim() || null,
+            _change_reason: changeReason.trim() || '',
             _team_id: activeTeam!.id,
             _user_id: user!.id,
           });
@@ -290,7 +290,7 @@ const QueryEdit = () => {
       }
 
       // Redirect back to folder page
-      navigate(`/folder/${query.folder_id}`);
+      navigate(`/folder/${query!.folder_id}`);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -310,9 +310,9 @@ const QueryEdit = () => {
         await getDbAdapter().queries.update(id!, { status: 'draft' } as any);
       } else {
         const { error } = await supabase
-          .from('sql_queries')
-          .update({ status: 'draft' })
-          .eq('id', id);
+            .from('sql_queries')
+            .update({ status: 'draft' })
+            .eq('id', id!);
         if (error) throw error;
       }
 
@@ -342,7 +342,7 @@ const QueryEdit = () => {
         // fetch last approved history via REST
         const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
         if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/queries/${id}/history`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/queries/${id!}/history`, { credentials: 'include' });
         if (!res.ok) throw new Error(await res.text());
         const all = await res.json();
         const approvedHistory = (all || []).find((h: any) => h.status === 'approved');
@@ -363,7 +363,7 @@ const QueryEdit = () => {
         const { data: approvedHistory, error: historyError } = await supabase
           .from('query_history')
           .select('*')
-          .eq('query_id', id)
+          .eq('query_id', id!)
           .eq('status', 'approved')
           .order('created_at', { ascending: false })
           .limit(1)
@@ -377,15 +377,15 @@ const QueryEdit = () => {
               status: 'approved',
               last_modified_by_email: approvedHistory.modified_by_email,
             })
-            .eq('id', id);
+            .eq('id', id!);
           if (updateError) throw updateError;
           toast({ title: 'Success', description: 'Draft discarded and reverted to last approved version' });
-          navigate(`/query/view/${id}`);
+          navigate(`/query/view/${id!}`);
         } else {
           const { error: deleteError } = await supabase
             .from('sql_queries')
             .delete()
-            .eq('id', id);
+            .eq('id', id!);
           if (deleteError) throw deleteError;
           toast({ title: 'Success', description: 'Draft discarded successfully' });
           navigate(`/folder/${query?.folder_id}`);
@@ -463,7 +463,7 @@ const QueryEdit = () => {
         const { error } = await supabase
           .from('sql_queries')
           .update({ folder_id: selectedFolderId })
-          .eq('id', id);
+          .eq('id', id!);
         if (error) throw error;
       }
 

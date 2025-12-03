@@ -500,7 +500,6 @@ const TeamAdmin = () => {
     );
   }
 
-  const adminMembers = members.filter(m => m.role === 'admin');
 
   return (
     <main className="container mx-auto p-6 max-w-4xl">

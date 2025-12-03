@@ -64,7 +64,9 @@ const teams: TeamsRepo = {
       return team as Team;
     }
     
-    return data as Team;
+    // RPC returns team_id, team_name - map to id, name
+    const result = data as { team_id: string; team_name: string; admin_id: string; approval_quota: number };
+    return { id: result.team_id, name: result.team_name, admin_id: result.admin_id, approval_quota: result.approval_quota } as Team;
   },
   async update(id: UUID, updateData: { approval_quota?: number }) {
     const { error } = await supabase
@@ -156,7 +158,7 @@ const queries: QueriesRepo = {
   async update(id, patch) {
     const { error } = await supabase
       .from('sql_queries')
-      .update(patch)
+      .update(patch as any)
       .eq('id', id);
     if (error) throw error;
   },
@@ -200,7 +202,7 @@ const queries: QueriesRepo = {
     });
     if (error) throw error;
   },
-  async reject(id, historyId, reason) {
+  async reject(id, historyId, _reason) {
     const { error } = await supabase.rpc('reject_query_with_authorization', {
       _query_id: id,
       _query_history_id: historyId,
