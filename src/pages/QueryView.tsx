@@ -14,7 +14,8 @@ import Editor, { DiffEditor } from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Edit, Clock, Trash2, Copy, Check, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Edit, Clock, Trash2, Copy, Check, RotateCcw, Send } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { getDbAdapter } from '@/lib/provider';
 
 interface Query {
@@ -69,6 +70,9 @@ const QueryView = () => {
   const [copied, setCopied] = useState(false);
   const [revertDialogOpen, setRevertDialogOpen] = useState(false);
   const [reverting, setReverting] = useState(false);
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [changeReason, setChangeReason] = useState('');
 
   useEffect(() => {
     if (!loading && !user) {
@@ -442,11 +446,63 @@ const QueryView = () => {
   const canReject = query?.status === 'pending_approval' && 
                     query?.last_modified_by_email !== user?.email;
 
+  const canSubmitForApproval = query?.status === 'draft';
+
   const canDeleteQuery = () => {
     if (!query || !user || !activeTeam) return false;
     const isOwner = query.user_id === user.id;
     const isAdmin = activeTeam.role === 'admin';
     return isOwner || isAdmin;
+  };
+
+  const handleSubmitForApproval = async () => {
+    if (!query || !id || !user || !activeTeam) return;
+    
+    setSubmitting(true);
+    try {
+      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      
+      if (provider === 'rest') {
+        await getDbAdapter().queries.submitForApproval(id, query.sql_content, {
+          modified_by_email: user.email || '',
+          change_reason: changeReason.trim() || null,
+          team_id: activeTeam.id,
+          user_id: user.id,
+        });
+        toast({ title: 'Success', description: 'Query submitted for approval' });
+      } else {
+        const { data, error } = await supabase.rpc('submit_query_for_approval', {
+          _query_id: id,
+          _sql_content: query.sql_content,
+          _modified_by_email: user.email || '',
+          _change_reason: changeReason.trim() || '',
+          _team_id: activeTeam.id,
+          _user_id: user.id,
+        });
+        
+        if (error) throw error;
+        
+        const result = data as { success: boolean; status: string; auto_approved: boolean };
+        if (result.auto_approved) {
+          toast({ title: 'Success', description: 'Query auto-approved (single-member team)' });
+        } else {
+          toast({ title: 'Success', description: 'Query submitted for approval' });
+        }
+      }
+      
+      setSubmitDialogOpen(false);
+      setChangeReason('');
+      await fetchQuery();
+      await fetchHistory();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
@@ -510,6 +566,15 @@ const QueryView = () => {
               <Edit className="mr-2 h-4 w-4" />
               Edit Query
             </Button>
+            {canSubmitForApproval && (
+              <Button 
+                onClick={() => setSubmitDialogOpen(true)}
+                variant="secondary"
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Submit for Approval
+              </Button>
+            )}
             {canDeleteQuery() && (
               <Button 
                 onClick={() => setDeleteDialogOpen(true)} 
@@ -741,6 +806,35 @@ const QueryView = () => {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Delete Query
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={submitDialogOpen} onOpenChange={setSubmitDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Submit Query for Approval</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will submit the current query for team approval. 
+                Optionally provide a reason for this submission.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-4">
+              <Label htmlFor="changeReason">Change Reason (optional)</Label>
+              <Textarea
+                id="changeReason"
+                placeholder="Describe what changed or why this is being submitted..."
+                value={changeReason}
+                onChange={(e) => setChangeReason(e.target.value)}
+                className="mt-2"
+                rows={3}
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleSubmitForApproval} disabled={submitting}>
+                {submitting ? 'Submitting...' : 'Submit for Approval'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
