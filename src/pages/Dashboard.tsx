@@ -21,9 +21,9 @@ import { checkPendingInvitationsCount, getPendingApprovalsCount } from '@/utils/
 interface Folder {
   id: string;
   name: string;
-  description: string | null;
-  created_at: string;
-  created_by_email: string | null;
+  description?: string | null;
+  created_at?: string;
+  created_by_email?: string | null;
 }
 
 interface SearchResult {

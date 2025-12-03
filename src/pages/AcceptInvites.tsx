@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { checkUserTeamMembership } from '@/utils/teamUtils';
 import { ArrowLeft } from 'lucide-react';
-import type { TeamInvitation, Role } from '@/lib/provider/types';
+import type { TeamInvitation } from '@/lib/provider/types';
 
 const AcceptInvites = () => {
   const { user, loading } = useAuth();

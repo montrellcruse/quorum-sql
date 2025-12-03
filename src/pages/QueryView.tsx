@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
+
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -106,7 +106,7 @@ const QueryView = () => {
         const { data, error } = await supabase
           .from('sql_queries')
           .select('*')
-          .eq('id', id)
+          .eq('id', id!)
           .maybeSingle();
         if (error) throw error;
         if (!data) {
@@ -188,7 +188,7 @@ const QueryView = () => {
         const { data: queryData, error: queryError } = await supabase
           .from('sql_queries')
           .select('team_id, teams(approval_quota)')
-          .eq('id', id)
+          .eq('id', id!)
           .single();
         if (queryError) throw queryError;
         const quota = (queryData as any)?.teams?.approval_quota || 1;
