@@ -352,6 +352,13 @@ export type Database = {
       }
       get_folder_team_id: { Args: { _folder_id: string }; Returns: string }
       get_query_team_id: { Args: { _query_id: string }; Returns: string }
+      get_team_folder_paths: {
+        Args: { _team_id: string }
+        Returns: {
+          full_path: string
+          id: string
+        }[]
+      }
       is_team_admin: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean

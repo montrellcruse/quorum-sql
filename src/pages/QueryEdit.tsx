@@ -404,18 +404,22 @@ const QueryEdit = () => {
   };
 
   const fetchFolders = async () => {
+    if (!activeTeam) return;
+    
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
         const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
         if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/paths`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/paths?team_id=${activeTeam.id}`, { credentials: 'include' });
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         const filtered = (data || []).filter((f: Folder) => f.id !== query?.folder_id);
         setFolders(filtered);
       } else {
-        const { data, error } = await supabase.rpc('get_all_folder_paths');
+        const { data, error } = await supabase.rpc('get_team_folder_paths', {
+          _team_id: activeTeam.id
+        });
         if (error) throw error;
         const filteredFolders = (data || []).filter((folder: Folder) => folder.id !== query?.folder_id);
         setFolders(filteredFolders);
