@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS auth.users (
   id uuid PRIMARY KEY,
   email text UNIQUE NOT NULL,
   full_name text,
+  encrypted_password text,
   raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
