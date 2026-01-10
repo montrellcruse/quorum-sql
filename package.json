@@ -9,7 +9,9 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "migrations:combine": "node scripts/generate-supabase-migrations.js",
+    "setup:docker": "bash scripts/setup.sh"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

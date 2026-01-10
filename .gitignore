@@ -10,6 +10,9 @@
 # Local thoughts/planning (session-specific)
 thoughts/
 
+# Generated migration files
+supabase/combined-migrations.sql
+
 # Logs
 logs
 *.log

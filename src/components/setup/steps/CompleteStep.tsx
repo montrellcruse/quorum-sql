@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Check, Copy, Download, ExternalLink } from "lucide-react";
+import { ChevronLeft, Check, Copy, Download, ExternalLink, AlertCircle, Terminal } from "lucide-react";
 import { SetupConfig } from "../SetupWizard";
 
 interface CompleteStepProps {
@@ -10,6 +10,8 @@ interface CompleteStepProps {
 
 export function CompleteStep({ config, onBack }: CompleteStepProps) {
   const [copied, setCopied] = useState(false);
+  const [copiedDocker, setCopiedDocker] = useState(false);
+  const [copiedMigration, setCopiedMigration] = useState(false);
 
   const envContent = generateEnvContent(config);
 
@@ -29,6 +31,18 @@ export function CompleteStep({ config, onBack }: CompleteStepProps) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleCopyDocker = async () => {
+    await navigator.clipboard.writeText("docker compose up -d");
+    setCopiedDocker(true);
+    setTimeout(() => setCopiedDocker(false), 2000);
+  };
+
+  const handleCopyMigration = async () => {
+    await navigator.clipboard.writeText("npm run migrations:combine");
+    setCopiedMigration(true);
+    setTimeout(() => setCopiedMigration(false), 2000);
   };
 
   const handleFinish = () => {
@@ -107,47 +121,89 @@ export function CompleteStep({ config, onBack }: CompleteStepProps) {
         </p>
       </div>
 
-      {/* Next Steps */}
-      <div className="p-4 rounded-lg border">
-        <h3 className="font-medium mb-3">Next Steps</h3>
-        <ol className="space-y-2 text-sm list-decimal list-inside">
-          {config.provider === "rest" ? (
-            <>
-              <li>Save the .env file to your project root</li>
-              <li>
-                Run <code className="px-1 py-0.5 bg-muted rounded">docker compose up -d</code> to
-                start the database
-              </li>
-              <li>
-                Run <code className="px-1 py-0.5 bg-muted rounded">npm run dev</code> to start the
-                application
-              </li>
-              <li>Create your first team and invite members</li>
-            </>
-          ) : (
-            <>
-              <li>Save the .env file to your project root</li>
-              <li>
-                Run the database migrations in{" "}
-                <a
-                  href="https://supabase.com/docs/guides/cli"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  Supabase Studio
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </li>
-              <li>
-                Run <code className="px-1 py-0.5 bg-muted rounded">npm run dev</code> to start the
-                application
-              </li>
-              <li>Sign in with your Supabase auth and create a team</li>
-            </>
-          )}
-        </ol>
-      </div>
+      {/* Next Steps - Provider Specific */}
+      {config.provider === "rest" ? (
+        <div className="p-4 rounded-lg border bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+          <h3 className="font-medium mb-3 flex items-center gap-2">
+            <Terminal className="w-4 h-4 text-blue-600" />
+            Docker Setup (One Command)
+          </h3>
+          <ol className="space-y-3 text-sm">
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-xs font-medium">1</span>
+              <span>Save the .env file to your project root</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-xs font-medium">2</span>
+              <div className="flex-1">
+                <span>Start the database and server:</span>
+                <div className="flex items-center justify-between mt-2 p-2 rounded bg-slate-900 text-slate-50">
+                  <code className="text-sm">docker compose up -d</code>
+                  <Button variant="ghost" size="sm" onClick={handleCopyDocker} className="h-7 text-slate-400 hover:text-slate-50">
+                    {copiedDocker ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Migrations and seed data apply automatically
+                </p>
+              </div>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-xs font-medium">3</span>
+              <span>Run <code className="px-1 py-0.5 bg-muted rounded">npm run dev</code> and sign in</span>
+            </li>
+          </ol>
+        </div>
+      ) : (
+        <div className="p-4 rounded-lg border bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+          <h3 className="font-medium mb-3 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600" />
+            Database Migrations Required
+          </h3>
+          <ol className="space-y-3 text-sm">
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 dark:bg-amber-800 flex items-center justify-center text-xs font-medium">1</span>
+              <span>Save the .env file to your project root</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 dark:bg-amber-800 flex items-center justify-center text-xs font-medium">2</span>
+              <div className="flex-1">
+                <span>Generate combined migration file:</span>
+                <div className="flex items-center justify-between mt-2 p-2 rounded bg-slate-900 text-slate-50">
+                  <code className="text-sm">npm run migrations:combine</code>
+                  <Button variant="ghost" size="sm" onClick={handleCopyMigration} className="h-7 text-slate-400 hover:text-slate-50">
+                    {copiedMigration ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 dark:bg-amber-800 flex items-center justify-center text-xs font-medium">3</span>
+              <div className="flex-1">
+                <span>Open{" "}
+                  <a
+                    href={`https://supabase.com/dashboard/project/${config.supabaseUrl?.match(/https:\/\/([^.]+)/)?.[1] || '_'}/sql/new`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Supabase SQL Editor
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </span>
+              </div>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 dark:bg-amber-800 flex items-center justify-center text-xs font-medium">4</span>
+              <span>Paste contents of <code className="px-1 py-0.5 bg-muted rounded">supabase/combined-migrations.sql</code> and click "Run"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 dark:bg-amber-800 flex items-center justify-center text-xs font-medium">5</span>
+              <span>Run <code className="px-1 py-0.5 bg-muted rounded">npm run dev</code> and sign in with Supabase auth</span>
+            </li>
+          </ol>
+        </div>
+      )}
 
       <div className="pt-6 flex justify-between">
         <Button variant="outline" onClick={onBack}>

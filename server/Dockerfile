@@ -16,4 +16,5 @@ COPY supabase ./supabase
 ENV PORT=8787
 EXPOSE 8787
 
-CMD ["sh", "-c", "node src/migrate.js && node src/index.js"]
+ENV APPLY_SEED=true
+CMD ["sh", "-c", "if [ \"$APPLY_SEED\" = 'true' ]; then node src/migrate.js --seed; else node src/migrate.js; fi && node src/index.js"]

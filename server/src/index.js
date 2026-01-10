@@ -93,6 +93,53 @@ fastify.get('/health/db', async (req, reply) => {
 });
 
 // ============================================
+// SETUP ENDPOINTS (for wizard connection testing)
+// ============================================
+
+// Test Supabase connection from frontend
+fastify.post('/setup/test-supabase', async (req, reply) => {
+  const { url, anonKey } = req.body || {};
+
+  if (!url || !anonKey) {
+    return reply.code(400).send({ ok: false, error: 'Missing URL or anon key' });
+  }
+
+  try {
+    // Test the Supabase REST API endpoint
+    const response = await fetch(`${url}/rest/v1/`, {
+      method: 'GET',
+      headers: {
+        'apikey': anonKey,
+        'Authorization': `Bearer ${anonKey}`,
+      },
+    });
+
+    if (response.ok || response.status === 200) {
+      return { ok: true, message: 'Connection successful' };
+    } else if (response.status === 401) {
+      return { ok: false, error: 'Invalid API key' };
+    } else {
+      return { ok: false, error: `HTTP ${response.status}: ${response.statusText}` };
+    }
+  } catch (err) {
+    return { ok: false, error: err.message || 'Connection failed' };
+  }
+});
+
+// Test Docker PostgreSQL connection (alias for health/ready)
+fastify.get('/setup/test-db', async (req, reply) => {
+  try {
+    const result = await withClient(null, async (client) => {
+      const { rows } = await client.query('SELECT 1 as connected');
+      return { ok: true, message: 'Database connected' };
+    });
+    return result;
+  } catch (err) {
+    return { ok: false, error: err.message || 'Database connection failed' };
+  }
+});
+
+// ============================================
 // AUTH ENDPOINTS
 // ============================================
 

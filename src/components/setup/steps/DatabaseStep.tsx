@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ChevronLeft, ChevronRight, Cloud, Server } from "lucide-react";
+import { ChevronLeft, ChevronRight, Cloud, Server, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { SetupConfig } from "../SetupWizard";
 
 interface DatabaseStepProps {
@@ -11,10 +12,77 @@ interface DatabaseStepProps {
   onBack: () => void;
 }
 
+interface TestResult {
+  ok: boolean;
+  message?: string;
+  error?: string;
+}
+
+function isValidSupabaseUrl(url: string): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === "https:" &&
+      (parsed.hostname.endsWith(".supabase.co") ||
+        parsed.hostname.endsWith(".supabase.in"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isValidSupabaseKey(key: string): boolean {
+  if (!key) return false;
+  // Supabase anon keys are JWTs starting with 'eyJ' (base64 encoded header)
+  return key.startsWith("eyJ") && key.length > 100;
+}
+
 export function DatabaseStep({ config, onUpdate, onNext, onBack }: DatabaseStepProps) {
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+
+  const urlValid = !config.supabaseUrl || isValidSupabaseUrl(config.supabaseUrl);
+  const keyValid = !config.supabaseAnonKey || isValidSupabaseKey(config.supabaseAnonKey);
+
+  const canTest =
+    config.provider === "supabase" &&
+    config.supabaseUrl &&
+    isValidSupabaseUrl(config.supabaseUrl) &&
+    config.supabaseAnonKey &&
+    isValidSupabaseKey(config.supabaseAnonKey);
+
   const isValid =
     config.provider === "rest" ||
-    (config.provider === "supabase" && config.supabaseUrl && config.supabaseAnonKey);
+    (config.provider === "supabase" &&
+      config.supabaseUrl &&
+      isValidSupabaseUrl(config.supabaseUrl) &&
+      config.supabaseAnonKey &&
+      isValidSupabaseKey(config.supabaseAnonKey));
+
+  const handleTestConnection = async () => {
+    if (!canTest) return;
+
+    setTesting(true);
+    setTestResult(null);
+
+    try {
+      const res = await fetch("/setup/test-supabase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: config.supabaseUrl,
+          anonKey: config.supabaseAnonKey,
+        }),
+      });
+      const data = await res.json();
+      setTestResult(data);
+    } catch {
+      setTestResult({ ok: false, error: "Failed to test connection" });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -65,7 +133,14 @@ export function DatabaseStep({ config, onUpdate, onNext, onBack }: DatabaseStepP
                 placeholder="https://your-project.supabase.co"
                 value={config.supabaseUrl || ""}
                 onChange={(e) => onUpdate({ supabaseUrl: e.target.value })}
+                className={!urlValid ? "border-destructive" : ""}
               />
+              {!urlValid && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  URL should be https://your-project.supabase.co
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="supabaseKey">Anon/Public Key</Label>
@@ -74,11 +149,63 @@ export function DatabaseStep({ config, onUpdate, onNext, onBack }: DatabaseStepP
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 value={config.supabaseAnonKey || ""}
                 onChange={(e) => onUpdate({ supabaseAnonKey: e.target.value })}
+                className={!keyValid ? "border-destructive" : ""}
               />
-              <p className="text-xs text-muted-foreground">
-                Found in Project Settings → API → anon/public key
-              </p>
+              {!keyValid && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Invalid key format - should start with "eyJ" and be 100+ characters
+                </p>
+              )}
+              {keyValid && (
+                <p className="text-xs text-muted-foreground">
+                  Found in Project Settings → API → anon/public key
+                </p>
+              )}
             </div>
+          </div>
+
+          {/* Test Connection Button */}
+          <div className="pt-2 space-y-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleTestConnection}
+              disabled={!canTest || testing}
+              className="w-full"
+            >
+              {testing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                "Test Connection"
+              )}
+            </Button>
+
+            {testResult && (
+              <div
+                className={`p-3 rounded-md text-sm flex items-center gap-2 ${
+                  testResult.ok
+                    ? "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
+                    : "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800"
+                }`}
+              >
+                {testResult.ok ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                    <span>Connection successful</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{testResult.error || "Connection failed"}</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
