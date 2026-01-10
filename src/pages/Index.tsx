@@ -2,12 +2,19 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { isSupabaseConfigured } from '@/integrations/supabase/client';
 
 const Index = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Redirect to setup wizard if Supabase is not configured
+    if (!isSupabaseConfigured()) {
+      navigate('/setup');
+      return;
+    }
+
     if (!loading && user) {
       navigate('/dashboard');
     }

@@ -7,6 +7,9 @@
 # Local Claude/AI cache
 .claude/
 
+# Local thoughts/planning (session-specific)
+thoughts/
+
 # Logs
 logs
 *.log
