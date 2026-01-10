@@ -104,6 +104,26 @@ fastify.post('/setup/test-supabase', async (req, reply) => {
     return reply.code(400).send({ ok: false, error: 'Missing URL or anon key' });
   }
 
+  // Validate URL is a legitimate Supabase URL to prevent SSRF
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    return reply.code(400).send({ ok: false, error: 'Invalid URL format' });
+  }
+
+  // Only allow Supabase domains
+  const allowedDomains = ['.supabase.co', '.supabase.com'];
+  const isAllowed = allowedDomains.some(domain => parsedUrl.hostname.endsWith(domain));
+  if (!isAllowed) {
+    return reply.code(400).send({ ok: false, error: 'URL must be a Supabase project URL (*.supabase.co)' });
+  }
+
+  // Ensure HTTPS
+  if (parsedUrl.protocol !== 'https:') {
+    return reply.code(400).send({ ok: false, error: 'URL must use HTTPS' });
+  }
+
   try {
     // Test the Supabase REST API endpoint
     const response = await fetch(`${url}/rest/v1/`, {
@@ -155,8 +175,15 @@ fastify.get('/auth/me', async (req, reply) => {
   });
 });
 
-fastify.post('/auth/login', async (req, reply) => {
-  const Body = z.object({ 
+fastify.post('/auth/login', {
+  config: {
+    rateLimit: {
+      max: 5,
+      timeWindow: '1 minute',
+    },
+  },
+}, async (req, reply) => {
+  const Body = z.object({
     email: z.string().email(),
     password: z.string().min(1, 'Password is required'),
   });
