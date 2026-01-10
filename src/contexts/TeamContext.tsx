@@ -24,6 +24,7 @@ const TeamContext = createContext<TeamContextType>({
   loading: true,
 });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useTeam = () => {
   const context = useContext(TeamContext);
   if (!context) {
