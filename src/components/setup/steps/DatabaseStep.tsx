@@ -67,18 +67,25 @@ export function DatabaseStep({ config, onUpdate, onNext, onBack }: DatabaseStepP
     setTestResult(null);
 
     try {
-      const res = await fetch("/setup/test-supabase", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: config.supabaseUrl,
-          anonKey: config.supabaseAnonKey,
-        }),
+      // Test Supabase directly from frontend (no backend needed during setup)
+      const res = await fetch(`${config.supabaseUrl}/rest/v1/`, {
+        method: "GET",
+        headers: {
+          "apikey": config.supabaseAnonKey!,
+          "Authorization": `Bearer ${config.supabaseAnonKey}`,
+        },
       });
-      const data = await res.json();
-      setTestResult(data);
-    } catch {
-      setTestResult({ ok: false, error: "Failed to test connection" });
+
+      if (res.ok || res.status === 200) {
+        setTestResult({ ok: true, message: "Connection successful" });
+      } else if (res.status === 401) {
+        setTestResult({ ok: false, error: "Invalid API key" });
+      } else {
+        setTestResult({ ok: false, error: `HTTP ${res.status}: ${res.statusText}` });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Connection failed";
+      setTestResult({ ok: false, error: message });
     } finally {
       setTesting(false);
     }
