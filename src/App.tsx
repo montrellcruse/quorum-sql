@@ -10,6 +10,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { lazy, Suspense } from "react";
 
 // Lazy load all page components for better performance
+const Setup = lazy(() => import("./pages/Setup"));
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -38,6 +39,7 @@ const App = () => (
                   <div className="animate-pulse text-muted-foreground">Loading...</div>
                 </div>}>
                 <Routes>
+                  <Route path="/setup" element={<Setup />} />
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/accept-invites" element={<AcceptInvites />} />
