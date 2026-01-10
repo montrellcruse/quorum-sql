@@ -1,3 +1,12 @@
+# Environment files (never commit secrets!)
+.env
+.env.local
+.env.*.local
+.env.backup
+
+# Local Claude/AI cache
+.claude/
+
 # Logs
 logs
 *.log
