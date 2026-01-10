@@ -174,7 +174,7 @@ const Auth = () => {
         return;
       }
 
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,
         options: {
@@ -187,10 +187,14 @@ const Auth = () => {
 
       if (error) throw error;
 
-      toast({
-        title: 'Check Your Email',
-        description: 'We sent you a confirmation link. Please check your email to complete sign up.',
-      });
+      // If we got a session, user is logged in (email confirmation disabled)
+      // The useEffect will handle redirect. If no session, show confirmation message.
+      if (!data.session) {
+        toast({
+          title: 'Check Your Email',
+          description: 'We sent you a confirmation link. Please check your email to complete sign up.',
+        });
+      }
       setLoading(false);
     } catch (error: any) {
       toast({ title: 'Sign Up Failed', description: error.message, variant: 'destructive' });
