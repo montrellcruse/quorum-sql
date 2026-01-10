@@ -15,8 +15,8 @@ const isDevTestAccount = (email: string) => {
   return import.meta.env.DEV && DEV_TEST_EMAILS.includes(email.toLowerCase());
 };
 
-// Get allowed email domain from environment variable
-const ALLOWED_EMAIL_DOMAIN = import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '@example.com';
+// Get allowed email domain from environment variable (empty = no restriction)
+const ALLOWED_EMAIL_DOMAIN = import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '';
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
