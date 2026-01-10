@@ -22,7 +22,8 @@ Then visit **http://localhost:8080/setup** to configure your instance through th
 ```bash
 git clone https://github.com/montrellcruse/daas-bi-sql-hub.git
 cd daas-bi-sql-hub
-docker compose up -d
+docker compose up -d db server
+npm install && npm run dev
 ```
 
 The application will be available at **http://localhost:8080**
