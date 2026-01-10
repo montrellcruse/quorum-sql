@@ -15,6 +15,8 @@ export interface SetupConfig {
   allowedEmailDomain: string;
   appName: string;
   appDescription: string;
+  authProviders: ("google" | "email")[];
+  requireDomainLock: boolean;
 }
 
 const STEPS = [
@@ -31,6 +33,8 @@ export function SetupWizard() {
     allowedEmailDomain: "",
     appName: "SQL Query Manager",
     appDescription: "Organize and manage your SQL queries securely",
+    authProviders: ["google", "email"],
+    requireDomainLock: false,
   });
 
   const handleNext = () => {

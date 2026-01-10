@@ -61,8 +61,16 @@ export function CompleteStep({ config, onBack }: CompleteStepProps) {
             </dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-muted-foreground">Email Domain:</dt>
-            <dd className="font-medium">{config.allowedEmailDomain}</dd>
+            <dt className="text-muted-foreground">Auth Methods:</dt>
+            <dd className="font-medium">
+              {config.authProviders.map(p => p === "google" ? "Google" : "Email/Password").join(", ")}
+            </dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-muted-foreground">Domain Restriction:</dt>
+            <dd className="font-medium">
+              {config.requireDomainLock ? config.allowedEmailDomain : "Disabled"}
+            </dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-muted-foreground">App Name:</dt>
@@ -168,12 +176,10 @@ function generateEnvContent(config: SetupConfig): string {
     lines.push("");
     lines.push("# Provider Switch");
     lines.push("VITE_DB_PROVIDER=supabase");
-    lines.push("VITE_AUTH_PROVIDERS=supabase");
   } else {
     lines.push("# Self-Hosted REST Configuration");
     lines.push("VITE_DB_PROVIDER=rest");
     lines.push("VITE_API_BASE_URL=http://localhost:8787");
-    lines.push("VITE_AUTH_PROVIDERS=local");
     lines.push("");
     lines.push("# Docker Compose / Backend");
     lines.push("POSTGRES_PASSWORD=change-this-password");
@@ -183,7 +189,16 @@ function generateEnvContent(config: SetupConfig): string {
 
   lines.push("");
   lines.push("# Authentication Configuration");
-  lines.push(`VITE_ALLOWED_EMAIL_DOMAIN=${config.allowedEmailDomain}`);
+  // Generate auth providers based on user selection
+  lines.push(`VITE_AUTH_PROVIDERS=${config.authProviders.join(",")}`);
+
+  // Only include domain restriction if enabled
+  if (config.requireDomainLock && config.allowedEmailDomain.trim()) {
+    lines.push(`VITE_ALLOWED_EMAIL_DOMAIN=${config.allowedEmailDomain}`);
+  } else {
+    lines.push("# VITE_ALLOWED_EMAIL_DOMAIN=@yourcompany.com  # Uncomment to restrict sign-ups");
+  }
+
   lines.push("");
   lines.push("# Application Branding");
   lines.push(`VITE_APP_NAME=${config.appName}`);
