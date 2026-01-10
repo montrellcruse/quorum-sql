@@ -8,14 +8,7 @@ The application uses Supabase (PostgreSQL) with Row-Level Security (RLS) for sec
 
 ## Quick Start
 
-### For Lovable Cloud (Automatic)
-
-If you're using this project through Lovable:
-1. Lovable Cloud automatically provisions a Supabase database
-2. Migrations are applied automatically on deployment
-3. No manual setup required!
-
-### For Self-Hosting
+### Self-Hosting
 
 #### Prerequisites
 
@@ -262,7 +255,7 @@ Format: `YYYYMMDDHHMMSS_<uuid>.sql`
 
 Migrations are applied sequentially by timestamp.
 
-### Current Migrations (43 total)
+### Current Migrations (46 total)
 
 Key migrations include:
 - Initial schema creation

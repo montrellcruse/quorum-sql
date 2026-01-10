@@ -103,7 +103,7 @@ VITE_APP_NAME=SQL Query Manager
 
 4. **Access the app**: http://localhost:8080
 
-5. **Database admin** (optional): http://localhost:8080 (Adminer)
+5. **Database admin** (optional): http://localhost:8081 (Adminer)
    - System: PostgreSQL
    - Server: db
    - User: postgres
