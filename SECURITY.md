@@ -129,9 +129,10 @@ All functions use:
 
 If you discover a security vulnerability, please report it responsibly:
 
-1. **Do NOT** open a public GitHub issue
-2. **Email**: Send details to your organization's security contact
-3. **Include**:
+1. **Do NOT** open a public GitHub issue for security vulnerabilities
+2. **Use GitHub Security Advisories**: Report via the repository's Security tab
+3. **Or Email**: Contact the maintainers directly
+4. **Include**:
    - Description of the vulnerability
    - Steps to reproduce
    - Potential impact
