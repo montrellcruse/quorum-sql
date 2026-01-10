@@ -12,6 +12,8 @@
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/montrellcruse/quorum-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/montrellcruse/quorum-sql/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/montrellcruse/quorum-sql/actions/workflows/codeql.yml/badge.svg)](https://github.com/montrellcruse/quorum-sql/actions/workflows/codeql.yml)
 ![React](https://img.shields.io/badge/React-18-61dafb?style=flat-square&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript)
 ![Vite](https://img.shields.io/badge/Vite-7-646cff?style=flat-square&logo=vite)
