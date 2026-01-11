@@ -10,6 +10,9 @@
 # Local thoughts/planning (session-specific)
 thoughts/
 
+# Commercial overlay (separate private repo)
+quorum-cloud/
+
 # Generated migration files
 supabase/combined-migrations.sql
 
