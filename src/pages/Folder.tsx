@@ -470,8 +470,8 @@ const Folder = () => {
 
         <Card className="mb-6">
           <CardHeader>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex-1">
+            <div className="flex flex-col gap-4">
+              <div>
                 <CardTitle>{folder.name}</CardTitle>
                 {folder.description && (
                   <CardDescription>{folder.description}</CardDescription>
@@ -497,7 +497,7 @@ const Folder = () => {
 
         {childFolders.length > 0 && (
           <>
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <h2 className="text-2xl font-bold">Folders</h2>
               <Button onClick={() => setNewFolderDialogOpen(true)} variant="outline">
                 <Plus className="mr-2 h-4 w-4" />
@@ -536,7 +536,7 @@ const Folder = () => {
           </div>
         )}
 
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h2 className="text-2xl font-bold">SQL Queries</h2>
           <Button onClick={() => navigate('/query/edit/new', { state: { folderId: id } })}>
             <Plus className="mr-2 h-4 w-4" />
@@ -549,7 +549,7 @@ const Folder = () => {
             {queries.map((query) => (
               <Card key={query.id}>
                 <CardHeader>
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div className="flex-1 min-w-0">
                       <div
                         className="cursor-pointer"
