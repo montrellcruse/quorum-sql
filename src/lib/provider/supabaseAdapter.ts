@@ -308,7 +308,7 @@ const queries: QueriesRepo = {
           folder_id: query.folder_id,
           last_modified_by_email: query.last_modified_by_email || '',
           updated_at: query.updated_at || '',
-          folder_name: (query.folders as { name: string }).name,
+          folder_name: (query.folders as unknown as { name: string })?.name || '',
           approval_count: approvalCount,
           approval_quota: teamData.approval_quota,
         };
