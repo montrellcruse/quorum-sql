@@ -505,9 +505,9 @@ const QueryEdit = () => {
   }
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-4 md:p-8">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Button
             variant="ghost"
             onClick={() => navigate(`/folder/${query.folder_id}`)}
@@ -516,7 +516,7 @@ const QueryEdit = () => {
             Back to Folder
           </Button>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {!isNewQuery && (
               <>
                 <Button

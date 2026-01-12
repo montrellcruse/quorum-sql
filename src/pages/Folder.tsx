@@ -437,7 +437,7 @@ const Folder = () => {
   }
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-4 md:p-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6">
           <Breadcrumb>
@@ -470,14 +470,14 @@ const Folder = () => {
 
         <Card className="mb-6">
           <CardHeader>
-            <div className="flex items-start justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex-1">
                 <CardTitle>{folder.name}</CardTitle>
                 {folder.description && (
                   <CardDescription>{folder.description}</CardDescription>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {canEditFolder() && (
                   <Button variant="outline" size="sm" onClick={handleEditFolder}>
                     <Edit className="mr-2 h-4 w-4" />
@@ -497,7 +497,7 @@ const Folder = () => {
 
         {childFolders.length > 0 && (
           <>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-2xl font-bold">Folders</h2>
               <Button onClick={() => setNewFolderDialogOpen(true)} variant="outline">
                 <Plus className="mr-2 h-4 w-4" />
@@ -536,7 +536,7 @@ const Folder = () => {
           </div>
         )}
 
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-2xl font-bold">SQL Queries</h2>
           <Button onClick={() => navigate('/query/edit/new', { state: { folderId: id } })}>
             <Plus className="mr-2 h-4 w-4" />
@@ -549,15 +549,15 @@ const Folder = () => {
             {queries.map((query) => (
               <Card key={query.id}>
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex-1 min-w-0">
                       <div
                         className="cursor-pointer"
                         onClick={() => navigate(`/query/view/${query.id}`)}
                       >
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-5 w-5 text-muted-foreground" />
-                          <CardTitle className="text-lg hover:underline">{query.title}</CardTitle>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                          <CardTitle className="text-lg hover:underline break-words">{query.title}</CardTitle>
                           <Badge variant={getStatusVariant(query.status)}>
                             {query.status === 'pending_approval' ? 'Pending Approval' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
                           </Badge>
@@ -584,6 +584,7 @@ const Folder = () => {
                     <Button
                       onClick={() => navigate(`/query/edit/${query.id}`)}
                       variant="outline"
+                      className="shrink-0"
                     >
                       Edit
                     </Button>
