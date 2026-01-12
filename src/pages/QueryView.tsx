@@ -531,18 +531,19 @@ const QueryView = () => {
   }
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-4 md:p-8">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <Button
             variant="ghost"
             onClick={() => navigate(`/folder/${query.folder_id}`)}
+            className="self-start"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Folder
           </Button>
-          
-          <div className="flex gap-2">
+
+          <div className="flex flex-wrap gap-2">
             {query?.status === 'pending_approval' && (
               <>
                 <Button 
@@ -589,8 +590,8 @@ const QueryView = () => {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2 mb-2">
-              <CardTitle>{query.title}</CardTitle>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <CardTitle className="break-words">{query.title}</CardTitle>
               <Badge variant={getStatusVariant(query.status)}>
                 {query.status === 'pending_approval' ? 'Pending Approval' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
               </Badge>
@@ -618,7 +619,7 @@ const QueryView = () => {
           </CardHeader>
           <CardContent>
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <Label>SQL Content</Label>
                 <Button
                   variant="outline"
