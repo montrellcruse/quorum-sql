@@ -20,6 +20,19 @@ function getSupabaseClient(): SupabaseClient<Database> {
     console.warn('Supabase not configured. Some features may be unavailable.');
 
     // Create a minimal mock that won't crash but will fail on actual use
+    // The mock channel returns a chainable object that reports CHANNEL_ERROR
+    const mockChannel = {
+      on: () => mockChannel,
+      subscribe: (callback?: (status: string, err?: Error) => void) => {
+        // Report error status so UI can handle gracefully
+        if (callback) {
+          setTimeout(() => callback('CHANNEL_ERROR', new Error('Supabase not configured')), 0);
+        }
+        return mockChannel;
+      },
+      unsubscribe: async () => ({ error: null }),
+    };
+
     return {
       auth: {
         getSession: async () => ({ data: { session: null }, error: null }),
@@ -33,6 +46,8 @@ function getSupabaseClient(): SupabaseClient<Database> {
         update: () => ({ data: null, error: new Error('Supabase not configured') }),
         delete: () => ({ data: null, error: new Error('Supabase not configured') }),
       }),
+      channel: () => mockChannel,
+      removeChannel: () => Promise.resolve({ error: null }),
     } as unknown as SupabaseClient<Database>;
   }
 
