@@ -84,7 +84,7 @@ export const querySchema = z.object({
  */
 export const changeReasonSchema = z
   .string()
-  .max(500, { message: "Change reason must be less than 500 characters" })
+  .max(1000, { message: "Change reason must be less than 1000 characters" })
   .optional()
   .or(z.literal(''));
 
