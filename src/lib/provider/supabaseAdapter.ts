@@ -410,22 +410,36 @@ const invitations: InvitationsRepo = {
   async accept(id: UUID) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
-    
-    // Get the invitation
-    const { data: invite, error: invError } = await supabase
+
+    // Use a transaction-like approach: update invitation status atomically first
+    // This prevents race conditions where two requests could process the same invitation
+
+    // Step 1: Atomically claim the invitation by updating its status
+    // Using a WHERE clause that checks both id AND status='pending' ensures only one
+    // request can successfully update it
+    const { data: invite, error: claimError } = await supabase
       .from('team_invitations')
-      .select('*')
+      .update({ status: 'accepted' })
       .eq('id', id)
-      .eq('status', 'pending')
+      .eq('status', 'pending')  // Only update if still pending (atomic check)
+      .select('*')
       .single();
-    if (invError || !invite) throw new Error('Invitation not found');
-    
+
+    if (claimError || !invite) {
+      throw new Error('Invitation not found or already processed');
+    }
+
     // Verify email matches
     if (invite.invited_email.toLowerCase() !== user.email?.toLowerCase()) {
+      // Rollback the status change
+      await supabase
+        .from('team_invitations')
+        .update({ status: 'pending' })
+        .eq('id', id);
       throw new Error('This invitation is for a different email');
     }
-    
-    // Add to team
+
+    // Step 2: Add to team (invitation is already claimed, so this is safe)
     const { error: memberError } = await supabase
       .from('team_members')
       .insert({
@@ -433,9 +447,17 @@ const invitations: InvitationsRepo = {
         user_id: user.id,
         role: invite.role,
       });
-    if (memberError && !memberError.message.includes('duplicate')) throw memberError;
-    
-    // Delete invitation
+
+    if (memberError && !memberError.message.includes('duplicate')) {
+      // Rollback the status change on failure
+      await supabase
+        .from('team_invitations')
+        .update({ status: 'pending' })
+        .eq('id', id);
+      throw memberError;
+    }
+
+    // Step 3: Delete the accepted invitation
     const { error: delError } = await supabase
       .from('team_invitations')
       .delete()

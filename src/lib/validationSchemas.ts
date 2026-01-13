@@ -13,14 +13,14 @@ export const emailSchema = z
   .max(255, { message: "Email must be less than 255 characters" })
   .refine(
     (email) => {
-      // Allow test accounts or check domain
-      if (email.endsWith('@test.dev')) return true;
+      // Only allow test accounts in development mode
+      if (import.meta.env.DEV && email.endsWith('@test.dev')) return true;
       if (!ALLOWED_DOMAIN) return true; // No restriction if not configured
       return email.endsWith(`@${ALLOWED_DOMAIN}`);
     },
     {
-      message: ALLOWED_DOMAIN 
-        ? `Email must be from ${ALLOWED_DOMAIN} domain` 
+      message: ALLOWED_DOMAIN
+        ? `Email must be from ${ALLOWED_DOMAIN} domain`
         : "Invalid email domain"
     }
   );
