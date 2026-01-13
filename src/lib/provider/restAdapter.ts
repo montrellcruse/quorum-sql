@@ -25,6 +25,14 @@ function baseUrl(path: string) {
   return `${API_BASE.replace(/\/$/, '')}${path}`;
 }
 
+/**
+ * Get CSRF token from cookie for double-submit pattern
+ */
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const initHeaders = init?.headers;
   const headersFromInit: Record<string, string> =
@@ -32,7 +40,16 @@ async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
       ? Object.fromEntries(initHeaders.entries())
       : (initHeaders as Record<string, string> | undefined) ?? {};
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...headersFromInit };
-  
+
+  // Add CSRF token for state-changing requests
+  const method = init?.method?.toUpperCase() || 'GET';
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
+  }
+
   const providers = (import.meta.env.VITE_AUTH_PROVIDERS || '').toLowerCase();
   if (providers.includes('supabase')) {
     try {
@@ -43,7 +60,7 @@ async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
       // ignore: Supabase not configured or session unavailable
     }
   }
-  
+
   const res = await fetch(input, {
     credentials: 'include',
     headers,

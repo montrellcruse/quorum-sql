@@ -333,14 +333,6 @@ const TeamAdmin = () => {
         if (error) throw error;
       }
 
-      // Proceed with removal
-      const { error } = await supabase
-        .from('team_members')
-        .delete()
-        .eq('id', memberId);
-
-      if (error) throw error;
-
       toast({
         title: 'Success',
         description: 'Member removed successfully.',

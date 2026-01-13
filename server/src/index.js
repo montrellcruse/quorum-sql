@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { createPool } from './db.js';
 import { isProd, serverConfig, securityConfig } from './config.js';
 import { getSessionUser, verifyPassword, requireTeamAdmin, requireTeamMember, isValidUUID } from './middleware/auth.js';
-import { securityHeaders, errorHandler, requestLogger } from './middleware/security.js';
+import { securityHeaders, errorHandler, requestLogger, csrfProtection, generateCsrfToken } from './middleware/security.js';
 
 // Initialize Fastify with body size limit
 const fastify = Fastify({ 
@@ -40,6 +40,9 @@ await fastify.register(rateLimit, {
   max: securityConfig.rateLimitMax,
   timeWindow: securityConfig.rateLimitWindow,
 });
+
+// CSRF protection
+csrfProtection(fastify);
 
 const pool = createPool();
 
@@ -235,7 +238,17 @@ fastify.post('/auth/login', {
     secure: isProd,
     maxAge: 60 * 60 * 24 * 7,
   });
-  
+
+  // Set CSRF token cookie (readable by JavaScript for double-submit pattern)
+  const csrfToken = generateCsrfToken();
+  reply.setCookie('csrf', csrfToken, {
+    httpOnly: false, // Must be readable by JavaScript
+    sameSite: 'lax',
+    path: '/',
+    secure: isProd,
+    maxAge: 60 * 60 * 24 * 7,
+  });
+
   return { ok: true };
 });
 
@@ -245,6 +258,7 @@ fastify.post('/auth/logout', async (req, reply) => {
     req.log.info({ userId: sess.id }, 'User logged out');
   }
   reply.clearCookie('session', { path: '/', sameSite: 'lax', secure: isProd });
+  reply.clearCookie('csrf', { path: '/', sameSite: 'lax', secure: isProd });
   return { ok: true };
 });
 
