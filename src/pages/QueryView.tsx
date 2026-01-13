@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import type { QueryWithTeam, ApproveQueryResult, RejectQueryResult, SubmitQueryResult, Tables } from '@/integrations/supabase/types';
 
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
@@ -18,18 +19,7 @@ import { ArrowLeft, Edit, Clock, Trash2, Copy, Check, RotateCcw, Send } from 'lu
 import { Textarea } from '@/components/ui/textarea';
 import { getDbAdapter } from '@/lib/provider';
 
-interface Query {
-  id: string;
-  title: string;
-  description: string | null;
-  sql_content: string;
-  status: string;
-  folder_id: string;
-  team_id: string;
-  user_id: string;
-  created_by_email: string | null;
-  last_modified_by_email: string | null;
-}
+type Query = Tables<'sql_queries'>;
 
 interface HistoryRecord {
   id: string;
@@ -85,17 +75,15 @@ const QueryView = () => {
       fetchQuery();
       fetchHistory();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, id]);
+  }, [user, id, fetchQuery, fetchHistory]);
 
   useEffect(() => {
     if (query?.status === 'pending_approval') {
       fetchApprovals();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query?.status, latestHistoryId]);
+  }, [query?.status, latestHistoryId, fetchApprovals]);
 
-  const fetchQuery = async () => {
+  const fetchQuery = useCallback(async () => {
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
@@ -105,7 +93,7 @@ const QueryView = () => {
           navigate('/dashboard');
           return;
         }
-        setQuery(q as any);
+        setQuery(q as Query);
       } else {
         const { data, error } = await supabase
           .from('sql_queries')
@@ -118,7 +106,7 @@ const QueryView = () => {
           navigate('/dashboard');
           return;
         }
-        setQuery(data as any);
+        setQuery(data);
       }
     } catch (error: any) {
       toast({
@@ -130,11 +118,11 @@ const QueryView = () => {
     } finally {
       setLoadingQuery(false);
     }
-  };
+  }, [id, toast, navigate]);
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     if (!id) return;
-    
+
     setLoadingHistory(true);
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
@@ -170,9 +158,9 @@ const QueryView = () => {
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [id, toast]);
 
-  const fetchApprovals = async () => {
+  const fetchApprovals = useCallback(async () => {
     if (!latestHistoryId) return;
 
     try {
@@ -195,7 +183,7 @@ const QueryView = () => {
           .eq('id', id!)
           .single();
         if (queryError) throw queryError;
-        const quota = (queryData as any)?.teams?.approval_quota || 1;
+        const quota = (queryData as QueryWithTeam)?.teams?.approval_quota || 1;
         setApprovalQuota(quota);
         const { data: approvalsData, error: approvalsError } = await supabase
           .from('query_approvals')
@@ -206,10 +194,10 @@ const QueryView = () => {
         const userApproval = (approvalsData || []).some(a => a.user_id === user?.id);
         setHasUserApproved(userApproval);
       }
-    } catch (error: any) {
+    } catch {
       // Error fetching approvals - silently fail as this is not critical
     }
-  };
+  }, [latestHistoryId, id, user?.id]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -246,7 +234,7 @@ const QueryView = () => {
           _approver_user_id: user.id,
         });
         if (error) throw error;
-        const result = data as any;
+        const result = data as ApproveQueryResult;
         if (!result.success) {
           toast({ title: 'Error', description: result.error, variant: 'destructive' });
           return;

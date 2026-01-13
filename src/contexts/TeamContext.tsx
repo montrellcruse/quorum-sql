@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { getDbAdapter } from '@/lib/provider';
 import { useAuth } from '@/contexts/AuthContext';
+import type { TeamWithRole } from '@/integrations/supabase/types';
 
 interface Team {
   id: string;
@@ -53,7 +54,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const adapter = getDbAdapter();
       const data = await adapter.teams.listForUser();
-      const items: Team[] = (data || []).map((t) => ({ id: t.id, name: t.name, role: (t as any).role || 'member' }));
+      const items: Team[] = (data || []).map((t) => ({ id: t.id, name: t.name, role: (t as TeamWithRole).role || 'member' }));
       // Dedupe by team id; prefer 'admin' role if duplicates present
       const dedupMap = new Map<string, Team>();
       for (const t of items) {

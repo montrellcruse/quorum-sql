@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import type { TablesInsert, TablesUpdate, QueryWithTeam } from '@/integrations/supabase/types';
 import type {
   DbAdapter,
   TeamsRepo,
@@ -114,7 +115,7 @@ const folders: FoldersRepo = {
   async create(input) {
     const { data, error } = await supabase
       .from('folders')
-      .insert([input as any])
+      .insert([input as TablesInsert<'folders'>])
       .select('*')
       .single();
     if (error) throw error;
@@ -149,7 +150,7 @@ const queries: QueriesRepo = {
   async create(input) {
     const { data, error } = await supabase
       .from('sql_queries')
-      .insert([input as any])
+      .insert([input as TablesInsert<'sql_queries'>])
       .select('*')
       .single();
     if (error) throw error;
@@ -158,7 +159,7 @@ const queries: QueriesRepo = {
   async update(id, patch) {
     const { error } = await supabase
       .from('sql_queries')
-      .update(patch as any)
+      .update(patch as TablesUpdate<'sql_queries'>)
       .eq('id', id);
     if (error) throw error;
   },
@@ -231,7 +232,7 @@ const queries: QueriesRepo = {
       .single();
     if (queryError) throw queryError;
     
-    const approval_quota = (query as any)?.teams?.approval_quota || 1;
+    const approval_quota = (query as QueryWithTeam)?.teams?.approval_quota || 1;
     
     const { data: history, error: histError } = await supabase
       .from('query_history')
