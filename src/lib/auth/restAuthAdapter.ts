@@ -50,6 +50,12 @@ export const restAuthAdapter: AuthAdapter = {
   async signInWithPassword(email: string, password: string) {
     await http<void>(baseUrl('/auth/login'), { method: 'POST', body: JSON.stringify({ email, password }) });
   },
+  async signUp(email: string, password: string, fullName?: string) {
+    await http<void>(baseUrl('/auth/register'), {
+      method: 'POST',
+      body: JSON.stringify({ email, password, fullName })
+    });
+  },
   async signOut() {
     await http<void>(baseUrl('/auth/logout'), { method: 'POST' });
   },

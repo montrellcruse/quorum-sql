@@ -240,7 +240,16 @@ function generateEnvContent(config: SetupConfig): string {
     lines.push("# Docker Compose / Backend");
     lines.push("POSTGRES_PASSWORD=change-this-password");
     lines.push("POSTGRES_DB=sqlquerymanager");
-    lines.push("DATABASE_URL=postgres://postgres:change-this-password@localhost:5432/sqlquerymanager");
+    lines.push("DATABASE_URL=postgres://postgres:change-this-password@db:5432/sqlquerymanager");
+    lines.push("");
+    lines.push("# Admin Account");
+    lines.push(`ADMIN_EMAIL=${config.adminEmail || "admin@example.com"}`);
+    lines.push(`ADMIN_NAME=${config.adminName || "Admin"}`);
+    if (config.adminPassword) {
+      lines.push(`ADMIN_PASSWORD=${config.adminPassword}`);
+    } else {
+      lines.push("# ADMIN_PASSWORD=admin123  # Default if not set");
+    }
   }
 
   lines.push("");

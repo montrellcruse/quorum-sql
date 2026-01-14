@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { createPool } from './db.js';
 import { isProd, serverConfig, securityConfig } from './config.js';
-import { getSessionUser, verifyPassword, requireTeamAdmin, requireTeamMember, isValidUUID } from './middleware/auth.js';
+import { getSessionUser, verifyPassword, hashPassword, requireTeamAdmin, requireTeamMember, isValidUUID } from './middleware/auth.js';
 import { securityHeaders, errorHandler, requestLogger, csrfProtection, generateCsrfToken } from './middleware/security.js';
 
 // Initialize Fastify with body size limit

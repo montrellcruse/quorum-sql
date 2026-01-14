@@ -76,7 +76,13 @@ export const supabase = new Proxy({} as SupabaseClient<Database>, {
   }
 });
 
-// Helper to check if Supabase is properly configured
+// Helper to check if the app is properly configured (Supabase or REST mode)
 export function isSupabaseConfigured(): boolean {
+  // REST mode doesn't require Supabase credentials
+  const dbProvider = import.meta.env.VITE_DB_PROVIDER;
+  if (dbProvider === 'rest') {
+    return true;
+  }
+  // Supabase mode requires URL and key
   return Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 }

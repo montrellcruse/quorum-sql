@@ -17,4 +17,4 @@ ENV PORT=8787
 EXPOSE 8787
 
 ENV APPLY_SEED=true
-CMD ["sh", "-c", "if [ \"$APPLY_SEED\" = 'true' ]; then node src/migrate.js --seed; else node src/migrate.js; fi && node src/index.js"]
+CMD ["sh", "-c", "node src/migrate.js && if [ \"$APPLY_SEED\" = 'true' ]; then node src/seed.js; fi && node src/index.js"]

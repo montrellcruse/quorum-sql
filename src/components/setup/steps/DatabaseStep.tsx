@@ -218,12 +218,46 @@ export function DatabaseStep({ config, onUpdate, onNext, onBack }: DatabaseStepP
       )}
 
       {config.provider === "rest" && (
-        <div className="p-4 rounded-lg border bg-muted/50">
+        <div className="space-y-4 p-4 rounded-lg border bg-muted/50">
           <p className="text-sm text-muted-foreground">
             The self-hosted option uses Docker to run PostgreSQL and a REST API server.
-            No additional configuration needed - it will run on{" "}
-            <code className="px-1 py-0.5 bg-muted rounded text-xs">localhost:8787</code>
+            Configure your admin account below:
           </p>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="adminEmail">Admin Email</Label>
+              <Input
+                id="adminEmail"
+                type="email"
+                placeholder="admin@example.com"
+                value={config.adminEmail || ""}
+                onChange={(e) => onUpdate({ adminEmail: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adminName">Admin Name</Label>
+              <Input
+                id="adminName"
+                type="text"
+                placeholder="Admin"
+                value={config.adminName || ""}
+                onChange={(e) => onUpdate({ adminName: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adminPassword">Admin Password</Label>
+              <Input
+                id="adminPassword"
+                type="password"
+                placeholder="Choose a secure password"
+                value={config.adminPassword || ""}
+                onChange={(e) => onUpdate({ adminPassword: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave blank to use default: <code className="px-1 py-0.5 bg-muted rounded">admin123</code>
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

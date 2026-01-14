@@ -207,8 +207,8 @@ const Auth = () => {
     setLoading(true);
     try {
       if (provider === 'rest') {
-        toast({ title: 'Not available', description: 'Sign up requires Supabase.', variant: 'destructive' });
-        setLoading(false);
+        await restAuthAdapter.signUp!(trimmedEmail, password, fullName.trim() || undefined);
+        window.location.href = '/dashboard';
         return;
       }
 

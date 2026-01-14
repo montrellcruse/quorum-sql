@@ -17,6 +17,10 @@ export interface SetupConfig {
   appDescription: string;
   authProviders: ("google" | "email")[];
   requireDomainLock: boolean;
+  // Admin account for REST/Docker mode
+  adminEmail: string;
+  adminPassword: string;
+  adminName: string;
 }
 
 const STEPS = [
@@ -35,6 +39,9 @@ export function SetupWizard() {
     appDescription: "Organize and manage your SQL queries securely",
     authProviders: ["google", "email"],
     requireDomainLock: false,
+    adminEmail: "admin@example.com",
+    adminPassword: "",
+    adminName: "Admin",
   });
 
   const handleNext = () => {
