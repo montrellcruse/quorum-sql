@@ -19,11 +19,6 @@ import type {
   PendingApprovalQuery,
 } from './types';
 
-type TeamMemberRow = {
-  role: Role | null;
-  teams: Team | null;
-};
-
 type MemberRow = {
   id: string;
   user_id: string;
@@ -58,7 +53,7 @@ const teams: TeamsRepo = {
   async listForUser() {
     const { data, error } = await supabase
       .from('team_members')
-      .select('role, teams:team_id(id, name, approval_quota, admin_id)');
+      .select('role, teams:team_id(id, name, approval_quota, admin_id, is_personal)');
     if (error) throw error;
     const mapped = (data || [])
       .filter(isTeamMemberRow)
@@ -108,6 +103,31 @@ const teams: TeamsRepo = {
     const { error } = await supabase
       .from('teams')
       .update(updateData)
+      .eq('id', id);
+    if (error) throw error;
+  },
+  async remove(id: UUID) {
+    const { data: team, error: teamError } = await supabase
+      .from('teams')
+      .select('is_personal')
+      .eq('id', id)
+      .single();
+    if (teamError) throw teamError;
+
+    if (team?.is_personal) {
+      const { count, error: countError } = await supabase
+        .from('team_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('team_id', id);
+      if (countError) throw countError;
+      if ((count || 0) <= 1) {
+        throw new Error('Cannot delete your personal workspace. Create a new team first.');
+      }
+    }
+
+    const { error } = await supabase
+      .from('teams')
+      .delete()
       .eq('id', id);
     if (error) throw error;
   },

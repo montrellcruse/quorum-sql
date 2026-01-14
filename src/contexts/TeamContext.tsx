@@ -8,6 +8,7 @@ interface Team {
   id: string;
   name: string;
   role: 'admin' | 'member';
+  isPersonal?: boolean;
 }
 
 interface TeamContextType {
@@ -41,13 +42,22 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const [userTeams, setUserTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const fetchSeq = useRef(0);
+  const retryRef = useRef(0);
+  const retryTimeoutRef = useRef<number | null>(null);
 
   const fetchUserTeams = useCallback(async () => {
     const seq = ++fetchSeq.current;
+    let shouldRetry = false;
+    setLoading(true);
     try {
       const adapter = getDbAdapter();
       const data = await adapter.teams.listForUser();
-      const items: Team[] = (data || []).map((t) => ({ id: t.id, name: t.name, role: (t as TeamWithRole).role || 'member' }));
+      const items: Team[] = (data || []).map((t) => ({
+        id: t.id,
+        name: t.name,
+        role: (t as TeamWithRole).role || 'member',
+        isPersonal: t.is_personal ?? false,
+      }));
       // Dedupe by team id; prefer 'admin' role if duplicates present
       const dedupMap = new Map<string, Team>();
       for (const t of items) {
@@ -62,6 +72,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Set active team
       if (unique.length > 0) {
+        retryRef.current = 0;
         // Check localStorage for previously selected team
         const storedTeamId = localStorage.getItem('activeTeamId');
         const storedTeam = unique.find(t => t.id === storedTeamId);
@@ -74,6 +85,16 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         if (seq !== fetchSeq.current) return;
         setActiveTeamState(null);
+        if (user && retryRef.current < 1) {
+          shouldRetry = true;
+          retryRef.current += 1;
+          if (retryTimeoutRef.current !== null) {
+            window.clearTimeout(retryTimeoutRef.current);
+          }
+          retryTimeoutRef.current = window.setTimeout(() => {
+            fetchUserTeams();
+          }, 800);
+        }
       }
     } catch (error: unknown) {
       if (import.meta.env.DEV) {
@@ -83,22 +104,36 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       setUserTeams([]);
       setActiveTeamState(null);
     } finally {
-      if (seq === fetchSeq.current) {
+      if (seq === fetchSeq.current && !shouldRetry) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
+      retryRef.current = 0;
       fetchUserTeams();
     } else {
       fetchSeq.current += 1;
+      retryRef.current = 0;
+      if (retryTimeoutRef.current !== null) {
+        window.clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       setUserTeams([]);
       setActiveTeamState(null);
       setLoading(false);
     }
   }, [user, fetchUserTeams]);
+
+  useEffect(() => {
+    return () => {
+      if (retryTimeoutRef.current !== null) {
+        window.clearTimeout(retryTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const setActiveTeam = (team: Team) => {
     setActiveTeamState(team);

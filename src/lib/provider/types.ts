@@ -18,6 +18,7 @@ export interface Team {
   name: string;
   approval_quota: number;
   admin_id: UUID;
+  is_personal?: boolean;
 }
 
 export interface Folder {
@@ -51,6 +52,7 @@ export interface TeamsRepo {
   getById(id: UUID): Promise<Team | null>;
   create(name: string, approvalQuota?: number): Promise<Team>;
   update(id: UUID, data: { approval_quota?: number }): Promise<void>;
+  remove(id: UUID): Promise<void>;
   transferOwnership(id: UUID, newOwnerUserId: UUID): Promise<void>;
 }
 

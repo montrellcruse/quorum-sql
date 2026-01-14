@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, ChevronLeft, ChevronRight, Database, Settings, Shield, Sparkles } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Check, Database, Settings, Sparkles } from "lucide-react";
 import { WelcomeStep } from "./steps/WelcomeStep";
 import { DatabaseStep } from "./steps/DatabaseStep";
 import { ConfigurationStep } from "./steps/ConfigurationStep";

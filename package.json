@@ -11,7 +11,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "migrations:combine": "node scripts/generate-supabase-migrations.js",
-    "setup:docker": "bash scripts/setup.sh"
+    "setup:docker": "bash scripts/setup.sh",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -40,6 +44,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.49.1",
     "@types/node": "^25.0.8",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",

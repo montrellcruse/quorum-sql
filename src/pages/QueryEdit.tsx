@@ -43,7 +43,7 @@ import { getDbAdapter } from '@/lib/provider';
 import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
 import type { QueryHistory, QueryStatus } from '@/lib/provider/types';
-import type { TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
+import type { TablesInsert } from '@/integrations/supabase/types';
 
 interface Query {
   id: string;
@@ -200,6 +200,8 @@ const QueryEdit = () => {
       if (!user?.id) {
         throw new Error('User is not authenticated');
       }
+      const userId = user.id;
+      const userEmail = user.email || '';
       if (!isNewQuery && !id) {
         throw new Error('Missing query ID');
       }
@@ -224,11 +226,15 @@ const QueryEdit = () => {
             status: newStatus as QueryStatus,
             folder_id: query.folder_id,
             team_id: folder.team_id,
-            created_by_email: user?.email || '',
-            last_modified_by_email: user?.email || '',
+            created_by_email: userEmail,
+            last_modified_by_email: userEmail,
           });
           queryId = created.id;
         } else {
+          const insertTeamId = teamId;
+          if (!insertTeamId) {
+            throw new Error('Active team is required to create a query');
+          }
           const { data, error } = await supabase
             .from('sql_queries')
             .insert({
@@ -237,10 +243,10 @@ const QueryEdit = () => {
               sql_content: query.sql_content,
               status: newStatus,
               folder_id: query.folder_id,
-              team_id: teamId,
-              user_id: user?.id ?? '',
-              created_by_email: user?.email || '',
-              last_modified_by_email: user?.email || '',
+              team_id: insertTeamId,
+              user_id: userId,
+              created_by_email: userEmail,
+              last_modified_by_email: userEmail,
             } satisfies TablesInsert<'sql_queries'>)
             .select()
             .single();
@@ -254,7 +260,7 @@ const QueryEdit = () => {
             description: query.description,
             sql_content: query.sql_content,
             status: newStatus as QueryStatus,
-            last_modified_by_email: user?.email || '',
+            last_modified_by_email: userEmail,
           });
         } else {
           const { error } = await supabase
@@ -264,7 +270,7 @@ const QueryEdit = () => {
               description: query.description,
               sql_content: query.sql_content,
               status: newStatus,
-              last_modified_by_email: user?.email || '',
+              last_modified_by_email: userEmail,
             })
             .eq('id', queryId);
           if (error) throw error;
@@ -279,21 +285,25 @@ const QueryEdit = () => {
       if (newStatus === 'pending_approval') {
         if (provider === 'rest') {
           await getDbAdapter().queries.submitForApproval(queryId, query.sql_content, {
-            modified_by_email: user?.email || '',
+            modified_by_email: userEmail,
             change_reason: changeReason.trim() || null,
             team_id: teamId,
-            user_id: user.id,
+            user_id: userId,
           });
           setChangeReason('');
           toast({ title: 'Success', description: 'Query submitted for approval' });
         } else {
+          const approvalTeamId = teamId;
+          if (!approvalTeamId) {
+            throw new Error('Active team is required to request approval');
+          }
           const { data, error: rpcError } = await supabase.rpc('submit_query_for_approval', {
             _query_id: queryId,
             _sql_content: query.sql_content,
-            _modified_by_email: user?.email || '',
+            _modified_by_email: userEmail,
             _change_reason: changeReason.trim() || '',
-            _team_id: teamId,
-            _user_id: user.id,
+            _team_id: approvalTeamId,
+            _user_id: userId,
           });
           if (rpcError) throw rpcError;
           setChangeReason('');

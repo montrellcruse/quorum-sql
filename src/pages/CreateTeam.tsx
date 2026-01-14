@@ -14,7 +14,7 @@ import { getErrorMessage } from '@/utils/errors';
 
 const CreateTeam = () => {
   const { user, loading: authLoading } = useAuth();
-  const { refreshTeams } = useTeam();
+  const { refreshTeams, userTeams } = useTeam();
   const { adapter } = useDbProvider();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -77,9 +77,11 @@ const CreateTeam = () => {
     <main className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Create Your Team</CardTitle>
+          <CardTitle>Create a New Team</CardTitle>
           <CardDescription>
-            Welcome! Let's get started by creating your first team.
+            {userTeams.length === 0
+              ? "Welcome! Let's get started by creating your workspace."
+              : 'Create an additional team to collaborate with others.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -89,7 +91,7 @@ const CreateTeam = () => {
               <Input
                 id="teamName"
                 type="text"
-                placeholder="My Awesome Team"
+                placeholder="Engineering Team"
                 value={teamName}
                 onChange={(e) => setTeamName(e.target.value)}
                 required
@@ -97,7 +99,7 @@ const CreateTeam = () => {
                 maxLength={100}
               />
               <p className="text-sm text-muted-foreground">
-                This will be the name of your workspace. You can change it later.
+                Give your team a name. Team members will be able to collaborate on queries.
               </p>
             </div>
             <Button type="submit" className="w-full" disabled={creating}>
@@ -111,6 +113,16 @@ const CreateTeam = () => {
               )}
             </Button>
           </form>
+
+          {userTeams.length > 0 && (
+            <Button
+              variant="ghost"
+              className="w-full mt-4"
+              onClick={() => navigate('/dashboard')}
+            >
+              Cancel
+            </Button>
+          )}
         </CardContent>
       </Card>
     </main>

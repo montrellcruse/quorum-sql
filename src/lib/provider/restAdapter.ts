@@ -101,6 +101,9 @@ const teams: TeamsRepo = {
       body: JSON.stringify(data),
     });
   },
+  async remove(id: UUID) {
+    await http<void>(baseUrl(`/teams/${id}`), { method: 'DELETE' });
+  },
   async transferOwnership(id: UUID, newOwnerUserId: UUID) {
     await http<void>(baseUrl(`/teams/${id}/transfer-ownership`), {
       method: 'POST',

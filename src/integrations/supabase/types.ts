@@ -298,6 +298,7 @@ export type Database = {
           approval_quota: number
           created_at: string
           id: string
+          is_personal: boolean
           name: string
           updated_at: string
         }
@@ -306,6 +307,7 @@ export type Database = {
           approval_quota?: number
           created_at?: string
           id?: string
+          is_personal?: boolean
           name: string
           updated_at?: string
         }
@@ -314,6 +316,7 @@ export type Database = {
           approval_quota?: number
           created_at?: string
           id?: string
+          is_personal?: boolean
           name?: string
           updated_at?: string
         }
@@ -343,6 +346,17 @@ export type Database = {
           team_name: string
         }[]
       }
+      convert_personal_to_team: {
+        Args: { _team_id: string; _new_name?: string | null }
+        Returns: boolean
+      }
+      accept_team_invitation: {
+        Args: { _invitation_id: string }
+        Returns: {
+          team_id: string
+          role: string
+        }[]
+      }
       get_all_folder_paths: {
         Args: never
         Returns: {
@@ -357,6 +371,20 @@ export type Database = {
         Returns: {
           full_path: string
           id: string
+        }[]
+      }
+      get_pending_approvals: {
+        Args: { _team_id: string; _exclude_email: string }
+        Returns: {
+          id: string
+          title: string
+          description: string | null
+          folder_id: string
+          last_modified_by_email: string
+          updated_at: string
+          folder_name: string
+          approval_count: number
+          approval_quota: number
         }[]
       }
       is_team_admin: {
@@ -410,6 +438,10 @@ export type Database = {
           _query_id: string
         }
         Returns: Json
+      }
+      transfer_team_ownership: {
+        Args: { _team_id: string; _new_owner_user_id: string }
+        Returns: undefined
       }
       user_admin_teams: {
         Args: { _user_id: string }
@@ -599,10 +631,11 @@ export interface QueryWithTeam extends Tables<'sql_queries'> {
 /** RPC result for approve_query_with_quota */
 export interface ApproveQueryResult {
   success: boolean;
-  message: string;
-  final_status?: string;
+  approved?: boolean;
   approval_count?: number;
-  required_approvals?: number;
+  approval_quota?: number;
+  message?: string;
+  error?: string;
 }
 
 /** RPC result for reject_query_with_authorization */

@@ -9,18 +9,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft, Trash2, UserCog, Shield, ShieldOff } from 'lucide-react';
+import { Loader2, ArrowLeft, Trash2, UserCog, Shield, ShieldOff, UserPlus } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { emailSchema } from '@/lib/validationSchemas';
 import { getDbAdapter } from '@/lib/provider';
 import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
+import { FeatureGate } from '@/components/FeatureGate';
+import { useSoloUser } from '@/hooks/useSoloUser';
+import { getSettingsLabel } from '@/utils/terminology';
 
 interface Team {
   id: string;
   name: string;
   approval_quota: number;
   admin_id: string;
+  is_personal?: boolean;
 }
 
 interface TeamMember {
@@ -40,7 +44,7 @@ interface TeamInvitation {
 
 const TeamAdmin = () => {
   const { user, loading: authLoading } = useAuth();
-  const { activeTeam } = useTeam();
+  const { activeTeam, refreshTeams } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -53,9 +57,19 @@ const TeamAdmin = () => {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<'admin' | 'member'>('member');
   const [approvalQuota, setApprovalQuota] = useState(1);
+  const [teamName, setTeamName] = useState('');
+  const [renaming, setRenaming] = useState(false);
   const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
   const provider = getDbProviderType();
+  const resolvedTeamId = selectedTeamId || activeTeam?.id;
+  const personalTeamFlag = selectedTeam?.is_personal ?? activeTeam?.isPersonal ?? false;
+  const soloContext = useSoloUser({
+    teamId: resolvedTeamId,
+    isPersonalTeam: personalTeamFlag,
+  });
+  const { isSoloUser, isPersonalTeam, loading: soloLoading } = soloContext;
+  const settingsLabel = soloLoading ? 'Team Administration' : getSettingsLabel(isSoloUser);
 
   // Helper function to check if a member is the team owner
   const isTeamOwner = (userId: string) => {
@@ -103,6 +117,7 @@ const TeamAdmin = () => {
       if (!team) throw new Error('Team not found');
       setSelectedTeam(team);
       setApprovalQuota(team.approval_quota);
+      setTeamName(team.name);
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -240,9 +255,39 @@ const TeamAdmin = () => {
         if (error) throw error;
       }
 
+      if (isPersonalTeam) {
+        try {
+          if (provider === 'rest') {
+            const apiBase = getApiBaseUrl();
+            const res = await fetch(`${apiBase}/teams/${selectedTeamId}/convert-personal`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({}),
+            });
+            if (!res.ok) throw new Error(await res.text());
+          } else {
+            const { error } = await supabase.rpc('convert_personal_to_team', {
+              _team_id: selectedTeamId,
+              _new_name: null,
+            });
+            if (error) throw error;
+          }
+          await fetchTeamDetails();
+          await refreshTeams();
+        } catch (error: unknown) {
+          if (import.meta.env.DEV) {
+            console.error('Failed to convert personal team:', error);
+          }
+        }
+      }
+
+      const showSoloMessaging = !soloLoading && isSoloUser;
       toast({
-        title: 'Success',
-        description: 'Invitation sent successfully.',
+        title: showSoloMessaging ? 'Collaboration Unlocked!' : 'Success',
+        description: showSoloMessaging
+          ? 'Invitation sent. Once they accept, your queries will require peer approval before execution.'
+          : 'Invitation sent successfully.',
       });
       
       setNewUserEmail('');
@@ -331,6 +376,13 @@ const TeamAdmin = () => {
         title: 'Success',
         description: 'Member removed successfully.',
       });
+      const newMemberCount = Math.max(0, members.length - 1);
+      if (newMemberCount === 1) {
+        toast({
+          title: 'Solo Mode',
+          description: "You're now the only member. Queries will auto-approve.",
+        });
+      }
       fetchTeamMembers();
     } catch (error: unknown) {
       toast({
@@ -426,6 +478,50 @@ const TeamAdmin = () => {
     }
   };
 
+  const handleRenameTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = teamName.trim();
+    if (!trimmedName) {
+      toast({ title: 'Error', description: 'Team name is required.', variant: 'destructive' });
+      return;
+    }
+
+    setRenaming(true);
+    try {
+      if (provider === 'rest') {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/teams/${selectedTeamId}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: trimmedName }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        const { error } = await supabase
+          .from('teams')
+          .update({ name: trimmedName })
+          .eq('id', selectedTeamId);
+        if (error) throw error;
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Workspace name updated successfully.',
+      });
+      await fetchTeamDetails();
+      await refreshTeams();
+    } catch (error: unknown) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(error, 'Failed to update workspace name'),
+        variant: 'destructive',
+      });
+    } finally {
+      setRenaming(false);
+    }
+  };
+
   const handleTransferOwnership = async () => {
     if (!selectedNewOwner) return;
 
@@ -461,6 +557,79 @@ const TeamAdmin = () => {
     }
   };
 
+  const renderInviteForm = () => (
+    <form onSubmit={handleInviteUser} className="mb-6">
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="email">Invite User by Email</Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="user@example.com"
+            value={newUserEmail}
+            onChange={(e) => setNewUserEmail(e.target.value)}
+            required
+            maxLength={255}
+          />
+        </div>
+        <div>
+          <Label htmlFor="role">Role</Label>
+          <Select
+            value={newUserRole}
+            onValueChange={(value) => setNewUserRole(value as 'admin' | 'member')}
+          >
+            <SelectTrigger id="role">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="member">Member</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button type="submit" className="w-full">
+          <UserPlus className="h-4 w-4 mr-2" />
+          Invite Collaborator
+        </Button>
+      </div>
+      <p className="text-sm text-muted-foreground mt-2">
+        Users will be added to the team when they sign up with this email address.
+      </p>
+    </form>
+  );
+
+  const renderPendingInvitations = () => {
+    if (invitations.length === 0) return null;
+    return (
+      <div className="mb-6">
+        <h3 className="font-semibold mb-3">Pending Invitations</h3>
+        <div className="space-y-2">
+          {invitations.map(invitation => (
+            <div
+              key={invitation.id}
+              className="flex items-center justify-between p-3 border rounded-lg"
+            >
+              <div>
+                <p className="font-medium">{invitation.invited_email}</p>
+                <p className="text-sm text-muted-foreground capitalize">
+                  {invitation.role} • Pending
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => handleRevokeInvitation(invitation.id)}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Revoke
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -481,7 +650,7 @@ const TeamAdmin = () => {
         Back to Dashboard
       </Button>
 
-      <h1 className="text-3xl font-bold mb-6">Team Administration</h1>
+      <h1 className="text-3xl font-bold mb-6">{settingsLabel}</h1>
 
       {/* Team Selection */}
       <Card className="mb-6">
@@ -507,161 +676,155 @@ const TeamAdmin = () => {
 
       {selectedTeam && (
         <>
-          {/* User Management */}
+          {/* Workspace Name */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Team Members</CardTitle>
-              <CardDescription>Manage team members and their roles</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleInviteUser} className="mb-6">
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="email">Invite User by Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="user@example.com"
-                      value={newUserEmail}
-                      onChange={(e) => setNewUserEmail(e.target.value)}
-                      required
-                      maxLength={255}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="role">Role</Label>
-                    <Select 
-                      value={newUserRole} 
-                      onValueChange={(value) => setNewUserRole(value as 'admin' | 'member')}
-                    >
-                      <SelectTrigger id="role">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button type="submit" className="w-full">
-                    Invite User
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Users will be added to the team when they sign up with this email address.
-                </p>
-              </form>
-
-              {invitations.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="font-semibold mb-3">Pending Invitations</h3>
-                  <div className="space-y-2">
-                    {invitations.map(invitation => (
-                      <div
-                        key={invitation.id}
-                        className="flex items-center justify-between p-3 border rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium">{invitation.invited_email}</p>
-                          <p className="text-sm text-muted-foreground capitalize">
-                            {invitation.role} • Pending
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleRevokeInvitation(invitation.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Revoke
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <h3 className="font-semibold mb-3">Current Members</h3>
-
-              <div className="space-y-2">
-                {members.map(member => (
-                  <div
-                    key={member.id}
-                    className="flex items-center justify-between p-3 border rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      {member.role === 'admin' ? (
-                        <Shield className="h-5 w-5 text-primary" />
-                      ) : (
-                        <ShieldOff className="h-5 w-5 text-muted-foreground" />
-                      )}
-                      <div>
-                        <p className="font-medium">{member.email}</p>
-                        <p className="text-sm text-muted-foreground capitalize">
-                          {member.role}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {/* Only show role toggle if NOT the owner */}
-                      {!isTeamOwner(member.user_id) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleToggleRole(member.id, member.role)}
-                        >
-                          <UserCog className="h-4 w-4 mr-1" />
-                          Make {member.role === 'admin' ? 'Member' : 'Admin'}
-                        </Button>
-                      )}
-                      
-                      {/* Only show delete if NOT the owner */}
-                      {!isTeamOwner(member.user_id) && (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleRemoveMember(member.id, member.role)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                      
-                      {/* Show "Team Owner" badge for the owner */}
-                      {isTeamOwner(member.user_id) && (
-                        <span className="text-sm text-muted-foreground px-3 py-2">
-                          Team Owner
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Transfer Ownership */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Transfer Ownership</CardTitle>
+              <CardTitle>Workspace Name</CardTitle>
               <CardDescription>
-                Transfer team ownership to another member
+                {isPersonalTeam
+                  ? 'Rename your workspace (converts to team when you add members)'
+                  : "Change your team's name"}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button
-                variant="outline"
-                onClick={() => setTransferOwnershipDialogOpen(true)}
-                disabled={members.length <= 1}
-              >
-                Transfer Ownership
-              </Button>
-              {members.length <= 1 && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  You need at least one other member to transfer ownership.
-                </p>
-              )}
+              <form onSubmit={handleRenameTeam}>
+                <div className="flex gap-2">
+                  <Input
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    placeholder="My Team"
+                    maxLength={100}
+                    disabled={renaming}
+                  />
+                  <Button type="submit" disabled={renaming}>
+                    {renaming ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Renaming...
+                      </>
+                    ) : (
+                      'Rename'
+                    )}
+                  </Button>
+                </div>
+              </form>
             </CardContent>
           </Card>
+
+          <FeatureGate teamOnly soloContext={soloContext}>
+            {/* User Management */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Team Members</CardTitle>
+                <CardDescription>Manage team members and their roles</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {renderInviteForm()}
+                {renderPendingInvitations()}
+
+                <h3 className="font-semibold mb-3">Current Members</h3>
+
+                <div className="space-y-2">
+                  {members.map(member => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        {member.role === 'admin' ? (
+                          <Shield className="h-5 w-5 text-primary" />
+                        ) : (
+                          <ShieldOff className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <div>
+                          <p className="font-medium">{member.email}</p>
+                          <p className="text-sm text-muted-foreground capitalize">
+                            {member.role}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {/* Only show role toggle if NOT the owner */}
+                        {!isTeamOwner(member.user_id) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleToggleRole(member.id, member.role)}
+                          >
+                            <UserCog className="h-4 w-4 mr-1" />
+                            Make {member.role === 'admin' ? 'Member' : 'Admin'}
+                          </Button>
+                        )}
+
+                        {/* Only show delete if NOT the owner */}
+                        {!isTeamOwner(member.user_id) && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleRemoveMember(member.id, member.role)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        {/* Show "Team Owner" badge for the owner */}
+                        {isTeamOwner(member.user_id) && (
+                          <span className="text-sm text-muted-foreground px-3 py-2">
+                            Team Owner
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </FeatureGate>
+
+          <FeatureGate soloOnly soloContext={soloContext}>
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Collaborate with Others</CardTitle>
+                <CardDescription>
+                  Invite team members to collaborate on queries with peer review.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground mb-4">
+                  Working solo? Your queries are auto-approved. When you're ready to
+                  collaborate, invite others to enable peer review workflows.
+                </p>
+                {renderInviteForm()}
+                {renderPendingInvitations()}
+              </CardContent>
+            </Card>
+          </FeatureGate>
+
+          <FeatureGate teamOnly soloContext={soloContext}>
+            {/* Transfer Ownership */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Transfer Ownership</CardTitle>
+                <CardDescription>
+                  Transfer team ownership to another member
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  variant="outline"
+                  onClick={() => setTransferOwnershipDialogOpen(true)}
+                  disabled={members.length <= 1}
+                >
+                  Transfer Ownership
+                </Button>
+                {members.length <= 1 && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    You need at least one other member to transfer ownership.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </FeatureGate>
 
           {/* Approval Quota */}
           <Card>

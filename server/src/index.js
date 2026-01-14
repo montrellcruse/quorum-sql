@@ -275,7 +275,7 @@ fastify.get('/teams', async (req, reply) => {
   return withClient(sess.id, async (client) => {
     const { rows } = await client.query(
       `select distinct on (t.id)
-              t.id, t.name, t.approval_quota, t.admin_id,
+              t.id, t.name, t.approval_quota, t.admin_id, t.is_personal,
               tm.role
        from public.team_members tm
        join public.teams t on t.id = tm.team_id
@@ -297,7 +297,7 @@ fastify.get('/teams/:id', async (req, reply) => {
   
   return withClient(sess.id, async (client) => {
     const { rows } = await client.query(
-      `select id, name, approval_quota, admin_id from public.teams where id = $1`,
+      `select id, name, approval_quota, admin_id, is_personal from public.teams where id = $1`,
       [id]
     );
     return rows[0] || null;
@@ -324,7 +324,7 @@ fastify.post('/teams', async (req, reply) => {
       await client.query('begin');
       const tRes = await client.query(
         `insert into public.teams(name, approval_quota, admin_id) 
-         values ($1, $2, auth.uid()) returning id, name, approval_quota, admin_id, created_at`,
+         values ($1, $2, auth.uid()) returning id, name, approval_quota, admin_id, is_personal, created_at`,
         [name, approval_quota]
       );
       const team = tRes.rows[0];
@@ -354,13 +354,19 @@ fastify.patch('/teams/:id', async (req, reply) => {
     return reply.code(400).send({ error: 'Invalid team ID' });
   }
   
-  const Body = z.object({ approval_quota: z.number().int().min(1) });
+  const Body = z.object({
+    approval_quota: z.number().int().min(1).optional(),
+    name: z.string().min(1).max(100).optional(),
+  });
   const parsed = Body.safeParse(req.body || {});
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
   
-  const { approval_quota } = parsed.data;
+  const { approval_quota, name } = parsed.data;
+  if (approval_quota === undefined && name === undefined) {
+    return reply.code(400).send({ error: 'No updates provided' });
+  }
   
   return withClient(sess.id, async (client) => {
     // Verify admin status
@@ -369,12 +375,95 @@ fastify.patch('/teams/:id', async (req, reply) => {
       return reply.code(403).send({ error: 'Only team admins can update team settings' });
     }
     
+    const updates = [];
+    const values = [];
+    if (approval_quota !== undefined) {
+      values.push(approval_quota);
+      updates.push(`approval_quota = $${values.length}`);
+    }
+    if (name !== undefined) {
+      values.push(name);
+      updates.push(`name = $${values.length}`);
+    }
+    values.push(id);
     await client.query(
-      `update public.teams set approval_quota = $1 where id = $2`,
-      [approval_quota, id]
+      `update public.teams set ${updates.join(', ')} where id = $${values.length}`,
+      values
     );
     
-    req.log.info({ teamId: id, userId: sess.id, approval_quota }, 'ADMIN: Team settings updated');
+    req.log.info({ teamId: id, userId: sess.id, approval_quota, name }, 'ADMIN: Team settings updated');
+    return { ok: true };
+  });
+});
+
+fastify.post('/teams/:id/convert-personal', async (req, reply) => {
+  const sess = await getSessionUser(req);
+  if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
+  const { id } = req.params;
+
+  if (!isValidUUID(id)) {
+    return reply.code(400).send({ error: 'Invalid team ID' });
+  }
+
+  const Body = z.object({ name: z.string().min(1).max(100).optional() });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) {
+    return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
+  }
+
+  const { name } = parsed.data;
+
+  return withClient(sess.id, async (client) => {
+    const isAdmin = await requireTeamAdmin(client, sess.id, id, req);
+    if (!isAdmin) {
+      return reply.code(403).send({ error: 'Only team admins can convert personal teams' });
+    }
+
+    const { rows } = await client.query(
+      'select public.convert_personal_to_team($1, $2) as converted',
+      [id, name || null]
+    );
+    return { ok: true, converted: rows[0]?.converted ?? false };
+  });
+});
+
+fastify.delete('/teams/:id', async (req, reply) => {
+  const sess = await getSessionUser(req);
+  if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
+  const { id } = req.params;
+
+  if (!isValidUUID(id)) {
+    return reply.code(400).send({ error: 'Invalid team ID' });
+  }
+
+  return withClient(sess.id, async (client) => {
+    const isAdmin = await requireTeamAdmin(client, sess.id, id, req);
+    if (!isAdmin) {
+      return reply.code(403).send({ error: 'Only team admins can delete teams' });
+    }
+
+    const { rows: teamRows } = await client.query(
+      'select is_personal from public.teams where id = $1',
+      [id]
+    );
+    if (teamRows.length === 0) {
+      return reply.code(404).send({ error: 'Team not found' });
+    }
+
+    if (teamRows[0].is_personal) {
+      const { rows: countRows } = await client.query(
+        'select count(*)::int as member_count from public.team_members where team_id = $1',
+        [id]
+      );
+      if ((countRows[0]?.member_count || 0) <= 1) {
+        return reply.code(400).send({
+          error: 'Cannot delete your personal workspace. Create a new team first.',
+        });
+      }
+    }
+
+    await client.query('delete from public.teams where id = $1', [id]);
+    req.log.info({ teamId: id, userId: sess.id }, 'ADMIN: Team deleted');
     return { ok: true };
   });
 });

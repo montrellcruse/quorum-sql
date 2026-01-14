@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import type { QueryWithTeam, ApproveQueryResult, RejectQueryResult, SubmitQueryResult, Tables } from '@/integrations/supabase/types';
+import type { QueryWithTeam, ApproveQueryResult, Tables } from '@/integrations/supabase/types';
 
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
@@ -240,7 +240,7 @@ const QueryView = () => {
           _approver_user_id: user.id,
         });
         if (error) throw error;
-        const result = data as ApproveQueryResult;
+        const result = data as unknown as ApproveQueryResult;
         if (!result.success) {
           toast({ title: 'Error', description: result.error, variant: 'destructive' });
           return;

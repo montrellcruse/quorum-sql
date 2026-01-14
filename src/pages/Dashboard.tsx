@@ -12,13 +12,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, FileText, Settings, Mail, ClipboardCheck } from 'lucide-react';
+import { Plus, Search, FileText, Settings, Mail, ClipboardCheck, Loader2, Users } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { checkPendingInvitationsCount, getPendingApprovalsCount } from '@/utils/teamUtils';
 import { getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
+import { useSoloUser } from '@/hooks/useSoloUser';
+import { FeatureGate } from '@/components/FeatureGate';
+import { getWorkspaceLabel } from '@/utils/terminology';
 import type { SqlQuery } from '@/lib/provider/types';
 
 interface Folder {
@@ -60,6 +63,8 @@ const Dashboard = () => {
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const provider = getDbProviderType();
   const activeTeamId = activeTeam?.id;
+  const soloContext = useSoloUser();
+  const { isSoloUser } = soloContext;
 
   // Define callbacks BEFORE useEffects that reference them
   const checkAdminStatus = useCallback(async () => {
@@ -266,7 +271,7 @@ const Dashboard = () => {
     }
   };
 
-  if (loading || teamLoading) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-muted-foreground">Loading...</p>
@@ -279,22 +284,41 @@ const Dashboard = () => {
   }
   
   if (!activeTeam && userTeams.length === 0) {
+    if (teamLoading) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Setting up your workspace...</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Card className="w-96">
           <CardHeader>
-            <CardTitle>No Teams Found</CardTitle>
+            <CardTitle>Welcome to Quorum</CardTitle>
             <CardDescription>
-              You are not a member of any teams. Create a team to get started.
+              Let's create your workspace to get started.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button onClick={() => navigate('/create-team')} className="w-full">
               <Plus className="mr-2 h-4 w-4" />
-              Create New Team
+              Create Workspace
             </Button>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+  
+  if (teamLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -326,7 +350,9 @@ const Dashboard = () => {
               </div>
             )}
             {activeTeam && userTeams.length === 1 && (
-              <p className="mt-1 text-sm text-muted-foreground">Team: {activeTeam.name}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {getWorkspaceLabel(isSoloUser)}: {activeTeam.name}
+              </p>
             )}
           </div>
           <div className="flex gap-2">
@@ -338,21 +364,31 @@ const Dashboard = () => {
                 <Badge className="ml-2">{pendingInvitesCount}</Badge>
               </Button>
             )}
-            {pendingApprovalsCount > 0 && (
-              <Button onClick={() => navigate('/approvals')} variant="outline">
-                <ClipboardCheck className="mr-2 h-4 w-4" />
-                Approvals Needed
-                <Badge className="ml-2" variant="destructive">{pendingApprovalsCount}</Badge>
+            <FeatureGate teamOnly soloContext={soloContext}>
+              {pendingApprovalsCount > 0 && (
+                <Button onClick={() => navigate('/approvals')} variant="outline">
+                  <ClipboardCheck className="mr-2 h-4 w-4" />
+                  Approvals Needed
+                  <Badge className="ml-2" variant="destructive">{pendingApprovalsCount}</Badge>
+                </Button>
+              )}
+            </FeatureGate>
+            <FeatureGate soloOnly soloContext={soloContext}>
+              <Button onClick={() => navigate('/create-team')} variant="outline">
+                <Users className="mr-2 h-4 w-4" />
+                Start Collaborating
               </Button>
-            )}
-            <Button onClick={() => navigate('/create-team')} variant="outline">
-              <Plus className="mr-2 h-4 w-4" />
-              Create New Team
-            </Button>
+            </FeatureGate>
+            <FeatureGate teamOnly soloContext={soloContext}>
+              <Button onClick={() => navigate('/create-team')} variant="outline">
+                <Plus className="mr-2 h-4 w-4" />
+                Create New Team
+              </Button>
+            </FeatureGate>
             {isAdmin && (
               <Button onClick={() => navigate('/team-admin')} variant="outline">
                 <Settings className="mr-2 h-4 w-4" />
-                Team Admin
+                {isSoloUser ? 'Settings' : 'Team Admin'}
               </Button>
             )}
             <Button onClick={handleSignOut} variant="outline">

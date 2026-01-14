@@ -14,9 +14,14 @@ function getCsrfToken(): string | null {
 
 async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const method = init?.method?.toUpperCase() || 'GET';
+  const initHeaders = init?.headers;
+  const headersFromInit: Record<string, string> =
+    initHeaders instanceof Headers
+      ? Object.fromEntries(initHeaders.entries())
+      : (initHeaders as Record<string, string> | undefined) ?? {};
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(init?.headers || {}),
+    ...headersFromInit,
   };
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
     const csrfToken = getCsrfToken();

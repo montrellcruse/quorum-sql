@@ -241,8 +241,6 @@ const Auth = () => {
   };
 
   const showBothMethods = hasGoogleAuth && hasEmailAuth && provider !== 'rest';
-  const showGoogleOnly = hasGoogleAuth && !hasEmailAuth && provider !== 'rest';
-  const showEmailOnly = hasEmailAuth && !hasGoogleAuth || provider === 'rest';
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background p-4">
