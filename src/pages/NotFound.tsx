@@ -5,7 +5,9 @@ const NotFound = () => {
   const location = useLocation();
 
   useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", { path: location.pathname });
+    if (import.meta.env.DEV) {
+      console.error("404 Error: User attempted to access non-existent route:", { path: location.pathname });
+    }
   }, [location.pathname]);
 
   return (

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { teamNameSchema } from '@/lib/validationSchemas';
+import { getErrorMessage } from '@/utils/errors';
 
 const CreateTeam = () => {
   const { user, loading: authLoading } = useAuth();
@@ -53,7 +54,7 @@ const CreateTeam = () => {
       await refreshTeams();
       navigate('/dashboard');
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create team';
+      const message = getErrorMessage(error, 'Failed to create team');
       toast({
         title: 'Error',
         description: message,

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { checkUserTeamMembership } from '@/utils/teamUtils';
+import { getErrorMessage } from '@/utils/errors';
 import { ArrowLeft } from 'lucide-react';
 import type { TeamInvitation } from '@/lib/provider/types';
 
@@ -34,10 +35,9 @@ const AcceptInvites = () => {
       
       setInvitations(invites);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch invitations';
       toast({
         title: 'Error',
-        description: message,
+        description: getErrorMessage(error, 'Failed to fetch invitations'),
         variant: 'destructive',
       });
     } finally {
@@ -74,10 +74,9 @@ const AcceptInvites = () => {
         navigate('/dashboard');
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to accept invitation';
       toast({
         title: 'Error',
-        description: message,
+        description: getErrorMessage(error, 'Failed to accept invitation'),
         variant: 'destructive',
       });
     } finally {
@@ -99,14 +98,17 @@ const AcceptInvites = () => {
       setInvitations(updatedInvitations);
 
       if (updatedInvitations.length === 0) {
-        const hasMembership = await checkUserTeamMembership(user!.id);
+        if (!user?.id) {
+          navigate('/auth');
+          return;
+        }
+        const hasMembership = await checkUserTeamMembership(user.id);
         navigate(hasMembership ? '/dashboard' : '/create-team');
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to decline invitation';
       toast({
         title: 'Error',
-        description: message,
+        description: getErrorMessage(error, 'Failed to decline invitation'),
         variant: 'destructive',
       });
     } finally {

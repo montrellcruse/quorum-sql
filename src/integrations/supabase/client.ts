@@ -17,7 +17,9 @@ function getSupabaseClient(): SupabaseClient<Database> {
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     // Return a mock client that will fail gracefully
     // This allows the app to load for setup/non-Supabase modes
-    console.warn('Supabase not configured. Some features may be unavailable.');
+    if (import.meta.env.DEV) {
+      console.warn('Supabase not configured. Some features may be unavailable.');
+    }
 
     // Create a minimal mock that won't crash but will fail on actual use
     // The mock channel returns a chainable object that reports CHANNEL_ERROR

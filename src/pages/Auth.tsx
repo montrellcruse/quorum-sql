@@ -10,8 +10,11 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { checkUserTeamMembership, checkPendingInvitations } from '@/utils/teamUtils';
+import { getDbProviderType } from '@/lib/provider/env';
+import { getErrorMessage } from '@/utils/errors';
+import { isEmailAllowed, normalizeAllowedDomain } from '@/utils/email';
 
-const ALLOWED_DOMAIN = import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '';
+const ALLOWED_DOMAIN = normalizeAllowedDomain(import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '');
 const GOOGLE_WORKSPACE_DOMAIN = import.meta.env.VITE_GOOGLE_WORKSPACE_DOMAIN || '';
 const APP_NAME = import.meta.env.VITE_APP_NAME || 'Quorum';
 
@@ -57,7 +60,7 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+  const provider = getDbProviderType();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -66,7 +69,7 @@ const Auth = () => {
     const redirectUser = async () => {
       if (user && user.email) {
         // Validate domain if restriction is set
-        if (ALLOWED_DOMAIN && !user.email.endsWith(ALLOWED_DOMAIN)) {
+        if (ALLOWED_DOMAIN && !isEmailAllowed(user.email, ALLOWED_DOMAIN)) {
           if (provider === 'rest') {
             await restAuthAdapter.signOut();
           } else {
@@ -109,8 +112,7 @@ const Auth = () => {
   }, [user, navigate, toast, provider]);
 
   const validateEmailDomain = (emailToCheck: string): boolean => {
-    if (!ALLOWED_DOMAIN) return true;
-    return emailToCheck.toLowerCase().endsWith(ALLOWED_DOMAIN.toLowerCase());
+    return isEmailAllowed(emailToCheck, ALLOWED_DOMAIN);
   };
 
   const handleGoogleSignIn = async () => {
@@ -171,8 +173,8 @@ const Auth = () => {
         });
         if (error) throw error;
       }
-    } catch (error: any) {
-      toast({ title: 'Sign In Failed', description: error.message, variant: 'destructive' });
+    } catch (error: unknown) {
+      toast({ title: 'Sign In Failed', description: getErrorMessage(error, 'Failed to sign in'), variant: 'destructive' });
       setLoading(false);
     }
   };
@@ -232,8 +234,8 @@ const Auth = () => {
         });
       }
       setLoading(false);
-    } catch (error: any) {
-      toast({ title: 'Sign Up Failed', description: error.message, variant: 'destructive' });
+    } catch (error: unknown) {
+      toast({ title: 'Sign Up Failed', description: getErrorMessage(error, 'Failed to sign up'), variant: 'destructive' });
       setLoading(false);
     }
   };

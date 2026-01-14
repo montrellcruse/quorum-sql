@@ -12,6 +12,9 @@ const envSchema = z.object({
   PGDATABASE: z.string().optional(),
   PGUSER: z.string().optional(),
   PGPASSWORD: z.string().optional(),
+  PGPOOL_MAX: z.string().transform(Number).default('10'),
+  PGPOOL_IDLE_TIMEOUT_MS: z.string().transform(Number).default('30000'),
+  PGPOOL_CONN_TIMEOUT_MS: z.string().transform(Number).default('2000'),
   
   // Security - required in production
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
@@ -85,7 +88,7 @@ export const securityConfig = {
   corsOrigins: config.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean),
   rateLimitMax: config.RATE_LIMIT_MAX,
   rateLimitWindow: config.RATE_LIMIT_WINDOW,
-  devAuthEnabled: config.ENABLE_DEV_AUTH && !isProd,
+  devAuthEnabled: config.ENABLE_DEV_AUTH && isDev,
   devFakeUserId: config.DEV_FAKE_USER_ID,
 };
 
@@ -96,6 +99,9 @@ export const dbConfig = {
   database: config.PGDATABASE,
   user: config.PGUSER,
   password: config.PGPASSWORD,
+  poolMax: config.PGPOOL_MAX,
+  poolIdleTimeoutMs: config.PGPOOL_IDLE_TIMEOUT_MS,
+  poolConnTimeoutMs: config.PGPOOL_CONN_TIMEOUT_MS,
 };
 
 export const supabaseConfig = {

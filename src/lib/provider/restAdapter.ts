@@ -17,12 +17,11 @@ import type {
   PendingApprovalQuery,
 } from './types';
 import { supabase } from '@/integrations/supabase/client';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+import { getApiBaseUrl } from './env';
+import { getErrorMessage } from '@/utils/errors';
 
 function baseUrl(path: string) {
-  if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set for REST provider');
-  return `${API_BASE.replace(/\/$/, '')}${path}`;
+  return `${getApiBaseUrl()}${path}`;
 }
 
 /**
@@ -61,15 +60,22 @@ async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
     }
   }
 
-  const res = await fetch(input, {
-    credentials: 'include',
-    headers,
-    ...init,
-  });
+  const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+  let res: Response;
+  try {
+    res = await fetch(input, {
+      credentials: 'include',
+      headers,
+      ...init,
+    });
+  } catch (error: unknown) {
+    throw new Error(`Network error during ${method} ${url}: ${getErrorMessage(error, 'request failed')}`);
+  }
   
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    const detail = text || res.statusText;
+    throw new Error(`HTTP ${res.status} ${res.statusText} for ${method} ${url}${detail ? `: ${detail}` : ''}`);
   }
   
   if (res.status === 204) return undefined as unknown as T;

@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { restAuthAdapter } from '@/lib/auth/restAuthAdapter';
+import { getDbProviderType } from '@/lib/provider/env';
+import { isEmailAllowed, normalizeAllowedDomain } from '@/utils/email';
 
 interface AuthContextType {
   user: User | null;
@@ -11,12 +13,13 @@ interface AuthContextType {
 
 // Dev-only test accounts that bypass domain validation
 const DEV_TEST_EMAILS = ['admin@test.local', 'member@test.local'];
+const ALLOW_DEV_TEST_ACCOUNTS = import.meta.env.VITE_ALLOW_DEV_TEST_ACCOUNTS === 'true';
 const isDevTestAccount = (email: string) => {
-  return import.meta.env.DEV && DEV_TEST_EMAILS.includes(email.toLowerCase());
+  return import.meta.env.DEV && ALLOW_DEV_TEST_ACCOUNTS && DEV_TEST_EMAILS.includes(email.toLowerCase());
 };
 
 // Get allowed email domain from environment variable (empty = no restriction)
-const ALLOWED_EMAIL_DOMAIN = import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '';
+const ALLOWED_EMAIL_DOMAIN = normalizeAllowedDomain(import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '');
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
@@ -39,7 +42,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+    const provider = getDbProviderType();
     if (provider === 'rest') {
       // REST mode: fetch session user once
       restAuthAdapter
@@ -54,7 +57,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const fakeUser = { id: u.id, email: u.email } as unknown as User;
           // Domain validation
           const userEmail = u.email;
-          if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
+          if (userEmail && !isDevTestAccount(userEmail) && !isEmailAllowed(userEmail, ALLOWED_EMAIL_DOMAIN)) {
             setUser(null);
             setSession(null);
           } else {
@@ -76,7 +79,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       async (_event, session) => {
         if (session?.user) {
           const userEmail = session.user.email;
-          if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
+          if (userEmail && !isDevTestAccount(userEmail) && !isEmailAllowed(userEmail, ALLOWED_EMAIL_DOMAIN)) {
             await supabase.auth.signOut();
             setSession(null);
             setUser(null);
@@ -90,11 +93,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         const userEmail = session.user.email;
-        if (userEmail && !isDevTestAccount(userEmail) && !userEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
-          supabase.auth.signOut();
+        if (userEmail && !isDevTestAccount(userEmail) && !isEmailAllowed(userEmail, ALLOWED_EMAIL_DOMAIN)) {
+          await supabase.auth.signOut();
           setSession(null);
           setUser(null);
           setLoading(false);

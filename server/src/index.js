@@ -50,18 +50,20 @@ const pool = createPool();
 async function withClient(userId, fn) {
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     if (userId) {
-      await client.query("select set_config('app.user_id', $1, false)", [userId]);
-      await client.query("select set_config('app.role', 'authenticated', false)");
+      await client.query("select set_config('app.user_id', $1, true)", [userId]);
+      await client.query("select set_config('app.role', 'authenticated', true)");
     }
-    return await fn(client);
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {}
+    throw error;
   } finally {
-    if (userId) {
-      try {
-        await client.query("select set_config('app.user_id', '', false)");
-        await client.query("select set_config('app.role', '', false)");
-      } catch {}
-    }
     client.release();
   }
 }

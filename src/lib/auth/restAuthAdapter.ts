@@ -1,22 +1,43 @@
 import type { AuthAdapter } from './types';
 import type { UserIdentity } from '../provider/types';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+import { getApiBaseUrl } from '@/lib/provider/env';
+import { getErrorMessage } from '@/utils/errors';
 
 function baseUrl(path: string) {
-  if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set for REST auth');
-  return `${API_BASE.replace(/\/$/, '')}${path}`;
+  return `${getApiBaseUrl()}${path}`;
+}
+
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const res = await fetch(input, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
-    ...init,
-  });
+  const method = init?.method?.toUpperCase() || 'GET';
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(init?.headers || {}),
+  };
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+  }
+
+  const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+  let res: Response;
+  try {
+    res = await fetch(input, {
+      credentials: 'include',
+      headers,
+      ...init,
+    });
+  } catch (error: unknown) {
+    throw new Error(`Network error during ${method} ${url}: ${getErrorMessage(error, 'request failed')}`);
+  }
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    const detail = text || res.statusText;
+    throw new Error(`HTTP ${res.status} ${res.statusText} for ${method} ${url}${detail ? `: ${detail}` : ''}`);
   }
   if (res.status === 204) return undefined as unknown as T;
   return res.json() as Promise<T>;

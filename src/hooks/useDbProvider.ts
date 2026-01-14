@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import { getDbAdapter } from '@/lib/provider';
+import { getApiBaseUrl as getApiBaseUrlFromEnv, getApiBaseUrlOptional, getDbProviderType } from '@/lib/provider/env';
+import { getErrorMessage } from '@/utils/errors';
 import type { DbAdapter } from '@/lib/provider/types';
 
 /** Supported database provider types */
@@ -26,11 +28,11 @@ interface DbProviderContext {
  */
 export function useDbProvider(): DbProviderContext {
   const provider = useMemo(
-    () => (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase() as DbProvider,
+    () => getDbProviderType(),
     []
   );
   
-  const apiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  const apiBase = getApiBaseUrlOptional();
   
   const adapter = useMemo(() => getDbAdapter(), []);
   
@@ -49,9 +51,7 @@ export function useDbProvider(): DbProviderContext {
  * @returns Base URL without trailing slash
  */
 export function getApiBaseUrl(): string {
-  const apiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
-  if (!apiBase) throw new Error('VITE_API_BASE_URL is not set');
-  return apiBase.replace(/\/$/, '');
+  return getApiBaseUrlFromEnv();
 }
 
 /**
@@ -66,21 +66,29 @@ export async function restFetch<T>(
   path: string, 
   options?: RequestInit
 ): Promise<T> {
-  const baseUrl = getApiBaseUrl();
-  const res = await fetch(`${baseUrl}${path}`, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers || {}),
-    },
-    ...options,
-  });
-  
+  const baseUrl = getApiBaseUrlFromEnv();
+  const url = `${baseUrl}${path}`;
+  const method = options?.method?.toUpperCase() || 'GET';
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options?.headers || {}),
+      },
+      ...options,
+    });
+  } catch (error: unknown) {
+    throw new Error(`Network error during ${method} ${url}: ${getErrorMessage(error, 'request failed')}`);
+  }
+
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    const detail = text || res.statusText;
+    throw new Error(`HTTP ${res.status} ${res.statusText} for ${method} ${url}${detail ? `: ${detail}` : ''}`);
   }
-  
+
   if (res.status === 204) return undefined as unknown as T;
   return res.json() as Promise<T>;
 }

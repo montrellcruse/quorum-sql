@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, FileText, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { PendingApprovalQuery } from '@/lib/provider/types';
+import { getErrorMessage } from '@/utils/errors';
 
 const Approvals = () => {
   const navigate = useNavigate();
@@ -27,7 +28,9 @@ const Approvals = () => {
       const queries = await adapter.queries.getPendingForApproval(activeTeam.id, user.email);
       setPendingQueries(queries);
     } catch (error: unknown) {
-      console.error('Error fetching pending queries:', error);
+      if (import.meta.env.DEV) {
+        console.error('Error fetching pending queries:', getErrorMessage(error, 'Unknown error'));
+      }
     } finally {
       setLoadingQueries(false);
     }

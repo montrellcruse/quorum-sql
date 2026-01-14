@@ -18,6 +18,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ArrowLeft, Edit, Clock, Trash2, Copy, Check, RotateCcw, Send } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { getDbAdapter } from '@/lib/provider';
+import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
+import { getErrorMessage } from '@/utils/errors';
 
 type Query = Tables<'sql_queries'>;
 
@@ -63,6 +65,127 @@ const QueryView = () => {
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [changeReason, setChangeReason] = useState('');
+  const provider = getDbProviderType();
+
+  const fetchQuery = useCallback(async () => {
+    try {
+      if (!id) {
+        setLoadingQuery(false);
+        return;
+      }
+      if (provider === 'rest') {
+        const q = await getDbAdapter().queries.getById(id);
+        if (!q) {
+          toast({ title: 'Error', description: 'Query not found', variant: 'destructive' });
+          navigate('/dashboard');
+          return;
+        }
+        setQuery(q as Query);
+      } else {
+        const { data, error } = await supabase
+          .from('sql_queries')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) {
+          toast({ title: 'Error', description: 'Query not found', variant: 'destructive' });
+          navigate('/dashboard');
+          return;
+        }
+        setQuery(data);
+      }
+    } catch (error: unknown) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(error, 'Failed to fetch query'),
+        variant: 'destructive',
+      });
+      navigate('/dashboard');
+    } finally {
+      setLoadingQuery(false);
+    }
+  }, [id, toast, navigate, provider]);
+
+  const fetchHistory = useCallback(async () => {
+    if (!id) return;
+
+    setLoadingHistory(true);
+    try {
+      if (provider === 'rest') {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/queries/${id}/history`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const data = (await res.json()) as HistoryRecord[];
+        const approvedHistory = (data || []).filter((h) => h.status === 'approved');
+        setHistory(approvedHistory);
+        const pendingHistory = (data || []).find((h) => h.status === 'pending_approval');
+        if (pendingHistory) setLatestHistoryId(pendingHistory.id);
+      } else {
+        const { data, error } = await supabase
+          .from('query_history')
+          .select('*')
+          .eq('query_id', id)
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (error) throw error;
+        const approvedHistory = (data || []).filter(h => h.status === 'approved');
+        setHistory(approvedHistory);
+        const pendingHistory = (data || []).find(h => h.status === 'pending_approval');
+        if (pendingHistory) setLatestHistoryId(pendingHistory.id);
+      }
+    } catch (error: unknown) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(error, 'Failed to fetch history'),
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [id, toast, provider]);
+
+  const fetchApprovals = useCallback(async () => {
+    if (!latestHistoryId || !id) return;
+
+    try {
+      if (provider === 'rest') {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/queries/${id}/approvals`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const payload = (await res.json()) as {
+          approval_quota?: number;
+          approvals?: Approval[];
+          latest_history_id?: string;
+        };
+        const approvals = Array.isArray(payload.approvals) ? payload.approvals : [];
+        setApprovalQuota(payload.approval_quota || 1);
+        setApprovals(approvals);
+        if (payload.latest_history_id) setLatestHistoryId(payload.latest_history_id);
+        const userApproval = approvals.some((a) => a.user_id === user?.id);
+        setHasUserApproved(userApproval);
+      } else {
+        const { data: queryData, error: queryError } = await supabase
+          .from('sql_queries')
+          .select('team_id, teams(approval_quota)')
+          .eq('id', id)
+          .single();
+        if (queryError) throw queryError;
+        const quota = (queryData as QueryWithTeam)?.teams?.approval_quota || 1;
+        setApprovalQuota(quota);
+        const { data: approvalsData, error: approvalsError } = await supabase
+          .from('query_approvals')
+          .select('*')
+          .eq('query_history_id', latestHistoryId);
+        if (approvalsError) throw approvalsError;
+        setApprovals(approvalsData || []);
+        const userApproval = (approvalsData || []).some(a => a.user_id === user?.id);
+        setHasUserApproved(userApproval);
+      }
+    } catch {
+      // Error fetching approvals - silently fail as this is not critical
+    }
+  }, [latestHistoryId, id, user?.id, provider]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -82,122 +205,6 @@ const QueryView = () => {
       fetchApprovals();
     }
   }, [query?.status, latestHistoryId, fetchApprovals]);
-
-  const fetchQuery = useCallback(async () => {
-    try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
-      if (provider === 'rest') {
-        const q = await getDbAdapter().queries.getById(id!);
-        if (!q) {
-          toast({ title: 'Error', description: 'Query not found', variant: 'destructive' });
-          navigate('/dashboard');
-          return;
-        }
-        setQuery(q as Query);
-      } else {
-        const { data, error } = await supabase
-          .from('sql_queries')
-          .select('*')
-          .eq('id', id!)
-          .maybeSingle();
-        if (error) throw error;
-        if (!data) {
-          toast({ title: 'Error', description: 'Query not found', variant: 'destructive' });
-          navigate('/dashboard');
-          return;
-        }
-        setQuery(data);
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-      navigate('/dashboard');
-    } finally {
-      setLoadingQuery(false);
-    }
-  }, [id, toast, navigate]);
-
-  const fetchHistory = useCallback(async () => {
-    if (!id) return;
-
-    setLoadingHistory(true);
-    try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
-      if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/queries/${id}/history`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        const approvedHistory = (data || []).filter((h: any) => h.status === 'approved');
-        setHistory(approvedHistory);
-        const pendingHistory = (data || []).find((h: any) => h.status === 'pending_approval');
-        if (pendingHistory) setLatestHistoryId(pendingHistory.id);
-      } else {
-        const { data, error } = await supabase
-          .from('query_history')
-          .select('*')
-          .eq('query_id', id)
-          .order('created_at', { ascending: false })
-          .limit(100);
-        if (error) throw error;
-        const approvedHistory = (data || []).filter(h => h.status === 'approved');
-        setHistory(approvedHistory);
-        const pendingHistory = (data || []).find(h => h.status === 'pending_approval');
-        if (pendingHistory) setLatestHistoryId(pendingHistory.id);
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setLoadingHistory(false);
-    }
-  }, [id, toast]);
-
-  const fetchApprovals = useCallback(async () => {
-    if (!latestHistoryId) return;
-
-    try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
-      if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/queries/${id}/approvals`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const payload = await res.json();
-        setApprovalQuota(payload.approval_quota || 1);
-        setApprovals(payload.approvals || []);
-        if (payload.latest_history_id) setLatestHistoryId(payload.latest_history_id);
-        const userApproval = (payload.approvals || []).some((a: any) => a.user_id === user?.id);
-        setHasUserApproved(userApproval);
-      } else {
-        const { data: queryData, error: queryError } = await supabase
-          .from('sql_queries')
-          .select('team_id, teams(approval_quota)')
-          .eq('id', id!)
-          .single();
-        if (queryError) throw queryError;
-        const quota = (queryData as QueryWithTeam)?.teams?.approval_quota || 1;
-        setApprovalQuota(quota);
-        const { data: approvalsData, error: approvalsError } = await supabase
-          .from('query_approvals')
-          .select('*')
-          .eq('query_history_id', latestHistoryId);
-        if (approvalsError) throw approvalsError;
-        setApprovals(approvalsData || []);
-        const userApproval = (approvalsData || []).some(a => a.user_id === user?.id);
-        setHasUserApproved(userApproval);
-      }
-    } catch {
-      // Error fetching approvals - silently fail as this is not critical
-    }
-  }, [latestHistoryId, id, user?.id]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -223,7 +230,6 @@ const QueryView = () => {
     
     setUpdating(true);
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
         await getDbAdapter().queries.approve(id, latestHistoryId);
         toast({ title: 'Success', description: 'Approval recorded.' });
@@ -267,10 +273,10 @@ const QueryView = () => {
       await fetchQuery();
       await fetchHistory();
       await fetchApprovals();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to approve query'),
         variant: 'destructive',
       });
     } finally {
@@ -283,7 +289,6 @@ const QueryView = () => {
     
     setUpdating(true);
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
         await getDbAdapter().queries.reject(id, latestHistoryId);
       } else {
@@ -322,10 +327,10 @@ const QueryView = () => {
       // Otherwise refresh data and stay on page
       await fetchQuery();
       await fetchHistory();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to reject query',
+        description: getErrorMessage(error, 'Failed to reject query'),
         variant: 'destructive',
       });
     } finally {
@@ -337,7 +342,6 @@ const QueryView = () => {
     if (!query) return;
 
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
         await getDbAdapter().queries.remove(query.id);
       } else {
@@ -354,10 +358,10 @@ const QueryView = () => {
       });
 
       navigate(`/folder/${query.folder_id}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to delete query'),
         variant: 'destructive',
       });
     }
@@ -384,7 +388,6 @@ const QueryView = () => {
     
     setReverting(true);
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
         await getDbAdapter().queries.update(id, {
           sql_content: selectedHistory.sql_content,
@@ -412,10 +415,10 @@ const QueryView = () => {
       setHistoryModalOpen(false);
       await fetchQuery();
       await fetchHistory();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to revert query'),
         variant: 'destructive',
       });
     } finally {
@@ -448,8 +451,6 @@ const QueryView = () => {
     
     setSubmitting(true);
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
-      
       if (provider === 'rest') {
         await getDbAdapter().queries.submitForApproval(id, query.sql_content, {
           modified_by_email: user.email || '',
@@ -482,10 +483,10 @@ const QueryView = () => {
       setChangeReason('');
       await fetchQuery();
       await fetchHistory();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to submit query for approval'),
         variant: 'destructive',
       });
     } finally {

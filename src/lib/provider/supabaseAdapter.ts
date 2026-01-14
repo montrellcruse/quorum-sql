@@ -19,6 +19,41 @@ import type {
   PendingApprovalQuery,
 } from './types';
 
+type TeamMemberRow = {
+  role: Role | null;
+  teams: Team | null;
+};
+
+type MemberRow = {
+  id: string;
+  user_id: string;
+  role: Role;
+  profiles?: { email?: string | null } | null;
+};
+
+type InvitationRow = {
+  id: string;
+  team_id: string;
+  invited_email: string;
+  role: Role;
+  status: string;
+  invited_by_user_id: string | null;
+  created_at: string;
+  teams?: { name?: string | null } | null;
+  profiles?: { email?: string | null; full_name?: string | null } | null;
+};
+
+const isTeamMemberRow = (row: unknown): row is { role: Role; teams: Team } => {
+  if (!row || typeof row !== 'object') return false;
+  const record = row as Record<string, unknown>;
+  const teams = record.teams;
+  const role = record.role;
+  if (!teams || typeof teams !== 'object') return false;
+  if (typeof role !== 'string') return false;
+  const teamRecord = teams as Record<string, unknown>;
+  return typeof teamRecord.id === 'string' && typeof teamRecord.name === 'string' && typeof teamRecord.admin_id === 'string';
+};
+
 const teams: TeamsRepo = {
   async listForUser() {
     const { data, error } = await supabase
@@ -26,8 +61,8 @@ const teams: TeamsRepo = {
       .select('role, teams:team_id(id, name, approval_quota, admin_id)');
     if (error) throw error;
     const mapped = (data || [])
-      .filter((row: unknown) => (row as { teams: unknown }).teams)
-      .map((row: unknown) => ({ ...((row as { teams: Team }).teams), role: (row as { role: Role }).role })) as (Team & { role?: 'admin' | 'member' })[];
+      .filter(isTeamMemberRow)
+      .map((row) => ({ ...row.teams, role: row.role })) as (Team & { role?: 'admin' | 'member' })[];
     return mapped;
   },
   async getById(id: UUID) {
@@ -77,19 +112,11 @@ const teams: TeamsRepo = {
     if (error) throw error;
   },
   async transferOwnership(id: UUID, newOwnerUserId: UUID) {
-    // Make new owner admin and transfer ownership
-    const { error: memberError } = await supabase
-      .from('team_members')
-      .update({ role: 'admin' })
-      .eq('team_id', id)
-      .eq('user_id', newOwnerUserId);
-    if (memberError) throw memberError;
-    
-    const { error: teamError } = await supabase
-      .from('teams')
-      .update({ admin_id: newOwnerUserId })
-      .eq('id', id);
-    if (teamError) throw teamError;
+    const { error } = await supabase.rpc('transfer_team_ownership', {
+      _team_id: id,
+      _new_owner_user_id: newOwnerUserId,
+    });
+    if (error) throw error;
   },
 };
 
@@ -259,64 +286,12 @@ const queries: QueriesRepo = {
     };
   },
   async getPendingForApproval(teamId: UUID, excludeEmail: string) {
-    const { data: queries, error: queriesError } = await supabase
-      .from('sql_queries')
-      .select(`
-        id,
-        title,
-        description,
-        folder_id,
-        last_modified_by_email,
-        updated_at,
-        folders!inner(name)
-      `)
-      .eq('team_id', teamId)
-      .eq('status', 'pending_approval')
-      .neq('last_modified_by_email', excludeEmail)
-      .order('updated_at', { ascending: false });
-    if (queriesError) throw queriesError;
-
-    const { data: teamData, error: teamError } = await supabase
-      .from('teams')
-      .select('approval_quota')
-      .eq('id', teamId)
-      .single();
-    if (teamError) throw teamError;
-
-    const results: PendingApprovalQuery[] = await Promise.all(
-      (queries || []).map(async (query) => {
-        let approvalCount = 0;
-        const { data: historyData } = await supabase
-          .from('query_history')
-          .select('id')
-          .eq('query_id', query.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (historyData) {
-          const { count } = await supabase
-            .from('query_approvals')
-            .select('*', { count: 'exact', head: true })
-            .eq('query_history_id', historyData.id);
-          approvalCount = count || 0;
-        }
-
-        return {
-          id: query.id,
-          title: query.title,
-          description: query.description,
-          folder_id: query.folder_id,
-          last_modified_by_email: query.last_modified_by_email || '',
-          updated_at: query.updated_at || '',
-          folder_name: (query.folders as unknown as { name: string })?.name || '',
-          approval_count: approvalCount,
-          approval_quota: teamData.approval_quota,
-        };
-      })
-    );
-
-    return results;
+    const { data, error } = await supabase.rpc('get_pending_approvals', {
+      _team_id: teamId,
+      _exclude_email: excludeEmail,
+    });
+    if (error) throw error;
+    return (data || []) as PendingApprovalQuery[];
   },
 };
 
@@ -327,12 +302,13 @@ const members: TeamMembersRepo = {
       .select('id, user_id, role, profiles!inner(email)')
       .eq('team_id', teamId);
     if (error) throw error;
-    return (data || []).map((row: any) => ({
+    const rows = (data || []) as MemberRow[];
+    return rows.map((row) => ({
       id: row.id,
       user_id: row.user_id,
       team_id: teamId,
       role: row.role,
-      email: row.profiles?.email,
+      email: row.profiles?.email ?? undefined,
     })) as TeamMember[];
   },
   async remove(teamId: UUID, memberId: UUID) {
@@ -370,7 +346,8 @@ const invitations: InvitationsRepo = {
       .order('created_at', { ascending: false });
     if (error) throw error;
     
-    return (data || []).map((row: any) => ({
+    const rows = (data || []) as InvitationRow[];
+    return rows.map((row) => ({
       id: row.id,
       team_id: row.team_id,
       invited_email: row.invited_email,
@@ -378,9 +355,9 @@ const invitations: InvitationsRepo = {
       status: row.status,
       invited_by_user_id: row.invited_by_user_id,
       created_at: row.created_at,
-      team_name: row.teams?.name,
-      inviter_email: row.profiles?.email,
-      inviter_full_name: row.profiles?.full_name,
+      team_name: row.teams?.name ?? undefined,
+      inviter_email: row.profiles?.email ?? undefined,
+      inviter_full_name: row.profiles?.full_name ?? undefined,
     })) as TeamInvitation[];
   },
   async listByTeam(teamId: UUID) {
@@ -409,61 +386,10 @@ const invitations: InvitationsRepo = {
     if (error) throw error;
   },
   async accept(id: UUID) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    // Use a transaction-like approach: update invitation status atomically first
-    // This prevents race conditions where two requests could process the same invitation
-
-    // Step 1: Atomically claim the invitation by updating its status
-    // Using a WHERE clause that checks both id AND status='pending' ensures only one
-    // request can successfully update it
-    const { data: invite, error: claimError } = await supabase
-      .from('team_invitations')
-      .update({ status: 'accepted' })
-      .eq('id', id)
-      .eq('status', 'pending')  // Only update if still pending (atomic check)
-      .select('*')
-      .single();
-
-    if (claimError || !invite) {
-      throw new Error('Invitation not found or already processed');
-    }
-
-    // Verify email matches
-    if (invite.invited_email.toLowerCase() !== user.email?.toLowerCase()) {
-      // Rollback the status change
-      await supabase
-        .from('team_invitations')
-        .update({ status: 'pending' })
-        .eq('id', id);
-      throw new Error('This invitation is for a different email');
-    }
-
-    // Step 2: Add to team (invitation is already claimed, so this is safe)
-    const { error: memberError } = await supabase
-      .from('team_members')
-      .insert({
-        team_id: invite.team_id,
-        user_id: user.id,
-        role: invite.role,
-      });
-
-    if (memberError && !memberError.message.includes('duplicate')) {
-      // Rollback the status change on failure
-      await supabase
-        .from('team_invitations')
-        .update({ status: 'pending' })
-        .eq('id', id);
-      throw memberError;
-    }
-
-    // Step 3: Delete the accepted invitation
-    const { error: delError } = await supabase
-      .from('team_invitations')
-      .delete()
-      .eq('id', id);
-    if (delError) throw delError;
+    const { error } = await supabase.rpc('accept_team_invitation', {
+      _invitation_id: id,
+    });
+    if (error) throw error;
   },
   async decline(id: UUID) {
     const { error } = await supabase

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,10 +17,15 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { checkPendingInvitationsCount, getPendingApprovalsCount } from '@/utils/teamUtils';
+import { getDbProviderType } from '@/lib/provider/env';
+import { getErrorMessage } from '@/utils/errors';
+import type { SqlQuery } from '@/lib/provider/types';
 
 interface Folder {
   id: string;
   name: string;
+  team_id: string;
+  parent_folder_id?: string | null;
   description?: string | null;
   created_at?: string;
   created_by_email?: string | null;
@@ -53,17 +58,20 @@ const Dashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  const provider = getDbProviderType();
+  const activeTeamId = activeTeam?.id;
 
   // Define callbacks BEFORE useEffects that reference them
   const checkAdminStatus = useCallback(async () => {
     try {
       const adapter = getDbAdapter();
       const teams = await adapter.teams.listForUser();
-      const current = teams.find(t => t.id === activeTeam?.id);
-      setIsAdmin((current as { role?: string })?.role === 'admin');
+      const current = teams.find((team) => team.id === activeTeam?.id);
+      setIsAdmin(current?.role === 'admin');
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Error checking admin status:', { message });
+      if (import.meta.env.DEV) {
+        console.error('Error checking admin status:', getErrorMessage(error, 'Unknown error'));
+      }
     }
   }, [activeTeam?.id]);
 
@@ -79,19 +87,31 @@ const Dashboard = () => {
     setPendingApprovalsCount(count);
   }, [user?.email, activeTeam]);
 
+  const pendingInvitesRef = useRef(fetchPendingInvitesCount);
+  const pendingApprovalsRef = useRef(fetchPendingApprovalsCount);
+
+  useEffect(() => {
+    pendingInvitesRef.current = fetchPendingInvitesCount;
+  }, [fetchPendingInvitesCount]);
+
+  useEffect(() => {
+    pendingApprovalsRef.current = fetchPendingApprovalsCount;
+  }, [fetchPendingApprovalsCount]);
+
   const fetchProjects = useCallback(async () => {
     if (!activeTeam) return;
     
     try {
       const adapter = getDbAdapter();
       const data = await adapter.folders.listByTeam(activeTeam.id);
-      const roots = (data || []).filter((f: unknown) => (f as Folder & { parent_folder_id?: string }).parent_folder_id == null).sort((a, b) => a.name.localeCompare(b.name));
+      const roots = (data || [])
+        .filter((folder) => folder.parent_folder_id == null)
+        .sort((a, b) => a.name.localeCompare(b.name));
       setProjects(roots);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch projects';
       toast({
         title: 'Error',
-        description: message,
+        description: getErrorMessage(error, 'Failed to fetch projects'),
         variant: 'destructive'
       });
     } finally {
@@ -114,23 +134,27 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (user?.email) {
-      fetchPendingInvitesCount();
-      
+      pendingInvitesRef.current();
+
       // Poll every 60 seconds for new invitations
-      const interval = setInterval(fetchPendingInvitesCount, 60000);
+      const interval = setInterval(() => {
+        pendingInvitesRef.current();
+      }, 60000);
       return () => clearInterval(interval);
     }
-  }, [user?.email, fetchPendingInvitesCount]);
+  }, [user?.email]);
 
   useEffect(() => {
-    if (user?.email && activeTeam) {
-      fetchPendingApprovalsCount();
-      
+    if (user?.email && activeTeamId) {
+      pendingApprovalsRef.current();
+
       // Poll every 60 seconds for new approvals
-      const interval = setInterval(fetchPendingApprovalsCount, 60000);
+      const interval = setInterval(() => {
+        pendingApprovalsRef.current();
+      }, 60000);
       return () => clearInterval(interval);
     }
-  }, [user?.email, activeTeam, fetchPendingApprovalsCount]);
+  }, [user?.email, activeTeamId]);
 
   const handleCreateProject = async () => {
     if (!newProject.name.trim()) {
@@ -181,10 +205,10 @@ const Dashboard = () => {
       setNewProject({ name: '', description: '' });
       setDialogOpen(false);
       fetchProjects();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to create folder'),
         variant: 'destructive'
       });
     }
@@ -204,18 +228,18 @@ const Dashboard = () => {
       const adapter = getDbAdapter();
       const data = await adapter.queries.search({ teamId: activeTeam.id, q: searchTerm.trim() });
       // Folder name not guaranteed in REST adapter results; default to Unknown
-      const map: SearchResult[] = (data || []).map((q: any) => ({
+      const map: SearchResult[] = (data || []).map((q: SqlQuery & { folder_name?: string | null }) => ({
         id: q.id,
         title: q.title,
-        description: q.description,
-        folder_id: q.folder_id,
-        folder_name: (q.folder_name as string) || 'Unknown Folder',
+        description: q.description ?? null,
+        folder_id: q.folder_id || '',
+        folder_name: q.folder_name || 'Unknown Folder',
       }));
       setSearchResults(map);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to search queries'),
         variant: 'destructive'
       });
     } finally {
@@ -225,7 +249,7 @@ const Dashboard = () => {
 
   const handleSignOut = async () => {
     try {
-      if ((import.meta.env.VITE_DB_PROVIDER || 'supabase') === 'rest') {
+      if (provider === 'rest') {
         await restAuthAdapter.signOut();
       } else {
         const { error } = await supabase.auth.signOut();
@@ -233,10 +257,10 @@ const Dashboard = () => {
       }
       toast({ title: 'Signed out', description: 'Successfully signed out.' });
       navigate('/auth');
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error?.message || 'Failed to sign out',
+        description: getErrorMessage(error, 'Failed to sign out'),
         variant: 'destructive'
       });
     }

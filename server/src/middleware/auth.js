@@ -1,6 +1,6 @@
 import { jwtVerify, createRemoteJWKSet } from 'jose';
 import bcrypt from 'bcrypt';
-import { securityConfig, supabaseConfig, isProd } from '../config.js';
+import { securityConfig, supabaseConfig } from '../config.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -95,7 +95,7 @@ export async function getSessionUser(req) {
   }
 
   // 3. Dev-only authentication (explicit opt-in required, never in production)
-  if (securityConfig.devAuthEnabled && !isProd) {
+  if (securityConfig.devAuthEnabled) {
     const devUserId = req.headers['x-dev-user-id'];
     if (devUserId) {
       if (!isValidUUID(devUserId)) {
@@ -116,6 +116,29 @@ export async function getSessionUser(req) {
   return null;
 }
 
+function getTeamRoleCache(req) {
+  if (!req) return null;
+  if (!req.teamRoleCache) {
+    req.teamRoleCache = new Map();
+  }
+  return req.teamRoleCache;
+}
+
+async function getTeamRole(client, userId, teamId, req) {
+  const cache = getTeamRoleCache(req);
+  const cacheKey = `${userId}:${teamId}`;
+  if (cache?.has(cacheKey)) {
+    return cache.get(cacheKey);
+  }
+  const { rows } = await client.query(
+    `SELECT role FROM public.team_members WHERE user_id = $1 AND team_id = $2`,
+    [userId, teamId]
+  );
+  const role = rows[0]?.role || null;
+  cache?.set(cacheKey, role);
+  return role;
+}
+
 export function requireAuth(handler) {
   return async (req, reply) => {
     const user = await getSessionUser(req);
@@ -129,11 +152,8 @@ export function requireAuth(handler) {
 }
 
 export async function requireTeamAdmin(client, userId, teamId, req) {
-  const { rows } = await client.query(
-    `SELECT 1 FROM public.team_members WHERE user_id = $1 AND team_id = $2 AND role = 'admin'`,
-    [userId, teamId]
-  );
-  if (rows.length === 0) {
+  const role = await getTeamRole(client, userId, teamId, req);
+  if (role !== 'admin') {
     req?.log?.warn({ userId, teamId }, 'AUTH FAILURE: User is not team admin');
     return false;
   }
@@ -141,11 +161,8 @@ export async function requireTeamAdmin(client, userId, teamId, req) {
 }
 
 export async function requireTeamMember(client, userId, teamId, req) {
-  const { rows } = await client.query(
-    `SELECT 1 FROM public.team_members WHERE user_id = $1 AND team_id = $2`,
-    [userId, teamId]
-  );
-  if (rows.length === 0) {
+  const role = await getTeamRole(client, userId, teamId, req);
+  if (!role) {
     req?.log?.warn({ userId, teamId }, 'AUTH FAILURE: User is not team member');
     return false;
   }

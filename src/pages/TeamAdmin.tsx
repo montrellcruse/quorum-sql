@@ -13,6 +13,8 @@ import { Loader2, ArrowLeft, Trash2, UserCog, Shield, ShieldOff } from 'lucide-r
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { emailSchema } from '@/lib/validationSchemas';
 import { getDbAdapter } from '@/lib/provider';
+import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
+import { getErrorMessage } from '@/utils/errors';
 
 interface Team {
   id: string;
@@ -53,27 +55,12 @@ const TeamAdmin = () => {
   const [approvalQuota, setApprovalQuota] = useState(1);
   const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
+  const provider = getDbProviderType();
 
   // Helper function to check if a member is the team owner
   const isTeamOwner = (userId: string) => {
     return selectedTeam?.admin_id === userId;
   };
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/auth');
-    } else if (user) {
-      checkAdminAccess();
-    }
-  }, [user, authLoading, navigate, checkAdminAccess]);
-
-  useEffect(() => {
-    if (selectedTeamId) {
-      fetchTeamDetails();
-      fetchTeamMembers();
-      fetchPendingInvitations();
-    }
-  }, [selectedTeamId, fetchTeamDetails, fetchTeamMembers, fetchPendingInvitations]);
 
   const checkAdminAccess = useCallback(async () => {
     try {
@@ -98,10 +85,10 @@ const TeamAdmin = () => {
 
       // Default to activeTeam if it's in admin list, otherwise first admin team
       setSelectedTeamId(activeTeamIsAdmin ? activeTeam.id : adminTeams[0].id);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to load teams'),
         variant: 'destructive',
       });
       navigate('/dashboard');
@@ -116,10 +103,10 @@ const TeamAdmin = () => {
       if (!team) throw new Error('Team not found');
       setSelectedTeam(team);
       setApprovalQuota(team.approval_quota);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to load team details'),
         variant: 'destructive',
       });
     }
@@ -127,13 +114,11 @@ const TeamAdmin = () => {
 
   const fetchTeamMembers = useCallback(async () => {
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/members`, { credentials: 'include' });
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/members`, { credentials: 'include' });
         if (!res.ok) throw new Error(await res.text());
-        const rows = await res.json();
+        const rows = (await res.json()) as TeamMember[];
         setMembers(rows || []);
       } else {
         const { data, error } = await supabase
@@ -153,24 +138,22 @@ const TeamAdmin = () => {
         }));
         setMembers(membersWithEmails);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to load team members'),
         variant: 'destructive',
       });
     }
-  }, [selectedTeamId, toast]);
+  }, [selectedTeamId, toast, provider]);
 
   const fetchPendingInvitations = useCallback(async () => {
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/invites`, { credentials: 'include' });
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/invites`, { credentials: 'include' });
         if (!res.ok) throw new Error(await res.text());
-        const rows = await res.json();
+        const rows = (await res.json()) as TeamInvitation[];
         setInvitations(rows || []);
       } else {
         const { data, error } = await supabase
@@ -182,14 +165,30 @@ const TeamAdmin = () => {
         if (error) throw error;
         setInvitations(data || []);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to load invitations'),
         variant: 'destructive',
       });
     }
-  }, [selectedTeamId, toast]);
+  }, [selectedTeamId, toast, provider]);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth');
+    } else if (user) {
+      checkAdminAccess();
+    }
+  }, [user, authLoading, navigate, checkAdminAccess]);
+
+  useEffect(() => {
+    if (selectedTeamId) {
+      fetchTeamDetails();
+      fetchTeamMembers();
+      fetchPendingInvitations();
+    }
+  }, [selectedTeamId, fetchTeamDetails, fetchTeamMembers, fetchPendingInvitations]);
 
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,6 +196,10 @@ const TeamAdmin = () => {
 
     try {
       const email = newUserEmail.trim();
+      if (!user?.id) {
+        toast({ title: 'Error', description: 'Missing user context', variant: 'destructive' });
+        return;
+      }
 
       // Validate email using zod schema
       const validation = emailSchema.safeParse(email);
@@ -209,11 +212,9 @@ const TeamAdmin = () => {
         return;
       }
 
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/invites`, {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/invites`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -235,7 +236,7 @@ const TeamAdmin = () => {
         }
         const { error } = await supabase
           .from('team_invitations')
-          .insert([{ team_id: selectedTeamId, invited_email: email, role: newUserRole, status: 'pending', invited_by_user_id: user!.id }]);
+          .insert([{ team_id: selectedTeamId, invited_email: email, role: newUserRole, status: 'pending', invited_by_user_id: user.id }]);
         if (error) throw error;
       }
 
@@ -247,10 +248,10 @@ const TeamAdmin = () => {
       setNewUserEmail('');
       setNewUserRole('member');
       fetchPendingInvitations();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to send invitation'),
         variant: 'destructive',
       });
     }
@@ -258,11 +259,9 @@ const TeamAdmin = () => {
 
   const handleRevokeInvitation = async (invitationId: string) => {
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/invites/${invitationId}`, {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/invites/${invitationId}`, {
           method: 'DELETE',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -281,10 +280,10 @@ const TeamAdmin = () => {
         description: 'Invitation revoked successfully.',
       });
       fetchPendingInvitations();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to revoke invitation'),
         variant: 'destructive',
       });
     }
@@ -294,7 +293,6 @@ const TeamAdmin = () => {
     try {
       // If removing an admin, check if they're the last admin
       if (memberRole === 'admin') {
-        const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
         if (provider !== 'rest') {
           const { count, error: countError } = await supabase
             .from('team_members')
@@ -313,11 +311,9 @@ const TeamAdmin = () => {
         }
         // In REST mode, rely on server/DB constraints or skip soft check
       }
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/members/${memberId}`, {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/members/${memberId}`, {
           method: 'DELETE',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -336,10 +332,10 @@ const TeamAdmin = () => {
         description: 'Member removed successfully.',
       });
       fetchTeamMembers();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to remove member'),
         variant: 'destructive',
       });
     }
@@ -351,7 +347,6 @@ const TeamAdmin = () => {
     try {
       // If demoting from admin to member, check if they're the last admin
       if (currentRole === 'admin' && newRole === 'member') {
-        const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
         if (provider !== 'rest') {
           const { count, error: countError } = await supabase
             .from('team_members')
@@ -366,11 +361,9 @@ const TeamAdmin = () => {
         }
       }
 
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/members/${memberId}`, {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/members/${memberId}`, {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -390,10 +383,10 @@ const TeamAdmin = () => {
         description: `Member role updated to ${newRole}.`,
       });
       fetchTeamMembers();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to update member role'),
         variant: 'destructive',
       });
     }
@@ -402,11 +395,9 @@ const TeamAdmin = () => {
   const handleUpdateApprovalQuota = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}`, {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/teams/${selectedTeamId}`, {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -426,10 +417,10 @@ const TeamAdmin = () => {
         description: 'Approval quota updated successfully.',
       });
       fetchTeamDetails();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to update approval quota'),
         variant: 'destructive',
       });
     }
@@ -439,11 +430,9 @@ const TeamAdmin = () => {
     if (!selectedNewOwner) return;
 
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/teams/${selectedTeamId}/transfer-ownership`, {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/transfer-ownership`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -451,17 +440,7 @@ const TeamAdmin = () => {
         });
         if (!res.ok) throw new Error(await res.text());
       } else {
-        const { error: roleError } = await supabase
-          .from('team_members')
-          .update({ role: 'admin' })
-          .eq('team_id', selectedTeamId)
-          .eq('user_id', selectedNewOwner);
-        if (roleError) throw roleError;
-        const { error: ownerError } = await supabase
-          .from('teams')
-          .update({ admin_id: selectedNewOwner })
-          .eq('id', selectedTeamId);
-        if (ownerError) throw ownerError;
+        await getDbAdapter().teams.transferOwnership(selectedTeamId, selectedNewOwner);
       }
 
       toast({
@@ -473,10 +452,10 @@ const TeamAdmin = () => {
       fetchTeamDetails();
       fetchTeamMembers();
       checkAdminAccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to transfer ownership'),
         variant: 'destructive',
       });
     }
@@ -702,7 +681,14 @@ const TeamAdmin = () => {
                       type="number"
                       min="1"
                       value={approvalQuota}
-                      onChange={(e) => setApprovalQuota(parseInt(e.target.value))}
+                      onChange={(e) => {
+                        const next = Number.parseInt(e.target.value, 10);
+                        if (Number.isNaN(next)) {
+                          setApprovalQuota(1);
+                          return;
+                        }
+                        setApprovalQuota(next);
+                      }}
                       required
                     />
                   </div>

@@ -17,6 +17,8 @@ import { Label } from '@/components/ui/label';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { folderSchema } from '@/lib/validationSchemas';
 import type { Tables, TablesInsert } from '@/integrations/supabase/types';
+import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
+import { getErrorMessage } from '@/utils/errors';
 
 type FolderRow = Tables<'folders'>;
 
@@ -55,6 +57,129 @@ const Folder = () => {
   const [editDescription, setEditDescription] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderDescription, setNewFolderDescription] = useState('');
+  const provider = getDbProviderType();
+
+  const fetchFolder = useCallback(async () => {
+    try {
+      if (!id) {
+        setLoadingFolder(false);
+        return;
+      }
+      if (provider === 'rest') {
+        const f = await getDbAdapter().folders.getById(id);
+        if (!f) {
+          toast({ title: 'Error', description: 'Folder not found', variant: 'destructive' });
+          navigate('/dashboard');
+          return;
+        }
+        setFolder(f as FolderRow);
+      } else {
+        const { data, error } = await supabase
+          .from('folders')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) {
+          toast({ title: 'Error', description: 'Folder not found', variant: 'destructive' });
+          navigate('/dashboard');
+          return;
+        }
+        setFolder(data);
+      }
+    } catch (error: unknown) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(error, 'Failed to load folder'),
+        variant: 'destructive',
+      });
+      navigate('/dashboard');
+    } finally {
+      setLoadingFolder(false);
+    }
+  }, [id, toast, navigate, provider]);
+
+  const fetchQueries = useCallback(async () => {
+    try {
+      if (!id) {
+        setLoadingQueries(false);
+        return;
+      }
+      if (provider === 'rest') {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/folders/${id}/queries`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const rows = (await res.json()) as Query[];
+        setQueries(rows || []);
+      } else {
+        const { data, error } = await supabase
+          .from('sql_queries')
+          .select('id, title, status, description, created_at, created_by_email, last_modified_by_email, updated_at')
+          .eq('folder_id', id)
+          .order('updated_at', { ascending: false });
+        if (error) throw error;
+        setQueries(data || []);
+      }
+    } catch (error: unknown) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(error, 'Failed to load queries'),
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingQueries(false);
+    }
+  }, [id, toast, provider]);
+
+  const fetchChildFolders = useCallback(async () => {
+    try {
+      if (!id) {
+        setLoadingChildFolders(false);
+        return;
+      }
+      if (provider === 'rest') {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/folders/${id}/children`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const rows = (await res.json()) as FolderRow[];
+        setChildFolders(rows || []);
+      } else {
+        const { data, error } = await supabase
+          .from('folders')
+          .select('*')
+          .eq('parent_folder_id', id)
+          .order('name', { ascending: true });
+        if (error) throw error;
+        setChildFolders(data || []);
+      }
+    } catch (error: unknown) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(error, 'Failed to load child folders'),
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingChildFolders(false);
+    }
+  }, [id, toast, provider]);
+
+  const fetchBreadcrumbs = useCallback(async () => {
+    if (!id) return;
+    const crumbs: BreadcrumbFolder[] = [];
+    let currentId: string | null = id;
+    try {
+      const adapter = getDbAdapter();
+      while (currentId) {
+        const f = await adapter.folders.getById(currentId);
+        if (!f) break;
+        crumbs.unshift({ id: f.id as string, name: f.name as string });
+        currentId = f.parent_folder_id ?? null;
+      }
+      setBreadcrumbs(crumbs);
+    } catch (error: unknown) {
+      toast({ title: 'Error', description: getErrorMessage(error, 'Failed to load breadcrumbs'), variant: 'destructive' });
+    }
+  }, [id, toast]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -70,121 +195,6 @@ const Folder = () => {
       fetchBreadcrumbs();
     }
   }, [user, id, fetchFolder, fetchQueries, fetchChildFolders, fetchBreadcrumbs]);
-
-  const fetchFolder = useCallback(async () => {
-    try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
-      if (provider === 'rest') {
-        const f = await getDbAdapter().folders.getById(id!);
-        if (!f) {
-          toast({ title: 'Error', description: 'Folder not found', variant: 'destructive' });
-          navigate('/dashboard');
-          return;
-        }
-        setFolder(f as FolderRow);
-      } else {
-        const { data, error } = await supabase
-          .from('folders')
-          .select('*')
-          .eq('id', id!)
-          .maybeSingle();
-        if (error) throw error;
-        if (!data) {
-          toast({ title: 'Error', description: 'Folder not found', variant: 'destructive' });
-          navigate('/dashboard');
-          return;
-        }
-        setFolder(data);
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-      navigate('/dashboard');
-    } finally {
-      setLoadingFolder(false);
-    }
-  }, [id, toast, navigate]);
-
-  const fetchQueries = useCallback(async () => {
-    try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
-      if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/${id}/queries`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const rows = await res.json();
-        setQueries(rows || []);
-      } else {
-        const { data, error } = await supabase
-          .from('sql_queries')
-          .select('id, title, status, description, created_at, created_by_email, last_modified_by_email, updated_at')
-          .eq('folder_id', id!)
-          .order('updated_at', { ascending: false });
-        if (error) throw error;
-        setQueries(data || []);
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setLoadingQueries(false);
-    }
-  }, [id, toast]);
-
-  const fetchChildFolders = useCallback(async () => {
-    try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
-      if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/${id}/children`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const rows = await res.json();
-        setChildFolders(rows || []);
-      } else {
-        const { data, error } = await supabase
-          .from('folders')
-          .select('*')
-          .eq('parent_folder_id', id!)
-          .order('name', { ascending: true });
-        if (error) throw error;
-        setChildFolders(data || []);
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setLoadingChildFolders(false);
-    }
-  }, [id, toast]);
-
-  const fetchBreadcrumbs = useCallback(async () => {
-    if (!id) return;
-    const crumbs: BreadcrumbFolder[] = [];
-    let currentId: string | null = id;
-    try {
-      const adapter = getDbAdapter();
-      while (currentId) {
-        const f = await adapter.folders.getById(currentId);
-        if (!f) break;
-        crumbs.unshift({ id: f.id as string, name: f.name as string });
-        currentId = f.parent_folder_id ?? null;
-      }
-      setBreadcrumbs(crumbs);
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    }
-  }, [id, toast]);
 
   const getStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
     switch (status.toLowerCase()) {
@@ -226,11 +236,9 @@ const Folder = () => {
     }
 
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/${folder.id}`, {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/folders/${folder.id}`, {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -252,10 +260,10 @@ const Folder = () => {
 
       setFolder({ ...folder, name: validation.data.name, description: validation.data.description || null });
       setEditDialogOpen(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to update folder'),
         variant: 'destructive',
       });
     }
@@ -292,11 +300,9 @@ const Folder = () => {
     if (!folder) return;
 
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/${folder.id}`, {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/folders/${folder.id}`, {
           method: 'DELETE',
           credentials: 'include',
         });
@@ -320,10 +326,10 @@ const Folder = () => {
       } else {
         navigate('/dashboard');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to delete folder'),
         variant: 'destructive',
       });
     }
@@ -346,28 +352,32 @@ const Folder = () => {
     }
 
     try {
-      const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
+      if (!id) {
+        toast({ title: 'Error', description: 'Missing folder ID', variant: 'destructive' });
+        return;
+      }
+      const folderId = id;
+      const teamId = activeTeam?.id ?? folder?.team_id;
+      if (!teamId) {
+        toast({ title: 'Error', description: 'Missing team context', variant: 'destructive' });
+        return;
+      }
+
       if (provider === 'rest') {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
-        if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
+        const apiBase = getApiBaseUrl();
         // Duplicate check via children list
-        const res = await fetch(`${API_BASE.replace(/\/$/, '')}/folders/${id}/children`, { credentials: 'include' });
+        const res = await fetch(`${apiBase}/folders/${folderId}/children`, { credentials: 'include' });
         if (!res.ok) throw new Error(await res.text());
-        const children = await res.json();
-        const dup = (children || []).find((c: any) => c.name?.toLowerCase() === validation.data.name.toLowerCase());
+        const children = (await res.json()) as FolderRow[];
+        const dup = (children || []).find((child) => child.name?.toLowerCase() === validation.data.name.toLowerCase());
         if (dup) {
           toast({ title: 'Error', description: 'A folder with this name already exists in this folder.', variant: 'destructive' });
-          return;
-        }
-        const teamId = activeTeam?.id ?? folder?.team_id;
-        if (!teamId) {
-          toast({ title: 'Error', description: 'Missing team context', variant: 'destructive' });
           return;
         }
         await getDbAdapter().folders.create({
           name: validation.data.name,
           description: validation.data.description,
-          parent_folder_id: id,
+          parent_folder_id: folderId,
           user_id: user?.id ?? '',
           created_by_email: user?.email || '',
           team_id: teamId,
@@ -378,7 +388,7 @@ const Folder = () => {
           .from('folders')
           .select('id')
           .eq('name', validation.data.name)
-          .eq('parent_folder_id', id!)
+          .eq('parent_folder_id', folderId)
           .maybeSingle();
         if (checkError) throw checkError;
         if (existingFolder) {
@@ -390,10 +400,10 @@ const Folder = () => {
           .insert({
             name: validation.data.name,
             description: validation.data.description,
-            parent_folder_id: id!,
+            parent_folder_id: folderId,
             user_id: user?.id ?? '',
             created_by_email: user?.email || '',
-            team_id: activeTeam?.id || folder?.team_id || '',
+            team_id: teamId,
           } satisfies TablesInsert<'folders'>);
         if (error) throw error;
       }
@@ -407,10 +417,10 @@ const Folder = () => {
       setNewFolderDescription('');
       setNewFolderDialogOpen(false);
       fetchChildFolders();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to create folder'),
         variant: 'destructive',
       });
     }

@@ -1,14 +1,20 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
+import { getErrorMessage } from '@/utils/errors';
 
-const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
-const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const provider = getDbProviderType();
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
-  if (!API_BASE) throw new Error('VITE_API_BASE_URL is not set');
-  const res = await fetch(`${API_BASE.replace(/\/$/, '')}${path}`, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  });
+  const apiBase = getApiBaseUrl();
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase}${path}`, {
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      ...init,
+    });
+  } catch (error: unknown) {
+    throw new Error(`Network error: ${getErrorMessage(error, 'request failed')}`);
+  }
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<T>;
 }
@@ -16,7 +22,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 export const checkUserTeamMembership = async (userId: string): Promise<boolean> => {
   try {
     if (provider === 'rest') {
-      const teams = await http<any[]>('/teams');
+      const teams = await http<unknown[]>('/teams');
       return Array.isArray(teams) && teams.length > 0;
     } else {
       const { data, error } = await supabase
@@ -27,7 +33,7 @@ export const checkUserTeamMembership = async (userId: string): Promise<boolean> 
       if (error) return false;
       return !!(data && data.length > 0);
     }
-  } catch (error: any) {
+  } catch {
     return false;
   }
 };
@@ -35,7 +41,7 @@ export const checkUserTeamMembership = async (userId: string): Promise<boolean> 
 export const checkPendingInvitations = async (email: string): Promise<boolean> => {
   try {
     if (provider === 'rest') {
-      const invites = await http<any[]>('/invites/mine');
+      const invites = await http<unknown[]>('/invites/mine');
       return Array.isArray(invites) && invites.length > 0;
     } else {
       const { data, error } = await supabase
@@ -47,7 +53,7 @@ export const checkPendingInvitations = async (email: string): Promise<boolean> =
       if (error) return false;
       return !!(data && data.length > 0);
     }
-  } catch (error: any) {
+  } catch {
     return false;
   }
 };
@@ -55,7 +61,7 @@ export const checkPendingInvitations = async (email: string): Promise<boolean> =
 export const checkPendingInvitationsCount = async (email: string): Promise<number> => {
   try {
     if (provider === 'rest') {
-      const invites = await http<any[]>('/invites/mine');
+      const invites = await http<unknown[]>('/invites/mine');
       return Array.isArray(invites) ? invites.length : 0;
     } else {
       const { count, error } = await supabase
@@ -66,7 +72,7 @@ export const checkPendingInvitationsCount = async (email: string): Promise<numbe
       if (error) return 0;
       return count || 0;
     }
-  } catch (error: any) {
+  } catch {
     return 0;
   }
 };
@@ -75,7 +81,7 @@ export const getPendingApprovalsCount = async (teamId: string, userEmail: string
   try {
     if (provider === 'rest') {
       const params = new URLSearchParams({ teamId, excludeEmail: userEmail });
-      const rows = await http<any[]>(`/approvals?${params.toString()}`);
+      const rows = await http<unknown[]>(`/approvals?${params.toString()}`);
       return Array.isArray(rows) ? rows.length : 0;
     } else {
       const { count, error } = await supabase
@@ -87,7 +93,7 @@ export const getPendingApprovalsCount = async (teamId: string, userEmail: string
       if (error) return 0;
       return count || 0;
     }
-  } catch (error: any) {
+  } catch {
     return 0;
   }
 };

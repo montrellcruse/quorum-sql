@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { getDbAdapter } from '@/lib/provider';
 import { useAuth } from '@/contexts/AuthContext';
 import type { TeamWithRole } from '@/integrations/supabase/types';
+import { getErrorMessage } from '@/utils/errors';
 
 interface Team {
   id: string;
@@ -39,18 +40,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const [activeTeam, setActiveTeamState] = useState<Team | null>(null);
   const [userTeams, setUserTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const fetchSeq = useRef(0);
 
-  useEffect(() => {
-    if (user) {
-      fetchUserTeams();
-    } else {
-      setUserTeams([]);
-      setActiveTeamState(null);
-      setLoading(false);
-    }
-  }, [user]);
-
-  const fetchUserTeams = async () => {
+  const fetchUserTeams = useCallback(async () => {
+    const seq = ++fetchSeq.current;
     try {
       const adapter = getDbAdapter();
       const data = await adapter.teams.listForUser();
@@ -64,6 +57,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       }
       const unique = Array.from(dedupMap.values()).sort((a, b) => a.name.localeCompare(b.name));
 
+      if (seq !== fetchSeq.current) return;
       setUserTeams(unique);
 
       // Set active team
@@ -75,18 +69,36 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         // If stored team exists and user is still a member, use it
         // Otherwise default to first team
         const teamToActivate = storedTeam || unique[0];
+        if (seq !== fetchSeq.current) return;
         setActiveTeamState(teamToActivate);
       } else {
+        if (seq !== fetchSeq.current) return;
         setActiveTeamState(null);
       }
-    } catch (error: any) {
-      console.error('Error fetching user teams:', { message: error?.message });
+    } catch (error: unknown) {
+      if (import.meta.env.DEV) {
+        console.error('Error fetching user teams:', getErrorMessage(error, 'Unknown error'));
+      }
+      if (seq !== fetchSeq.current) return;
       setUserTeams([]);
       setActiveTeamState(null);
     } finally {
+      if (seq === fetchSeq.current) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserTeams();
+    } else {
+      fetchSeq.current += 1;
+      setUserTeams([]);
+      setActiveTeamState(null);
       setLoading(false);
     }
-  };
+  }, [user, fetchUserTeams]);
 
   const setActiveTeam = (team: Team) => {
     setActiveTeamState(team);
