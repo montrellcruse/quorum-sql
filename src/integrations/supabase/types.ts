@@ -581,3 +581,46 @@ export const Constants = {
     },
   },
 } as const
+
+// ============================================
+// Helper types for joined queries and RPC results
+// ============================================
+
+/** Team with user's role (from team_members join) */
+export interface TeamWithRole extends Tables<'teams'> {
+  role: Enums<'app_role'>;
+}
+
+/** SQL query with joined team data */
+export interface QueryWithTeam extends Tables<'sql_queries'> {
+  teams: Pick<Tables<'teams'>, 'approval_quota'> | null;
+}
+
+/** RPC result for approve_query_with_quota */
+export interface ApproveQueryResult {
+  success: boolean;
+  message: string;
+  final_status?: string;
+  approval_count?: number;
+  required_approvals?: number;
+}
+
+/** RPC result for reject_query_with_authorization */
+export interface RejectQueryResult {
+  success: boolean;
+  message: string;
+}
+
+/** RPC result for submit_query_for_approval */
+export interface SubmitQueryResult {
+  success: boolean;
+  message: string;
+  history_id?: string;
+}
+
+/** RPC result for update_query_status */
+export interface UpdateQueryStatusResult {
+  success: boolean;
+  message: string;
+  new_status?: string;
+}

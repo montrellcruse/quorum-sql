@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
@@ -65,8 +65,7 @@ const TeamAdmin = () => {
     } else if (user) {
       checkAdminAccess();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, checkAdminAccess]);
 
   useEffect(() => {
     if (selectedTeamId) {
@@ -74,10 +73,9 @@ const TeamAdmin = () => {
       fetchTeamMembers();
       fetchPendingInvitations();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTeamId]);
+  }, [selectedTeamId, fetchTeamDetails, fetchTeamMembers, fetchPendingInvitations]);
 
-  const checkAdminAccess = async () => {
+  const checkAdminAccess = useCallback(async () => {
     try {
       const adapter = getDbAdapter();
       const teamsForUser = await adapter.teams.listForUser();
@@ -94,10 +92,10 @@ const TeamAdmin = () => {
       }
 
       setTeams(adminTeams);
-      
+
       // Check if activeTeam is in the admin teams list
       const activeTeamIsAdmin = activeTeam && adminTeams.some(t => t.id === activeTeam.id);
-      
+
       // Default to activeTeam if it's in admin list, otherwise first admin team
       setSelectedTeamId(activeTeamIsAdmin ? activeTeam.id : adminTeams[0].id);
     } catch (error: any) {
@@ -110,9 +108,9 @@ const TeamAdmin = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast, navigate, activeTeam]);
 
-  const fetchTeamDetails = async () => {
+  const fetchTeamDetails = useCallback(async () => {
     try {
       const team = await getDbAdapter().teams.getById(selectedTeamId);
       if (!team) throw new Error('Team not found');
@@ -125,9 +123,9 @@ const TeamAdmin = () => {
         variant: 'destructive',
       });
     }
-  };
+  }, [selectedTeamId, toast]);
 
-  const fetchTeamMembers = async () => {
+  const fetchTeamMembers = useCallback(async () => {
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
@@ -162,9 +160,9 @@ const TeamAdmin = () => {
         variant: 'destructive',
       });
     }
-  };
+  }, [selectedTeamId, toast]);
 
-  const fetchPendingInvitations = async () => {
+  const fetchPendingInvitations = useCallback(async () => {
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
@@ -191,7 +189,7 @@ const TeamAdmin = () => {
         variant: 'destructive',
       });
     }
-  };
+  }, [selectedTeamId, toast]);
 
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -332,14 +330,6 @@ const TeamAdmin = () => {
           .eq('id', memberId);
         if (error) throw error;
       }
-
-      // Proceed with removal
-      const { error } = await supabase
-        .from('team_members')
-        .delete()
-        .eq('id', memberId);
-
-      if (error) throw error;
 
       toast({
         title: 'Success',

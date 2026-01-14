@@ -23,6 +23,31 @@ const AUTH_PROVIDERS = (import.meta.env.VITE_AUTH_PROVIDERS || 'google')
 const hasGoogleAuth = AUTH_PROVIDERS.includes('google');
 const hasEmailAuth = AUTH_PROVIDERS.includes('email');
 
+/**
+ * Validate password meets security requirements
+ */
+function validatePassword(password: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  if (password.length < 8) {
+    errors.push('at least 8 characters');
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push('one uppercase letter');
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push('one lowercase letter');
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push('one number');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
 const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -36,6 +61,8 @@ const Auth = () => {
 
   // Redirect if already logged in
   useEffect(() => {
+    let mounted = true;
+
     const redirectUser = async () => {
       if (user && user.email) {
         // Validate domain if restriction is set
@@ -45,6 +72,7 @@ const Auth = () => {
           } else {
             await supabase.auth.signOut();
           }
+          if (!mounted) return;
           toast({
             title: 'Access Denied',
             description: `Only ${ALLOWED_DOMAIN} email addresses are allowed.`,
@@ -55,6 +83,7 @@ const Auth = () => {
 
         // Check for pending invitations first
         const hasPendingInvites = await checkPendingInvitations(user.email);
+        if (!mounted) return;
 
         if (hasPendingInvites) {
           navigate('/accept-invites');
@@ -63,6 +92,8 @@ const Auth = () => {
 
         // If no pending invitations, check team membership
         const hasTeam = await checkUserTeamMembership(user.id);
+        if (!mounted) return;
+
         if (hasTeam) {
           navigate('/dashboard');
         } else {
@@ -71,6 +102,10 @@ const Auth = () => {
       }
     };
     redirectUser();
+
+    return () => {
+      mounted = false;
+    };
   }, [user, navigate, toast, provider]);
 
   const validateEmailDomain = (emailToCheck: string): boolean => {
@@ -157,10 +192,11 @@ const Auth = () => {
       return;
     }
 
-    if (password.length < 6) {
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
       toast({
-        title: 'Password Too Short',
-        description: 'Password must be at least 6 characters.',
+        title: 'Password Requirements Not Met',
+        description: `Password must contain ${passwordValidation.errors.join(', ')}.`,
         variant: 'destructive',
       });
       return;
@@ -282,12 +318,12 @@ const Auth = () => {
                     <Input
                       id="password"
                       type="password"
-                      placeholder={isSignUp ? 'Create a password (min 6 chars)' : 'Enter password'}
+                      placeholder={isSignUp ? 'Min 8 chars, uppercase, lowercase, number' : 'Enter password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
                       required
-                      minLength={isSignUp ? 6 : undefined}
+                      minLength={isSignUp ? 8 : undefined}
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>

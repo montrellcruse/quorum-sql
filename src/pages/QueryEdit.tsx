@@ -40,6 +40,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { querySchema, changeReasonSchema, validateSqlSafety } from '@/lib/validationSchemas';
 import { getDbAdapter } from '@/lib/provider';
+import type { QueryStatus } from '@/lib/provider/types';
+import type { TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
 
 interface Query {
   id: string;
@@ -198,12 +200,12 @@ const QueryEdit = () => {
             title: query!.title,
             description: query!.description,
             sql_content: query!.sql_content,
-            status: newStatus as any,
+            status: newStatus as QueryStatus,
             folder_id: query!.folder_id,
             team_id: folder.team_id,
             created_by_email: user?.email || '',
             last_modified_by_email: user?.email || '',
-          } as any);
+          });
           queryId = created.id;
         } else {
           const { data, error } = await supabase
@@ -215,10 +217,10 @@ const QueryEdit = () => {
               status: newStatus,
               folder_id: query!.folder_id,
               team_id: activeTeam!.id,
-              user_id: user?.id,
+              user_id: user?.id ?? '',
               created_by_email: user?.email || '',
               last_modified_by_email: user?.email || '',
-            } as any)
+            } satisfies TablesInsert<'sql_queries'>)
             .select()
             .single();
           if (error) throw error;
@@ -230,9 +232,9 @@ const QueryEdit = () => {
             title: query!.title,
             description: query!.description,
             sql_content: query!.sql_content,
-            status: newStatus as any,
+            status: newStatus as QueryStatus,
             last_modified_by_email: user?.email || '',
-          } as any);
+          });
         } else {
           const { error } = await supabase
             .from('sql_queries')
@@ -307,7 +309,7 @@ const QueryEdit = () => {
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        await getDbAdapter().queries.update(id!, { status: 'draft' } as any);
+        await getDbAdapter().queries.update(id!, { status: 'draft' });
       } else {
         const { error } = await supabase
             .from('sql_queries')
@@ -349,9 +351,9 @@ const QueryEdit = () => {
         if (approvedHistory) {
           await getDbAdapter().queries.update(id!, {
             sql_content: approvedHistory.sql_content,
-            status: 'approved' as any,
+            status: 'approved',
             last_modified_by_email: approvedHistory.modified_by_email,
-          } as any);
+          });
           toast({ title: 'Success', description: 'Draft discarded and reverted to last approved version' });
           navigate(`/query/view/${id}`);
         } else {
@@ -462,7 +464,7 @@ const QueryEdit = () => {
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
-        await getDbAdapter().queries.update(id!, { folder_id: selectedFolderId } as any);
+        await getDbAdapter().queries.update(id!, { folder_id: selectedFolderId });
       } else {
         const { error } = await supabase
           .from('sql_queries')
@@ -505,9 +507,9 @@ const QueryEdit = () => {
   }
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-4 md:p-8">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Button
             variant="ghost"
             onClick={() => navigate(`/folder/${query.folder_id}`)}
@@ -516,7 +518,7 @@ const QueryEdit = () => {
             Back to Folder
           </Button>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {!isNewQuery && (
               <>
                 <Button

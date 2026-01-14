@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import type { TablesInsert, TablesUpdate, QueryWithTeam } from '@/integrations/supabase/types';
 import type {
   DbAdapter,
   TeamsRepo,
@@ -114,7 +115,7 @@ const folders: FoldersRepo = {
   async create(input) {
     const { data, error } = await supabase
       .from('folders')
-      .insert([input as any])
+      .insert([input as TablesInsert<'folders'>])
       .select('*')
       .single();
     if (error) throw error;
@@ -149,7 +150,7 @@ const queries: QueriesRepo = {
   async create(input) {
     const { data, error } = await supabase
       .from('sql_queries')
-      .insert([input as any])
+      .insert([input as TablesInsert<'sql_queries'>])
       .select('*')
       .single();
     if (error) throw error;
@@ -158,7 +159,7 @@ const queries: QueriesRepo = {
   async update(id, patch) {
     const { error } = await supabase
       .from('sql_queries')
-      .update(patch as any)
+      .update(patch as TablesUpdate<'sql_queries'>)
       .eq('id', id);
     if (error) throw error;
   },
@@ -231,7 +232,7 @@ const queries: QueriesRepo = {
       .single();
     if (queryError) throw queryError;
     
-    const approval_quota = (query as any)?.teams?.approval_quota || 1;
+    const approval_quota = (query as QueryWithTeam)?.teams?.approval_quota || 1;
     
     const { data: history, error: histError } = await supabase
       .from('query_history')
@@ -308,7 +309,7 @@ const queries: QueriesRepo = {
           folder_id: query.folder_id,
           last_modified_by_email: query.last_modified_by_email || '',
           updated_at: query.updated_at || '',
-          folder_name: (query.folders as { name: string }).name,
+          folder_name: (query.folders as unknown as { name: string })?.name || '',
           approval_count: approvalCount,
           approval_quota: teamData.approval_quota,
         };
@@ -410,22 +411,36 @@ const invitations: InvitationsRepo = {
   async accept(id: UUID) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
-    
-    // Get the invitation
-    const { data: invite, error: invError } = await supabase
+
+    // Use a transaction-like approach: update invitation status atomically first
+    // This prevents race conditions where two requests could process the same invitation
+
+    // Step 1: Atomically claim the invitation by updating its status
+    // Using a WHERE clause that checks both id AND status='pending' ensures only one
+    // request can successfully update it
+    const { data: invite, error: claimError } = await supabase
       .from('team_invitations')
-      .select('*')
+      .update({ status: 'accepted' })
       .eq('id', id)
-      .eq('status', 'pending')
+      .eq('status', 'pending')  // Only update if still pending (atomic check)
+      .select('*')
       .single();
-    if (invError || !invite) throw new Error('Invitation not found');
-    
+
+    if (claimError || !invite) {
+      throw new Error('Invitation not found or already processed');
+    }
+
     // Verify email matches
     if (invite.invited_email.toLowerCase() !== user.email?.toLowerCase()) {
+      // Rollback the status change
+      await supabase
+        .from('team_invitations')
+        .update({ status: 'pending' })
+        .eq('id', id);
       throw new Error('This invitation is for a different email');
     }
-    
-    // Add to team
+
+    // Step 2: Add to team (invitation is already claimed, so this is safe)
     const { error: memberError } = await supabase
       .from('team_members')
       .insert({
@@ -433,9 +448,17 @@ const invitations: InvitationsRepo = {
         user_id: user.id,
         role: invite.role,
       });
-    if (memberError && !memberError.message.includes('duplicate')) throw memberError;
-    
-    // Delete invitation
+
+    if (memberError && !memberError.message.includes('duplicate')) {
+      // Rollback the status change on failure
+      await supabase
+        .from('team_invitations')
+        .update({ status: 'pending' })
+        .eq('id', id);
+      throw memberError;
+    }
+
+    // Step 3: Delete the accepted invitation
     const { error: delError } = await supabase
       .from('team_invitations')
       .delete()

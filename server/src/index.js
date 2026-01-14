@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { createPool } from './db.js';
 import { isProd, serverConfig, securityConfig } from './config.js';
 import { getSessionUser, verifyPassword, requireTeamAdmin, requireTeamMember, isValidUUID } from './middleware/auth.js';
-import { securityHeaders, errorHandler, requestLogger } from './middleware/security.js';
+import { securityHeaders, errorHandler, requestLogger, csrfProtection, generateCsrfToken } from './middleware/security.js';
 
 // Initialize Fastify with body size limit
 const fastify = Fastify({ 
@@ -40,6 +40,9 @@ await fastify.register(rateLimit, {
   max: securityConfig.rateLimitMax,
   timeWindow: securityConfig.rateLimitWindow,
 });
+
+// CSRF protection
+csrfProtection(fastify);
 
 const pool = createPool();
 
@@ -104,6 +107,26 @@ fastify.post('/setup/test-supabase', async (req, reply) => {
     return reply.code(400).send({ ok: false, error: 'Missing URL or anon key' });
   }
 
+  // Validate URL is a legitimate Supabase URL to prevent SSRF
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    return reply.code(400).send({ ok: false, error: 'Invalid URL format' });
+  }
+
+  // Only allow Supabase domains
+  const allowedDomains = ['.supabase.co', '.supabase.com'];
+  const isAllowed = allowedDomains.some(domain => parsedUrl.hostname.endsWith(domain));
+  if (!isAllowed) {
+    return reply.code(400).send({ ok: false, error: 'URL must be a Supabase project URL (*.supabase.co)' });
+  }
+
+  // Ensure HTTPS
+  if (parsedUrl.protocol !== 'https:') {
+    return reply.code(400).send({ ok: false, error: 'URL must use HTTPS' });
+  }
+
   try {
     // Test the Supabase REST API endpoint
     const response = await fetch(`${url}/rest/v1/`, {
@@ -155,8 +178,15 @@ fastify.get('/auth/me', async (req, reply) => {
   });
 });
 
-fastify.post('/auth/login', async (req, reply) => {
-  const Body = z.object({ 
+fastify.post('/auth/login', {
+  config: {
+    rateLimit: {
+      max: 5,
+      timeWindow: '1 minute',
+    },
+  },
+}, async (req, reply) => {
+  const Body = z.object({
     email: z.string().email(),
     password: z.string().min(1, 'Password is required'),
   });
@@ -208,7 +238,17 @@ fastify.post('/auth/login', async (req, reply) => {
     secure: isProd,
     maxAge: 60 * 60 * 24 * 7,
   });
-  
+
+  // Set CSRF token cookie (readable by JavaScript for double-submit pattern)
+  const csrfToken = generateCsrfToken();
+  reply.setCookie('csrf', csrfToken, {
+    httpOnly: false, // Must be readable by JavaScript
+    sameSite: 'lax',
+    path: '/',
+    secure: isProd,
+    maxAge: 60 * 60 * 24 * 7,
+  });
+
   return { ok: true };
 });
 
@@ -218,6 +258,7 @@ fastify.post('/auth/logout', async (req, reply) => {
     req.log.info({ userId: sess.id }, 'User logged out');
   }
   reply.clearCookie('session', { path: '/', sameSite: 'lax', secure: isProd });
+  reply.clearCookie('csrf', { path: '/', sameSite: 'lax', secure: isProd });
   return { ok: true };
 });
 
@@ -735,23 +776,49 @@ fastify.get('/folders/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
-  
+
   if (!isValidUUID(id)) {
     return reply.code(400).send({ error: 'Invalid folder ID' });
   }
-  
+
   return withClient(sess.id, async (client) => {
     const { rows } = await client.query(`select * from public.folders where id = $1`, [id]);
-    return rows[0] || null;
+    const folder = rows[0];
+    if (!folder) return null;
+
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, folder.team_id, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
+    return folder;
   });
 });
 
 fastify.get('/folders/paths', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
-  
+
+  const teamId = req.query.teamId;
+  if (!teamId || !isValidUUID(teamId)) {
+    return reply.code(400).send({ error: 'Valid teamId query parameter is required' });
+  }
+
   return withClient(sess.id, async (client) => {
-    const { rows } = await client.query('select * from public.get_all_folder_paths()');
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, teamId, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
+    // Filter to only folders belonging to the user's team
+    const { rows } = await client.query(
+      `select fp.* from public.get_all_folder_paths() fp
+       join public.folders f on f.id = fp.id
+       where f.team_id = $1`,
+      [teamId]
+    );
     return rows;
   });
 });
@@ -760,12 +827,24 @@ fastify.get('/folders/:id/children', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
-  
+
   if (!isValidUUID(id)) {
     return reply.code(400).send({ error: 'Invalid folder ID' });
   }
-  
+
   return withClient(sess.id, async (client) => {
+    // Get the parent folder to check team membership
+    const { rows: parentRows } = await client.query(`select team_id from public.folders where id = $1`, [id]);
+    if (!parentRows[0]) {
+      return reply.code(404).send({ error: 'Folder not found' });
+    }
+
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, parentRows[0].team_id, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
     const { rows } = await client.query(
       `select * from public.folders where parent_folder_id = $1 order by name`,
       [id]
@@ -778,12 +857,24 @@ fastify.get('/folders/:id/queries', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
-  
+
   if (!isValidUUID(id)) {
     return reply.code(400).send({ error: 'Invalid folder ID' });
   }
-  
+
   return withClient(sess.id, async (client) => {
+    // Get the folder to check team membership
+    const { rows: folderRows } = await client.query(`select team_id from public.folders where id = $1`, [id]);
+    if (!folderRows[0]) {
+      return reply.code(404).send({ error: 'Folder not found' });
+    }
+
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, folderRows[0].team_id, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
     const { rows } = await client.query(
       `select id, title, status, description, created_at, created_by_email, last_modified_by_email, updated_at
        from public.sql_queries where folder_id = $1 order by updated_at desc nulls last`,
@@ -796,7 +887,7 @@ fastify.get('/folders/:id/queries', async (req, reply) => {
 fastify.post('/folders', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
-  
+
   const Body = z.object({
     name: z.string().min(1).max(100),
     description: z.string().nullable().optional(),
@@ -809,17 +900,34 @@ fastify.post('/folders', async (req, reply) => {
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
-  
-  const { 
-    name, 
-    description = null, 
-    user_id = sess.id, 
-    created_by_email = null, 
-    parent_folder_id = null, 
-    team_id 
+
+  const {
+    name,
+    description = null,
+    user_id = sess.id,
+    created_by_email = null,
+    parent_folder_id = null,
+    team_id
   } = parsed.data;
-  
+
   return withClient(sess.id, async (client) => {
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, team_id, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
+    // If parent_folder_id is provided, verify it belongs to the same team
+    if (parent_folder_id) {
+      const { rows: parentRows } = await client.query(
+        `select team_id from public.folders where id = $1`,
+        [parent_folder_id]
+      );
+      if (!parentRows[0] || parentRows[0].team_id !== team_id) {
+        return reply.code(400).send({ error: 'Parent folder must belong to the same team' });
+      }
+    }
+
     const { rows } = await client.query(
       `insert into public.folders(name, description, user_id, created_by_email, parent_folder_id, team_id)
        values($1,$2,$3,$4,$5,$6) returning *`,
@@ -833,23 +941,35 @@ fastify.patch('/folders/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
-  
+
   if (!isValidUUID(id)) {
     return reply.code(400).send({ error: 'Invalid folder ID' });
   }
-  
-  const Body = z.object({ 
-    name: z.string().min(1).max(100).optional(), 
-    description: z.string().nullable().optional() 
+
+  const Body = z.object({
+    name: z.string().min(1).max(100).optional(),
+    description: z.string().nullable().optional()
   });
   const parsed = Body.safeParse(req.body || {});
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
-  
+
   const { name = null, description = null } = parsed.data;
-  
+
   return withClient(sess.id, async (client) => {
+    // Get the folder to check team membership
+    const { rows: folderRows } = await client.query(`select team_id from public.folders where id = $1`, [id]);
+    if (!folderRows[0]) {
+      return reply.code(404).send({ error: 'Folder not found' });
+    }
+
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, folderRows[0].team_id, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
     await client.query(
       `update public.folders set name = coalesce($1, name), description = $2 where id = $3`,
       [name, description, id]
@@ -862,12 +982,24 @@ fastify.delete('/folders/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
-  
+
   if (!isValidUUID(id)) {
     return reply.code(400).send({ error: 'Invalid folder ID' });
   }
-  
+
   return withClient(sess.id, async (client) => {
+    // Get the folder to check team membership
+    const { rows: folderRows } = await client.query(`select team_id from public.folders where id = $1`, [id]);
+    if (!folderRows[0]) {
+      return reply.code(404).send({ error: 'Folder not found' });
+    }
+
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, folderRows[0].team_id, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
     await client.query(`delete from public.folders where id = $1`, [id]);
     return { ok: true };
   });
@@ -880,22 +1012,30 @@ fastify.delete('/folders/:id', async (req, reply) => {
 fastify.get('/queries', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
-  
+
   const teamId = req.query.teamId;
   const q = req.query.q;
-  
+
   if (!teamId || !isValidUUID(teamId)) {
     return reply.code(400).send({ error: 'Valid teamId is required' });
   }
-  
+
   return withClient(sess.id, async (client) => {
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, teamId, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
     const params = [teamId];
     let sql = `select q.*, f.name as folder_name
                from public.sql_queries q
                left join public.folders f on f.id = q.folder_id
                where q.team_id = $1`;
     if (q) {
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+      // Escape ILIKE wildcards to prevent injection
+      const escapedQ = q.replace(/[%_\\]/g, '\\$&');
+      params.push(`%${escapedQ}%`, `%${escapedQ}%`, `%${escapedQ}%`);
       sql += ` and (q.title ilike $2 or q.description ilike $3 or q.sql_content ilike $4)`;
     }
     sql += ' order by q.updated_at desc nulls last';
@@ -908,21 +1048,30 @@ fastify.get('/queries/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
-  
+
   if (!isValidUUID(id)) {
     return reply.code(400).send({ error: 'Invalid query ID' });
   }
-  
+
   return withClient(sess.id, async (client) => {
     const { rows } = await client.query(`select * from public.sql_queries where id = $1`, [id]);
-    return rows[0] || null;
+    const query = rows[0];
+    if (!query) return null;
+
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, query.team_id, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
+    return query;
   });
 });
 
 fastify.post('/queries', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
-  
+
   const Body = z.object({
     title: z.string().min(1).max(200),
     description: z.string().max(1000).nullable().optional(),
@@ -937,28 +1086,45 @@ fastify.post('/queries', async (req, reply) => {
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
-  
+
   const body = parsed.data;
-  const fields = ['title', 'description', 'sql_content', 'status', 'team_id', 'folder_id', 'created_by_email', 'last_modified_by_email'];
-  const cols = [];
-  const vals = [];
-  const params = [];
-  let i = 1;
-  
-  for (const f of fields) {
-    if (body[f] !== undefined) {
-      cols.push(f);
-      vals.push(`$${i++}`);
-      params.push(body[f]);
-    }
-  }
-  cols.push('user_id');
-  vals.push(`$${i}`);
-  params.push(sess.id);
-  
-  const sql = `insert into public.sql_queries(${cols.join(',')}) values(${vals.join(',')}) returning *`;
-  
+
   return withClient(sess.id, async (client) => {
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, body.team_id, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
+    // If folder_id is provided, verify it belongs to the same team
+    if (body.folder_id) {
+      const { rows: folderRows } = await client.query(
+        `select team_id from public.folders where id = $1`,
+        [body.folder_id]
+      );
+      if (!folderRows[0] || folderRows[0].team_id !== body.team_id) {
+        return reply.code(400).send({ error: 'Folder must belong to the same team' });
+      }
+    }
+
+    const fields = ['title', 'description', 'sql_content', 'status', 'team_id', 'folder_id', 'created_by_email', 'last_modified_by_email'];
+    const cols = [];
+    const vals = [];
+    const params = [];
+    let i = 1;
+
+    for (const f of fields) {
+      if (body[f] !== undefined) {
+        cols.push(f);
+        vals.push(`$${i++}`);
+        params.push(body[f]);
+      }
+    }
+    cols.push('user_id');
+    vals.push(`$${i}`);
+    params.push(sess.id);
+
+    const sql = `insert into public.sql_queries(${cols.join(',')}) values(${vals.join(',')}) returning *`;
     const { rows } = await client.query(sql, params);
     return rows[0];
   });
@@ -968,11 +1134,11 @@ fastify.patch('/queries/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
-  
+
   if (!isValidUUID(id)) {
     return reply.code(400).send({ error: 'Invalid query ID' });
   }
-  
+
   const Body = z.object({
     title: z.string().min(1).max(200).optional(),
     description: z.string().max(1000).nullable().optional(),
@@ -985,25 +1151,48 @@ fastify.patch('/queries/:id', async (req, reply) => {
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
-  
+
   const body = parsed.data;
-  const sets = [];
-  const params = [];
-  let i = 1;
-  
-  for (const [k, v] of Object.entries(body)) {
-    sets.push(`${k} = $${i++}`);
-    params.push(v);
-  }
-  
-  if (sets.length === 0) {
-    return reply.code(400).send({ error: 'No fields to update' });
-  }
-  
-  params.push(id);
-  const sql = `update public.sql_queries set ${sets.join(', ')} where id = $${i} returning id`;
-  
+
   return withClient(sess.id, async (client) => {
+    // Get the query to check team membership
+    const { rows: queryRows } = await client.query(`select team_id from public.sql_queries where id = $1`, [id]);
+    if (!queryRows[0]) {
+      return reply.code(404).send({ error: 'Query not found' });
+    }
+
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, queryRows[0].team_id, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
+    // If folder_id is being changed, verify it belongs to the same team
+    if (body.folder_id) {
+      const { rows: folderRows } = await client.query(
+        `select team_id from public.folders where id = $1`,
+        [body.folder_id]
+      );
+      if (!folderRows[0] || folderRows[0].team_id !== queryRows[0].team_id) {
+        return reply.code(400).send({ error: 'Folder must belong to the same team' });
+      }
+    }
+
+    const sets = [];
+    const params = [];
+    let i = 1;
+
+    for (const [k, v] of Object.entries(body)) {
+      sets.push(`${k} = $${i++}`);
+      params.push(v);
+    }
+
+    if (sets.length === 0) {
+      return reply.code(400).send({ error: 'No fields to update' });
+    }
+
+    params.push(id);
+    const sql = `update public.sql_queries set ${sets.join(', ')} where id = $${i} returning id`;
     await client.query(sql, params);
     return { ok: true };
   });
@@ -1013,12 +1202,24 @@ fastify.delete('/queries/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
-  
+
   if (!isValidUUID(id)) {
     return reply.code(400).send({ error: 'Invalid query ID' });
   }
-  
+
   return withClient(sess.id, async (client) => {
+    // Get the query to check team membership
+    const { rows: queryRows } = await client.query(`select team_id from public.sql_queries where id = $1`, [id]);
+    if (!queryRows[0]) {
+      return reply.code(404).send({ error: 'Query not found' });
+    }
+
+    // Validate team membership
+    const isMember = await requireTeamMember(client, sess.id, queryRows[0].team_id, req);
+    if (!isMember) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
     await client.query(`delete from public.sql_queries where id = $1`, [id]);
     return { ok: true };
   });
@@ -1180,7 +1381,14 @@ fastify.post('/queries/:id/approve', async (req, reply) => {
   const { historyId } = parsed.data;
   
   return withClient(sess.id, async (client) => {
-    await client.query('select public.approve_query_with_quota($1, $2)', [id, historyId]);
+    // Get approver email for the RPC call
+    const { rows: userRows } = await client.query(
+      'select email from auth.users where id = $1',
+      [sess.id]
+    );
+    const approverEmail = userRows[0]?.email;
+
+    await client.query('select public.approve_query_with_quota($1, $2, $3)', [historyId, sess.id, approverEmail]);
     req.log.info({ queryId: id, historyId, userId: sess.id }, 'Query approved');
     return { ok: true };
   });
@@ -1205,9 +1413,10 @@ fastify.post('/queries/:id/reject', async (req, reply) => {
   }
   
   const { historyId, reason = null } = parsed.data;
-  
+
   return withClient(sess.id, async (client) => {
-    await client.query('select public.reject_query_with_authorization($1, $2, $3)', [id, historyId, reason]);
+    // Pass rejecter user ID (not reason) as the function expects
+    await client.query('select public.reject_query_with_authorization($1, $2, $3)', [historyId, sess.id, reason]);
     req.log.info({ queryId: id, historyId, reason, userId: sess.id }, 'Query rejected');
     return { ok: true };
   });

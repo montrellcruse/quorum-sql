@@ -57,7 +57,7 @@ const Approvals = () => {
     <main className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-6xl">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Approval Queue</CardTitle>
               <CardDescription>
@@ -70,6 +70,7 @@ const Approvals = () => {
               variant="outline"
               size="sm"
               onClick={() => navigate('/dashboard')}
+              className="self-start sm:self-auto"
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Dashboard
@@ -86,8 +87,8 @@ const Approvals = () => {
               </p>
             </div>
           ) : (
-            <div className="rounded-md border">
-              <Table>
+            <div className="rounded-md border overflow-x-auto">
+              <Table className="min-w-[600px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Query</TableHead>

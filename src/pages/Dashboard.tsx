@@ -167,7 +167,7 @@ const Dashboard = () => {
       await adapter.folders.create({
         name: newProject.name,
         description: newProject.description,
-        user_id: (user as any)?.id,
+        user_id: user?.id ?? '',
         created_by_email: user?.email || '',
         parent_folder_id: null,
         team_id: activeTeam.id,

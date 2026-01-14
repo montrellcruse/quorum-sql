@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getDbAdapter } from '@/lib/provider';
@@ -16,16 +16,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { folderSchema } from '@/lib/validationSchemas';
+import type { Tables, TablesInsert } from '@/integrations/supabase/types';
 
-interface Folder {
-  id: string;
-  name: string;
-  description: string | null;
-  created_at: string;
-  parent_folder_id: string | null;
-  team_id: string | null;
-  user_id: string;
-}
+type FolderRow = Tables<'folders'>;
 
 interface Query {
   id: string;
@@ -48,11 +41,11 @@ const Folder = () => {
   const { activeTeam } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [folder, setFolder] = useState<Folder | null>(null);
+  const [folder, setFolder] = useState<FolderRow | null>(null);
   const [loadingFolder, setLoadingFolder] = useState(true);
   const [queries, setQueries] = useState<Query[]>([]);
   const [loadingQueries, setLoadingQueries] = useState(true);
-  const [childFolders, setChildFolders] = useState<Folder[]>([]);
+  const [childFolders, setChildFolders] = useState<FolderRow[]>([]);
   const [loadingChildFolders, setLoadingChildFolders] = useState(true);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbFolder[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -76,10 +69,9 @@ const Folder = () => {
       fetchChildFolders();
       fetchBreadcrumbs();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, id]);
+  }, [user, id, fetchFolder, fetchQueries, fetchChildFolders, fetchBreadcrumbs]);
 
-  const fetchFolder = async () => {
+  const fetchFolder = useCallback(async () => {
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
@@ -89,7 +81,7 @@ const Folder = () => {
           navigate('/dashboard');
           return;
         }
-        setFolder(f as any);
+        setFolder(f as FolderRow);
       } else {
         const { data, error } = await supabase
           .from('folders')
@@ -102,7 +94,7 @@ const Folder = () => {
           navigate('/dashboard');
           return;
         }
-        setFolder(data as any);
+        setFolder(data);
       }
     } catch (error: any) {
       toast({
@@ -114,9 +106,9 @@ const Folder = () => {
     } finally {
       setLoadingFolder(false);
     }
-  };
+  }, [id, toast, navigate]);
 
-  const fetchQueries = async () => {
+  const fetchQueries = useCallback(async () => {
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
@@ -144,9 +136,9 @@ const Folder = () => {
     } finally {
       setLoadingQueries(false);
     }
-  };
+  }, [id, toast]);
 
-  const fetchChildFolders = async () => {
+  const fetchChildFolders = useCallback(async () => {
     try {
       const provider = (import.meta.env.VITE_DB_PROVIDER || 'supabase').toLowerCase();
       if (provider === 'rest') {
@@ -174,9 +166,9 @@ const Folder = () => {
     } finally {
       setLoadingChildFolders(false);
     }
-  };
+  }, [id, toast]);
 
-  const fetchBreadcrumbs = async () => {
+  const fetchBreadcrumbs = useCallback(async () => {
     if (!id) return;
     const crumbs: BreadcrumbFolder[] = [];
     let currentId: string | null = id;
@@ -186,13 +178,13 @@ const Folder = () => {
         const f = await adapter.folders.getById(currentId);
         if (!f) break;
         crumbs.unshift({ id: f.id as string, name: f.name as string });
-        currentId = (f as any).parent_folder_id as string | null;
+        currentId = f.parent_folder_id ?? null;
       }
       setBreadcrumbs(crumbs);
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
-  };
+  }, [id, toast]);
 
   const getStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
     switch (status.toLowerCase()) {
@@ -375,11 +367,11 @@ const Folder = () => {
         await getDbAdapter().folders.create({
           name: validation.data.name,
           description: validation.data.description,
-          parent_folder_id: id as string,
-          user_id: user?.id as string,
+          parent_folder_id: id,
+          user_id: user?.id ?? '',
           created_by_email: user?.email || '',
           team_id: teamId,
-        } as any);
+        });
       } else {
         // Supabase path
         const { data: existingFolder, error: checkError } = await supabase
@@ -399,10 +391,10 @@ const Folder = () => {
             name: validation.data.name,
             description: validation.data.description,
             parent_folder_id: id!,
-            user_id: user?.id,
+            user_id: user?.id ?? '',
             created_by_email: user?.email || '',
-            team_id: activeTeam?.id || folder?.team_id,
-          } as any);
+            team_id: activeTeam?.id || folder?.team_id || '',
+          } satisfies TablesInsert<'folders'>);
         if (error) throw error;
       }
 
@@ -437,7 +429,7 @@ const Folder = () => {
   }
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-4 md:p-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6">
           <Breadcrumb>
@@ -470,14 +462,14 @@ const Folder = () => {
 
         <Card className="mb-6">
           <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
+            <div className="flex flex-col gap-4">
+              <div>
                 <CardTitle>{folder.name}</CardTitle>
                 {folder.description && (
                   <CardDescription>{folder.description}</CardDescription>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {canEditFolder() && (
                   <Button variant="outline" size="sm" onClick={handleEditFolder}>
                     <Edit className="mr-2 h-4 w-4" />
@@ -497,7 +489,7 @@ const Folder = () => {
 
         {childFolders.length > 0 && (
           <>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <h2 className="text-2xl font-bold">Folders</h2>
               <Button onClick={() => setNewFolderDialogOpen(true)} variant="outline">
                 <Plus className="mr-2 h-4 w-4" />
@@ -536,7 +528,7 @@ const Folder = () => {
           </div>
         )}
 
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h2 className="text-2xl font-bold">SQL Queries</h2>
           <Button onClick={() => navigate('/query/edit/new', { state: { folderId: id } })}>
             <Plus className="mr-2 h-4 w-4" />
@@ -549,15 +541,15 @@ const Folder = () => {
             {queries.map((query) => (
               <Card key={query.id}>
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="flex-1 min-w-0">
                       <div
                         className="cursor-pointer"
                         onClick={() => navigate(`/query/view/${query.id}`)}
                       >
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-5 w-5 text-muted-foreground" />
-                          <CardTitle className="text-lg hover:underline">{query.title}</CardTitle>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                          <CardTitle className="text-lg hover:underline break-words">{query.title}</CardTitle>
                           <Badge variant={getStatusVariant(query.status)}>
                             {query.status === 'pending_approval' ? 'Pending Approval' : query.status.charAt(0).toUpperCase() + query.status.slice(1)}
                           </Badge>
@@ -584,6 +576,7 @@ const Folder = () => {
                     <Button
                       onClick={() => navigate(`/query/edit/${query.id}`)}
                       variant="outline"
+                      className="shrink-0"
                     >
                       Edit
                     </Button>

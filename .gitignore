@@ -7,8 +7,14 @@
 # Local Claude/AI cache
 .claude/
 
+# Local TLDR cache
+.tldr/
+
 # Local thoughts/planning (session-specific)
 thoughts/
+
+# Commercial overlay (separate private repo)
+quorum-cloud/
 
 # Generated migration files
 supabase/combined-migrations.sql
@@ -37,3 +43,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+

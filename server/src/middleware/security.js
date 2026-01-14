@@ -1,6 +1,55 @@
 import { isProd } from '../config.js';
 import crypto from 'crypto';
 
+/**
+ * Generate a cryptographically secure CSRF token
+ */
+export function generateCsrfToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+/**
+ * CSRF protection middleware using double-submit cookie pattern.
+ * Validates that X-CSRF-Token header matches the csrf cookie.
+ * Only applies to state-changing methods (POST, PUT, PATCH, DELETE).
+ */
+export function csrfProtection(fastify) {
+  fastify.addHook('preHandler', (req, reply, done) => {
+    // Skip CSRF check for safe methods
+    const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+    if (safeMethods.includes(req.method)) {
+      return done();
+    }
+
+    // Skip CSRF check for login (no token yet) and health endpoints
+    const skipPaths = ['/auth/login', '/health', '/health/live', '/health/ready', '/health/db', '/setup/'];
+    if (skipPaths.some(path => req.url.startsWith(path))) {
+      return done();
+    }
+
+    const csrfCookie = req.cookies?.csrf;
+    const csrfHeader = req.headers['x-csrf-token'];
+
+    // If no CSRF cookie is set, skip validation (user not logged in yet)
+    if (!csrfCookie) {
+      return done();
+    }
+
+    // Validate CSRF token
+    if (!csrfHeader || csrfHeader !== csrfCookie) {
+      req.log.warn({
+        path: req.url,
+        method: req.method,
+        hasCookie: !!csrfCookie,
+        hasHeader: !!csrfHeader
+      }, 'CSRF validation failed');
+      return reply.code(403).send({ error: 'CSRF token validation failed' });
+    }
+
+    done();
+  });
+}
+
 export function securityHeaders(fastify) {
   fastify.addHook('onRequest', (req, reply, done) => {
     // Generate request ID for tracing
