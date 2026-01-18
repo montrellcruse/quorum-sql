@@ -19,17 +19,10 @@ import type {
 import { supabase } from '@/integrations/supabase/client';
 import { getApiBaseUrl } from './env';
 import { getErrorMessage } from '@/utils/errors';
+import { getCsrfToken } from '@/lib/auth/restAuthAdapter';
 
 function baseUrl(path: string) {
   return `${getApiBaseUrl()}${path}`;
-}
-
-/**
- * Get CSRF token from cookie for double-submit pattern
- */
-function getCsrfToken(): string | null {
-  const match = document.cookie.match(/(?:^|;\s*)csrf=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : null;
 }
 
 async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {

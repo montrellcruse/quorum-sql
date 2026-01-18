@@ -334,9 +334,8 @@ const Auth = () => {
                   </Button>
                 </form>
 
-                {/* Toggle between Sign In and Sign Up (only for Supabase) */}
-                {provider !== 'rest' && (
-                  <p className="text-sm text-center text-muted-foreground">
+                {/* Toggle between Sign In and Sign Up */}
+                <p className="text-sm text-center text-muted-foreground">
                     {isSignUp ? (
                       <>
                         Already have an account?{' '}
@@ -360,8 +359,7 @@ const Auth = () => {
                         </button>
                       </>
                     )}
-                  </p>
-                )}
+                </p>
               </div>
             )}
 
