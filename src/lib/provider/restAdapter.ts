@@ -31,7 +31,11 @@ async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
     initHeaders instanceof Headers
       ? Object.fromEntries(initHeaders.entries())
       : (initHeaders as Record<string, string> | undefined) ?? {};
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...headersFromInit };
+  const headers: Record<string, string> = { ...headersFromInit };
+  // Only set Content-Type for requests with a body
+  if (init?.body) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   // Add CSRF token for state-changing requests
   const method = init?.method?.toUpperCase() || 'GET';

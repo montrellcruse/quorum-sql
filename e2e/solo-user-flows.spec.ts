@@ -156,7 +156,7 @@ test.describe('Solo User Flows', () => {
     // If on accept-invites, accept the invitation
     if (page.url().includes('accept-invites')) {
       await page.getByRole('button', { name: /accept/i }).first().click();
-      await expect(page.getByText(/invitation accepted/i)).toBeVisible();
+      await expect(page.getByText('Invitation accepted successfully.', { exact: true })).toBeVisible();
       await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
     }
 
@@ -198,13 +198,11 @@ test.describe('Solo User Flows', () => {
     const deleteButton = memberRow.getByRole('button').filter({ has: page.locator('svg') }).last();
     await deleteButton.click();
 
-    // Should see success message and "Solo Mode" notification
-    await expect(page.getByText(/member removed|success/i)).toBeVisible();
-
-    // May show "Solo Mode" toast
-    const soloModeToast = page.getByText(/solo mode/i);
-    // This may or may not appear depending on implementation timing
-    await soloModeToast.isVisible().catch(() => {});
+    // Should see success message and/or "Solo Mode" notification
+    // The "Solo Mode" toast may appear after the "Success" toast, so check for either
+    await expect(
+      page.getByText(/member removed|success|solo mode/i).first()
+    ).toBeVisible({ timeout: 10000 });
 
     // Navigate back to dashboard
     await page.getByRole('button', { name: /back to dashboard/i }).click();
@@ -225,8 +223,9 @@ test.describe('Solo User Flows', () => {
   });
 
   test('personal workspace cannot be deleted', async ({ page }) => {
-    // Sign in as solo user
-    await signIn(page, soloUser);
+    // Create a fresh user for this test (independent of previous tests)
+    const deleteTestUser = generateTestUser('delete-test');
+    await signUp(page, deleteTestUser);
     await waitForDashboard(page);
 
     // Navigate to settings

@@ -164,7 +164,13 @@ const Auth = () => {
     try {
       if (provider === 'rest') {
         await restAuthAdapter.signInWithPassword!(trimmedEmail, password);
-        window.location.href = '/dashboard';
+        // Check for pending invites before redirecting
+        const hasPendingInvites = await checkPendingInvitations(trimmedEmail);
+        if (hasPendingInvites) {
+          window.location.href = '/accept-invites';
+        } else {
+          window.location.href = '/dashboard';
+        }
         return;
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -208,7 +214,13 @@ const Auth = () => {
     try {
       if (provider === 'rest') {
         await restAuthAdapter.signUp!(trimmedEmail, password, fullName.trim() || undefined);
-        window.location.href = '/dashboard';
+        // Check for pending invites before redirecting
+        const hasPendingInvites = await checkPendingInvitations(trimmedEmail);
+        if (hasPendingInvites) {
+          window.location.href = '/accept-invites';
+        } else {
+          window.location.href = '/dashboard';
+        }
         return;
       }
 

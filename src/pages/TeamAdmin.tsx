@@ -320,7 +320,6 @@ const TeamAdmin = () => {
           method: 'DELETE',
           credentials: 'include',
           headers: {
-            'Content-Type': 'application/json',
             ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
           },
         });
@@ -376,7 +375,6 @@ const TeamAdmin = () => {
           method: 'DELETE',
           credentials: 'include',
           headers: {
-            'Content-Type': 'application/json',
             ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
           },
         });
