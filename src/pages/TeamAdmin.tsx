@@ -15,6 +15,7 @@ import { emailSchema } from '@/lib/validationSchemas';
 import { getDbAdapter } from '@/lib/provider';
 import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
+import { getCsrfToken } from '@/lib/auth/restAuthAdapter';
 import { FeatureGate } from '@/components/FeatureGate';
 import { useSoloUser } from '@/hooks/useSoloUser';
 import { getSettingsLabel } from '@/utils/terminology';
@@ -229,10 +230,14 @@ const TeamAdmin = () => {
 
       if (provider === 'rest') {
         const apiBase = getApiBaseUrl();
+        const csrfToken = getCsrfToken();
         const res = await fetch(`${apiBase}/teams/${selectedTeamId}/invites`, {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+          },
           body: JSON.stringify({ invited_email: email, role: newUserRole }),
         });
         if (!res.ok) throw new Error(await res.text());
@@ -259,10 +264,14 @@ const TeamAdmin = () => {
         try {
           if (provider === 'rest') {
             const apiBase = getApiBaseUrl();
+            const csrfToken2 = getCsrfToken();
             const res = await fetch(`${apiBase}/teams/${selectedTeamId}/convert-personal`, {
               method: 'POST',
               credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                ...(csrfToken2 ? { 'X-CSRF-Token': csrfToken2 } : {}),
+              },
               body: JSON.stringify({}),
             });
             if (!res.ok) throw new Error(await res.text());
@@ -306,10 +315,14 @@ const TeamAdmin = () => {
     try {
       if (provider === 'rest') {
         const apiBase = getApiBaseUrl();
+        const csrfToken = getCsrfToken();
         const res = await fetch(`${apiBase}/invites/${invitationId}`, {
           method: 'DELETE',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+          },
         });
         if (!res.ok) throw new Error(await res.text());
       } else {
@@ -358,10 +371,14 @@ const TeamAdmin = () => {
       }
       if (provider === 'rest') {
         const apiBase = getApiBaseUrl();
+        const csrfToken = getCsrfToken();
         const res = await fetch(`${apiBase}/teams/${selectedTeamId}/members/${memberId}`, {
           method: 'DELETE',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+          },
         });
         if (!res.ok) throw new Error(await res.text());
       } else {
@@ -528,10 +545,14 @@ const TeamAdmin = () => {
     try {
       if (provider === 'rest') {
         const apiBase = getApiBaseUrl();
+        const csrfToken = getCsrfToken();
         const res = await fetch(`${apiBase}/teams/${selectedTeamId}/transfer-ownership`, {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+          },
           body: JSON.stringify({ new_owner_user_id: selectedNewOwner }),
         });
         if (!res.ok) throw new Error(await res.text());

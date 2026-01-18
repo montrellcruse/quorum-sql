@@ -73,9 +73,7 @@ test.describe('Solo User Flows', () => {
     await expect(teamAdminButton).not.toBeVisible();
   });
 
-  // Skip: Monaco editor loads from CDN which may fail in test environments
-  // TODO: Configure Monaco to use local files or add retry logic
-  test.skip('solo user queries auto-approve', async ({ page }) => {
+  test('solo user queries auto-approve', async ({ page }) => {
     // Sign in as solo user
     await signIn(page, soloUser);
     await waitForDashboard(page);
@@ -95,17 +93,17 @@ test.describe('Solo User Flows', () => {
     // Fill in query details
     await page.getByLabel(/title/i).fill('Auto-Approve Test Query');
 
-    // Wait for Monaco editor to load (may take a while due to lazy loading)
-    // Monaco adds .monaco-editor class when fully loaded
+    // Wait for Monaco editor to load
     await expect(page.getByText('Loading...')).not.toBeVisible({ timeout: 30000 });
-    const monacoEditor = page.locator('.monaco-editor textarea');
-    await monacoEditor.waitFor({ state: 'visible', timeout: 10000 });
-    await monacoEditor.click();
-    await monacoEditor.fill('SELECT 1 AS test_value;');
+    // Click the editor container to focus it, then type
+    const monacoContainer = page.locator('.monaco-editor');
+    await monacoContainer.waitFor({ state: 'visible', timeout: 10000 });
+    await monacoContainer.click();
+    await page.keyboard.type('SELECT 1 AS test_value;');
 
     // Save the query
     await page.getByRole('button', { name: /save/i }).click();
-    await expect(page.getByText(/query saved/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Query saved as draft', { exact: true })).toBeVisible({ timeout: 5000 });
 
     // Submit for approval
     const submitButton = page.getByRole('button', { name: /submit for approval/i });
@@ -121,13 +119,10 @@ test.describe('Solo User Flows', () => {
       await expect(pendingBadge).not.toBeVisible();
     }
 
-    // Return to dashboard for cleanup
-    await page.getByRole('link', { name: /dashboard|back/i }).first().click();
+    // Note: Cleanup navigation removed - subsequent tests navigate fresh
   });
 
-  // Skip: CSRF token cross-origin issue - frontend on :8080 can't share token with API on :8787
-  // TODO: Configure Vite proxy or use same-origin setup for E2E tests
-  test.skip('invite converts to team mode', async ({ page }) => {
+  test('invite converts to team mode', async ({ page }) => {
     // Sign in as solo user
     await signIn(page, soloUser);
     await waitForDashboard(page);
@@ -144,7 +139,7 @@ test.describe('Solo User Flows', () => {
     await page.getByRole('button', { name: /invite collaborator/i }).click();
 
     // Should see "Collaboration Unlocked" toast
-    await expect(page.getByText(/collaboration unlocked|invitation sent/i)).toBeVisible();
+    await expect(page.getByText('Collaboration Unlocked!', { exact: true })).toBeVisible();
 
     // After first invite, personal team should convert
     // The UI should update to show team features
@@ -184,8 +179,7 @@ test.describe('Solo User Flows', () => {
     await expect(startCollabButton).not.toBeVisible();
   });
 
-  // Skip: Depends on 'invite converts to team mode' which is skipped
-  test.skip('last member leaving reverts to solo', async ({ page }) => {
+  test('last member leaving reverts to solo', async ({ page }) => {
     // Sign in as the original user (now has 2 members)
     await signIn(page, soloUser);
     await waitForDashboard(page);
@@ -311,9 +305,7 @@ test.describe('Solo User Edge Cases', () => {
     await signOut(page);
   });
 
-  // Skip: Monaco editor loads from CDN which may fail in test environments
-  // TODO: Configure Monaco to use local files or add retry logic
-  test.skip('approval workflow differs between solo and team mode', async ({ page }) => {
+  test('approval workflow differs between solo and team mode', async ({ page }) => {
     // Create a fresh solo user
     const workflowUser = generateTestUser('workflow');
     await signUp(page, workflowUser);
@@ -327,15 +319,16 @@ test.describe('Solo User Edge Cases', () => {
     await page.getByRole('button', { name: /new query/i }).click();
     await page.getByLabel(/title/i).fill('Solo Workflow Test');
 
-    // Wait for Monaco editor to load (may take a while due to lazy loading)
+    // Wait for Monaco editor to load
     await expect(page.getByText('Loading...')).not.toBeVisible({ timeout: 30000 });
-    const monacoEditor2 = page.locator('.monaco-editor textarea');
-    await monacoEditor2.waitFor({ state: 'visible', timeout: 10000 });
-    await monacoEditor2.click();
-    await monacoEditor2.fill('SELECT 1;');
+    // Click the editor container to focus it, then type
+    const monacoContainer2 = page.locator('.monaco-editor');
+    await monacoContainer2.waitFor({ state: 'visible', timeout: 10000 });
+    await monacoContainer2.click();
+    await page.keyboard.type('SELECT 1;');
 
     await page.getByRole('button', { name: /save/i }).click();
-    await expect(page.getByText(/query saved/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Query saved as draft', { exact: true })).toBeVisible({ timeout: 5000 });
 
     // Submit and verify auto-approval
     const submitButton = page.getByRole('button', { name: /submit for approval/i });

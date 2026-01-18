@@ -293,13 +293,16 @@ fastify.post('/auth/register', {
   }
 
   // Hash password and create user
+  // Note: raw_user_meta_data is set so the on_auth_user_created trigger can read full_name
   const hashedPassword = await hashPassword(password);
+  const trimmedFullName = fullName?.trim() || null;
+  const rawUserMetaData = trimmedFullName ? JSON.stringify({ full_name: trimmedFullName }) : '{}';
   const newUser = await withClient(null, async (client) => {
     const { rows } = await client.query(
-      `insert into auth.users (id, email, encrypted_password, full_name)
-       values (gen_random_uuid(), $1, $2, $3)
+      `insert into auth.users (id, email, encrypted_password, full_name, raw_user_meta_data)
+       values (gen_random_uuid(), $1, $2, $3, $4::jsonb)
        returning id, email`,
-      [normalizedEmail, hashedPassword, fullName?.trim() || null]
+      [normalizedEmail, hashedPassword, trimmedFullName, rawUserMetaData]
     );
     return rows[0];
   });

@@ -7,8 +7,60 @@ export default defineConfig({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      // Proxy API requests to backend - solves CSRF cross-origin issues
+      // Note: Only proxy specific auth endpoints, not /auth itself (that's a React route)
+      "/api": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8787",
+        changeOrigin: true,
+      },
+      "/auth/me": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8787",
+        changeOrigin: true,
+      },
+      "/auth/login": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8787",
+        changeOrigin: true,
+      },
+      "/auth/logout": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8787",
+        changeOrigin: true,
+      },
+      "/auth/register": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8787",
+        changeOrigin: true,
+      },
+      "/health": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8787",
+        changeOrigin: true,
+      },
+      "/teams": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8787",
+        changeOrigin: true,
+      },
+      "/invites": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8787",
+        changeOrigin: true,
+      },
+      "/folders": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8787",
+        changeOrigin: true,
+      },
+      "/queries": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8787",
+        changeOrigin: true,
+      },
+      "/approvals": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8787",
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [react()],
+  // Optimize monaco-editor for bundling
+  optimizeDeps: {
+    include: ["monaco-editor"],
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -21,7 +73,7 @@ export default defineConfig({
           // React core - rarely changes
           "vendor-react": ["react", "react-dom", "react-router-dom"],
           // Monaco editor - large, only needed for query editing
-          "vendor-monaco": ["@monaco-editor/react"],
+          "vendor-monaco": ["@monaco-editor/react", "monaco-editor"],
           // Radix UI components
           "vendor-radix": [
             "@radix-ui/react-alert-dialog",
