@@ -182,8 +182,12 @@ fastify.get('/auth/me', async (req, reply) => {
 
 fastify.post('/auth/login', {
   config: {
-    rateLimit: {
+    // Stricter rate limit in production, relaxed for development/testing
+    rateLimit: isProd ? {
       max: 5,
+      timeWindow: '1 minute',
+    } : {
+      max: 1000,
       timeWindow: '1 minute',
     },
   },
@@ -251,7 +255,96 @@ fastify.post('/auth/login', {
     maxAge: 60 * 60 * 24 * 7,
   });
 
-  return { ok: true };
+  // Return CSRF token in body for cross-origin setups where JS can't read cookie
+  return { ok: true, csrfToken };
+});
+
+fastify.post('/auth/register', {
+  config: {
+    // Stricter rate limit in production, relaxed for development/testing
+    rateLimit: isProd ? {
+      max: 10,
+      timeWindow: '1 minute',
+    } : {
+      max: 1000,
+      timeWindow: '1 minute',
+    },
+  },
+}, async (req, reply) => {
+  const Body = z.object({
+    email: z.string().email(),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    fullName: z.string().optional(),
+  });
+  const parsed = Body.safeParse(req.body || {});
+  if (!parsed.success) {
+    return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
+  }
+
+  const { email, password, fullName } = parsed.data;
+  const normalizedEmail = email.trim().toLowerCase();
+
+  req.log.info({ email: normalizedEmail }, 'Registration attempt');
+
+  // Check if user already exists
+  const existing = await withClient(null, async (client) => {
+    const { rows } = await client.query(
+      'select id from auth.users where lower(email) = $1',
+      [normalizedEmail]
+    );
+    return rows[0];
+  });
+
+  if (existing) {
+    req.log.warn({ email: normalizedEmail }, 'Registration failed: email already exists');
+    return reply.code(409).send({ error: 'An account with this email already exists' });
+  }
+
+  // Hash password and create user
+  // Note: raw_user_meta_data is set so the on_auth_user_created trigger can read full_name
+  const hashedPassword = await hashPassword(password);
+  const trimmedFullName = fullName?.trim() || null;
+  const rawUserMetaData = trimmedFullName ? JSON.stringify({ full_name: trimmedFullName }) : '{}';
+  const newUser = await withClient(null, async (client) => {
+    const { rows } = await client.query(
+      `insert into auth.users (id, email, encrypted_password, full_name, raw_user_meta_data)
+       values (gen_random_uuid(), $1, $2, $3, $4::jsonb)
+       returning id, email`,
+      [normalizedEmail, hashedPassword, trimmedFullName, rawUserMetaData]
+    );
+    return rows[0];
+  });
+
+  req.log.info({ email: normalizedEmail, userId: newUser.id }, 'Registration successful');
+
+  // Issue session token (same as login)
+  const secretKey = new TextEncoder().encode(securityConfig.sessionSecret);
+  const token = await new SignJWT({ email: newUser.email })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(newUser.id)
+    .setIssuedAt()
+    .setExpirationTime('7d')
+    .sign(secretKey);
+
+  reply.setCookie('session', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    secure: isProd,
+    maxAge: 60 * 60 * 24 * 7,
+  });
+
+  const csrfToken = generateCsrfToken();
+  reply.setCookie('csrf', csrfToken, {
+    httpOnly: false,
+    sameSite: 'lax',
+    path: '/',
+    secure: isProd,
+    maxAge: 60 * 60 * 24 * 7,
+  });
+
+  // Return CSRF token in body for cross-origin setups where JS can't read cookie
+  return { ok: true, csrfToken };
 });
 
 fastify.post('/auth/logout', async (req, reply) => {

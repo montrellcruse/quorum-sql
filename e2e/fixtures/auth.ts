@@ -25,9 +25,11 @@ export async function signUp(
 
   // Click "Create one" to switch to sign up mode
   const createAccountLink = page.getByRole('button', { name: /create one/i });
-  if (await createAccountLink.isVisible()) {
-    await createAccountLink.click();
-  }
+  await createAccountLink.waitFor({ state: 'visible' });
+  await createAccountLink.click();
+
+  // Wait for signup form to appear
+  await page.getByLabel(/full name/i).waitFor({ state: 'visible' });
 
   // Fill in sign up form
   if (user.fullName) {
@@ -36,11 +38,11 @@ export async function signUp(
   await page.getByLabel(/email/i).fill(user.email);
   await page.getByLabel(/password/i).fill(user.password);
 
-  // Submit
-  await page.getByRole('button', { name: /create account/i }).click();
-
-  // Wait for navigation away from auth page
-  await expect(page).not.toHaveURL(/\/auth/, { timeout: 10000 });
+  // Click and wait for navigation atomically
+  await Promise.all([
+    page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 15000 }),
+    page.getByRole('button', { name: /create account/i }).click(),
+  ]);
 }
 
 /**
@@ -52,33 +54,52 @@ export async function signIn(
 ): Promise<void> {
   await page.goto('/auth');
 
-  // Ensure we're on sign in mode (not sign up)
-  const signInLink = page.getByRole('button', { name: /sign in$/i });
-  if (await signInLink.isVisible().catch(() => false)) {
-    // If "Sign in" link is visible, we're on signup mode - click to switch
-    await signInLink.click();
+  // Wait for the email input to appear (page loaded)
+  await page.getByLabel(/email/i).waitFor({ state: 'visible', timeout: 10000 });
+
+  // Check if we're on sign up mode and need to switch to sign in
+  const createAccountButton = page.getByRole('button', { name: /create account/i });
+  if (await createAccountButton.isVisible().catch(() => false)) {
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Sign In' }).waitFor({ state: 'visible' });
   }
 
   // Fill in sign in form
   await page.getByLabel(/email/i).fill(user.email);
   await page.getByLabel(/password/i).fill(user.password);
 
-  // Submit
-  await page.getByRole('button', { name: /^sign in$/i }).click();
-
-  // Wait for navigation to dashboard
-  await expect(page).toHaveURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 10000 });
+  // Click and wait for navigation atomically
+  await Promise.all([
+    page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 15000 }),
+    page.locator('form button[type="submit"]').click(),
+  ]);
 }
 
 /**
  * Sign out the current user
  */
 export async function signOut(page: Page): Promise<void> {
-  const signOutButton = page.getByRole('button', { name: /sign out/i });
-  if (await signOutButton.isVisible()) {
-    await signOutButton.click();
-    await expect(page).toHaveURL(/\/auth/);
+  // Sign out button is only on dashboard, so navigate there first if needed
+  if (!page.url().includes('/dashboard')) {
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
   }
+
+  const signOutButton = page.getByRole('button', { name: /sign out/i });
+  await signOutButton.waitFor({ state: 'visible', timeout: 10000 });
+  await signOutButton.click();
+
+  // After sign out, should redirect to /auth (or /create-team during state transition)
+  await expect(page).toHaveURL(/\/(auth|create-team)/, { timeout: 10000 });
+
+  // If we landed on /create-team, go to /auth for a clean state
+  if (page.url().includes('/create-team')) {
+    await page.goto('/auth');
+  }
+
+  // Wait for the auth form to stabilize (session fully cleared)
+  // The email input being visible indicates the form is ready and not redirecting
+  await page.getByLabel(/email/i).waitFor({ state: 'visible', timeout: 10000 });
 }
 
 /**

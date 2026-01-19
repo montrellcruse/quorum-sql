@@ -164,7 +164,13 @@ const Auth = () => {
     try {
       if (provider === 'rest') {
         await restAuthAdapter.signInWithPassword!(trimmedEmail, password);
-        window.location.href = '/dashboard';
+        // Check for pending invites before redirecting
+        const hasPendingInvites = await checkPendingInvitations(trimmedEmail);
+        if (hasPendingInvites) {
+          window.location.href = '/accept-invites';
+        } else {
+          window.location.href = '/dashboard';
+        }
         return;
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -208,7 +214,13 @@ const Auth = () => {
     try {
       if (provider === 'rest') {
         await restAuthAdapter.signUp!(trimmedEmail, password, fullName.trim() || undefined);
-        window.location.href = '/dashboard';
+        // Check for pending invites before redirecting
+        const hasPendingInvites = await checkPendingInvitations(trimmedEmail);
+        if (hasPendingInvites) {
+          window.location.href = '/accept-invites';
+        } else {
+          window.location.href = '/dashboard';
+        }
         return;
       }
 
@@ -334,9 +346,8 @@ const Auth = () => {
                   </Button>
                 </form>
 
-                {/* Toggle between Sign In and Sign Up (only for Supabase) */}
-                {provider !== 'rest' && (
-                  <p className="text-sm text-center text-muted-foreground">
+                {/* Toggle between Sign In and Sign Up */}
+                <p className="text-sm text-center text-muted-foreground">
                     {isSignUp ? (
                       <>
                         Already have an account?{' '}
@@ -360,8 +371,7 @@ const Auth = () => {
                         </button>
                       </>
                     )}
-                  </p>
-                )}
+                </p>
               </div>
             )}
 
