@@ -38,11 +38,11 @@ export async function signUp(
   await page.getByLabel(/email/i).fill(user.email);
   await page.getByLabel(/password/i).fill(user.password);
 
-  // Submit
-  await page.getByRole('button', { name: /create account/i }).click();
-
-  // Wait for navigation away from auth page
-  await expect(page).not.toHaveURL(/\/auth/, { timeout: 10000 });
+  // Click and wait for navigation atomically
+  await Promise.all([
+    page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 15000 }),
+    page.getByRole('button', { name: /create account/i }).click(),
+  ]);
 }
 
 /**
@@ -52,61 +52,27 @@ export async function signIn(
   page: Page,
   user: { email: string; password: string }
 ): Promise<void> {
-  // Retry logic for flaky sign in
-  const maxRetries = 3;
+  await page.goto('/auth');
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    await page.goto('/auth');
+  // Wait for the email input to appear (page loaded)
+  await page.getByLabel(/email/i).waitFor({ state: 'visible', timeout: 10000 });
 
-    // Wait for page to be ready
-    await page.waitForLoadState('domcontentloaded');
-
-    // Wait for the email input to appear (page loaded)
-    await page.getByLabel(/email/i).waitFor({ state: 'visible', timeout: 10000 });
-
-    // Ensure we're on sign in mode (not sign up)
-    const signInLink = page.getByRole('button', { name: /sign in$/i });
-    if (await signInLink.isVisible().catch(() => false)) {
-      await signInLink.click();
-    }
-
-    // Fill in sign in form
-    await page.getByLabel(/email/i).fill(user.email);
-    await page.getByLabel(/password/i).fill(user.password);
-
-    // Wait for network to settle
-    await page.waitForLoadState('networkidle');
-
-    // Click sign in button and wait for navigation
-    const signInButton = page.getByRole('button', { name: /^sign in$/i });
-    await signInButton.click();
-
-    // Wait for the response
-    await page.waitForLoadState('networkidle');
-
-    // Wait a moment for any redirect to complete
-    await page.waitForTimeout(1000);
-
-    // Check if we successfully navigated away from /auth
-    if (!page.url().includes('/auth')) {
-      await expect(page).toHaveURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 5000 });
-      return;
-    }
-
-    // Check for error toast
-    const errorToast = page.getByText(/sign in failed|error/i);
-    if (await errorToast.isVisible().catch(() => false)) {
-      throw new Error('Sign in failed with error toast');
-    }
-
-    // If on last retry, fail
-    if (attempt === maxRetries) {
-      throw new Error(`Sign in failed after ${maxRetries} attempts: still on /auth`);
-    }
-
-    // Otherwise, retry
-    await page.waitForTimeout(500);
+  // Check if we're on sign up mode and need to switch to sign in
+  const createAccountButton = page.getByRole('button', { name: /create account/i });
+  if (await createAccountButton.isVisible().catch(() => false)) {
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Sign In' }).waitFor({ state: 'visible' });
   }
+
+  // Fill in sign in form
+  await page.getByLabel(/email/i).fill(user.email);
+  await page.getByLabel(/password/i).fill(user.password);
+
+  // Click and wait for navigation atomically
+  await Promise.all([
+    page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 15000 }),
+    page.locator('form button[type="submit"]').click(),
+  ]);
 }
 
 /**

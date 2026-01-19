@@ -182,8 +182,12 @@ fastify.get('/auth/me', async (req, reply) => {
 
 fastify.post('/auth/login', {
   config: {
-    rateLimit: {
+    // Stricter rate limit in production, relaxed for development/testing
+    rateLimit: isProd ? {
       max: 5,
+      timeWindow: '1 minute',
+    } : {
+      max: 1000,
       timeWindow: '1 minute',
     },
   },
@@ -257,8 +261,12 @@ fastify.post('/auth/login', {
 
 fastify.post('/auth/register', {
   config: {
-    rateLimit: {
+    // Stricter rate limit in production, relaxed for development/testing
+    rateLimit: isProd ? {
       max: 10,
+      timeWindow: '1 minute',
+    } : {
+      max: 1000,
       timeWindow: '1 minute',
     },
   },
