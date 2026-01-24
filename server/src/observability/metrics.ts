@@ -44,7 +44,9 @@ export function setupMetrics(fastify: FastifyInstance) {
     done();
   });
 
-  fastify.get('/metrics', async (req, reply) => {
+  fastify.get('/metrics', {
+    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
     if (!isAuthorized(req)) {
       return reply.code(401).send({ error: 'Unauthorized' });
     }

@@ -241,7 +241,9 @@ fastify.get('/health/ready', async (req, reply) => {
 });
 
 // Legacy endpoint
-fastify.get('/health/db', async () => {
+fastify.get('/health/db', {
+  config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+}, async () => {
   return withClient(null, async (client) => {
     const { rows } = await client.query('select now() as now');
     return { ok: true, now: rows[0].now };
@@ -309,7 +311,9 @@ fastify.post<{ Body: SetupSupabaseBody }>('/setup/test-supabase', async (req, re
 });
 
 // Test Docker PostgreSQL connection (alias for health/ready)
-fastify.get('/setup/test-db', async () => {
+fastify.get('/setup/test-db', {
+  config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+}, async () => {
   try {
     const result = await withClient(null, async (client) => {
       await client.query('SELECT 1 as connected');
