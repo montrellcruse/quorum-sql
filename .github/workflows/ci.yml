@@ -53,11 +53,23 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Check feature flags
+        run: npm run check:feature-flags
+
       - name: Check large files
         run: npm run check:large-files
 
       - name: Tech debt report
         run: npm run report:tech-debt
+
+      - name: Check test isolation
+        run: npm run check:test-isolation
+
+      - name: Unit tests (with coverage + timing output)
+        run: npm run test:unit:report
+
+      - name: Test timing report
+        run: npm run report:test-timing
 
       - name: Install server deps
         run: |
@@ -106,3 +118,12 @@ jobs:
         with:
           name: server-log
           path: server.log
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-reports
+          path: |
+            reports/**
+            test-results/**

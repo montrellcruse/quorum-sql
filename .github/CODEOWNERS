@@ -1,1 +1,9 @@
+# Default owners (update as needed)
 * @montrellcruse
+
+# Scoped ownership
+/src/ @montrellcruse
+/server/ @montrellcruse
+/docs/ @montrellcruse
+/runbooks/ @montrellcruse
+/.github/ @montrellcruse

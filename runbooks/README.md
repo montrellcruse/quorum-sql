@@ -1,9 +1,18 @@
 # Runbooks
 
+## Index
+- [Rollback Automation](rollback-automation.md)
+- [Alerting & On-Call](alerting.md)
+- [Sentry → GitHub Issues](sentry-github.md)
+
 ## Service Health
 - Health endpoints: `GET /health`, `GET /health/live`, `GET /health/ready`, `GET /health/db`
 - Metrics endpoint: `GET /metrics` (when `ENABLE_METRICS=true`)
 - Logs: Fastify/Pino stdout from server process
+
+## Alerting & Issue Intake
+- Frontend error tracking: Sentry (when `VITE_SENTRY_DSN` is set).
+- Error-to-issue automation: see [sentry-github.md](sentry-github.md).
 
 ## Common Incidents
 ### Server not starting
@@ -21,6 +30,10 @@
 2. Validate `supabase/schema.sql` and latest migrations.
 3. Inspect server logs for SQL errors and request IDs.
 
+## Rollback (Automated)
+See [rollback-automation.md](rollback-automation.md) for the automated workflow, prerequisites, and safety checks.
+
 ## Rollback (Manual)
 - Redeploy previous release tag and point deployments to that version.
 - Ensure the database schema is compatible with the rollback target.
+- If migrations are not reversible, use feature flags to disable affected functionality.
