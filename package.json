@@ -10,7 +10,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "lint:server": "eslint server/src --ext .ts",
+    "lint:server": "npm --prefix server run lint",
     "analyze": "ANALYZE=true vite build",
     "preview": "vite preview",
     "migrations:combine": "node scripts/generate-supabase-migrations.js",

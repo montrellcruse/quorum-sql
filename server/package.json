@@ -6,6 +6,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
     "start": "node dist/index.js",
     "dev": "NODE_ENV=development tsx watch src/index.ts",
     "migrate": "node dist/migrate.js",
@@ -27,10 +29,14 @@
     "zod": "^4.3.5"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/bcrypt": "^5.0.2",
     "@types/node": "^20.19.0",
     "@types/pg": "^8.15.5",
+    "eslint": "^9.39.2",
+    "globals": "^17.1.0",
     "tsx": "^4.20.5",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.53.1"
   }
 }
