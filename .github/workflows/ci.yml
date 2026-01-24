@@ -53,6 +53,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Check large files
+        run: npm run check:large-files
+
+      - name: Tech debt report
+        run: npm run report:tech-debt
+
       - name: Install server deps
         run: |
           cd server

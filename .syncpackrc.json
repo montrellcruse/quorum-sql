@@ -1,0 +1,17 @@
+{
+  "indent": "  ",
+  "semverGroups": [
+    {
+      "range": "^",
+      "dependencies": ["**"]
+    }
+  ],
+  "versionGroups": [
+    {
+      "label": "root-dev-deps",
+      "packages": ["."],
+      "dependencyTypes": ["devDependencies"],
+      "preferVersion": "highest"
+    }
+  ]
+}

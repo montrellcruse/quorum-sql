@@ -1,0 +1,12 @@
+{
+  "minLines": 20,
+  "minTokens": 70,
+  "threshold": 0,
+  "reporters": ["console"],
+  "ignore": [
+    "dist/**",
+    "node_modules/**",
+    "server/node_modules/**",
+    "supabase/**"
+  ]
+}

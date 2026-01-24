@@ -1,8 +1,22 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { visualizer } from "rollup-plugin-visualizer";
 import path from "path";
 
 // https://vitejs.dev/config/
+const analyze = process.env.ANALYZE === "true";
+const plugins = [react()];
+if (analyze) {
+  plugins.push(
+    visualizer({
+      filename: "dist/stats.html",
+      gzipSize: true,
+      brotliSize: true,
+      open: false,
+    }),
+  );
+}
+
 export default defineConfig({
   server: {
     host: "::",
@@ -56,7 +70,7 @@ export default defineConfig({
       },
     },
   },
-  plugins: [react()],
+  plugins,
   // Optimize monaco-editor for bundling
   optimizeDeps: {
     include: ["monaco-editor"],
