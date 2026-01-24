@@ -36,10 +36,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
@@ -81,6 +81,9 @@ jobs:
           cd server
           npm run build
 
+      - name: Lint server
+        run: npm run lint:server
+
       - name: Typecheck server
         run: npm run typecheck:server
 
@@ -114,14 +117,14 @@ jobs:
 
       - name: Upload server log
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: server-log
           path: server.log
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: test-reports
           path: |
