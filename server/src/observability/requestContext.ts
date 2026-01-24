@@ -1,8 +1,14 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { FastifyRequest } from 'fastify';
 
-const storage = new AsyncLocalStorage();
+type RequestStore = {
+  requestId?: string;
+  queryCount: number;
+};
 
-export function runWithRequestContext(req, next) {
+const storage = new AsyncLocalStorage<RequestStore>();
+
+export function runWithRequestContext(req: FastifyRequest, next: () => void) {
   const store = {
     requestId: req.requestId,
     queryCount: 0,

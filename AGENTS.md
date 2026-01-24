@@ -7,7 +7,7 @@
 
 ## Repo Layout
 - `src/`: React + Vite frontend (TypeScript)
-- `server/src/`: Fastify backend (JavaScript, ESM)
+- `server/src/`: Fastify backend (TypeScript, ESM)
 - `supabase/`: schema + migrations
 - `e2e/`: Playwright tests
 - `scripts/`: local tooling and checks
@@ -22,7 +22,7 @@
 - `npm run build`: frontend build
 - `npm run lint`: lint frontend + shared config
 - `npm run typecheck`: typecheck frontend
-- `npm run typecheck:server`: baseline backend JS typecheck (noEmit; checkJs disabled by default)
+- `npm run typecheck:server`: backend TypeScript typecheck (server/tsconfig.json)
 - `npm run test:e2e`: Playwright e2e
 - `npm run test:e2e:flaky`: repeat e2e to surface flaky tests
 - `npm run test:unit`: Vitest unit tests
@@ -37,6 +37,7 @@
 - `npm run analyze`: generate bundle size report (rollup visualizer)
 - `npm run docs:api`: build HTML API docs from OpenAPI
 - `npm run turbo:build`: cached build via Turborepo
+- `npm --prefix server run build`: compile server to `server/dist`
 
 ## Feature Flags
 - Frontend uses `VITE_FEATURE_FLAGS` (comma-separated allowlist).

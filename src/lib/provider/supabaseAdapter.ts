@@ -279,7 +279,7 @@ const queries: QueriesRepo = {
       .single();
     if (queryError) throw queryError;
     
-    const approval_quota = (query as QueryWithTeam)?.teams?.approval_quota || 1;
+    const approvalQuota = (query as QueryWithTeam)?.teams?.approval_quota || 1;
     
     const { data: history, error: histError } = await supabase
       .from('query_history')
@@ -290,7 +290,7 @@ const queries: QueriesRepo = {
       .single();
     
     if (histError || !history) {
-      return { approvals: [], approval_quota };
+      return { approvals: [], approval_quota: approvalQuota };
     }
     
     const { data: approvals, error: apprError } = await supabase
@@ -301,7 +301,7 @@ const queries: QueriesRepo = {
     
     return {
       approvals: (approvals || []) as QueryApproval[],
-      approval_quota,
+      approval_quota: approvalQuota,
       latest_history_id: history.id,
     };
   },

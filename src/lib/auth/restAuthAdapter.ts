@@ -8,6 +8,7 @@ function baseUrl(path: string) {
 }
 
 const CSRF_STORAGE_KEY = 'quorum_csrf_token';
+const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 export function setCsrfToken(token: string | null) {
   if (token) {
@@ -26,43 +27,76 @@ export function getCsrfToken(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const method = init?.method?.toUpperCase() || 'GET';
+function resolveMethod(init?: RequestInit) {
+  return init?.method?.toUpperCase() || 'GET';
+}
+
+function resolveHeaders(init?: RequestInit): Record<string, string> {
   const initHeaders = init?.headers;
   const headersFromInit: Record<string, string> =
     initHeaders instanceof Headers
       ? Object.fromEntries(initHeaders.entries())
       : (initHeaders as Record<string, string> | undefined) ?? {};
-  const headers: Record<string, string> = {
-    ...headersFromInit,
-  };
-  // Only set Content-Type for requests with a body
+  const headers: Record<string, string> = { ...headersFromInit };
   if (init?.body) {
     headers['Content-Type'] = 'application/json';
   }
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    const csrfToken = getCsrfToken();
-    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-  }
+  return headers;
+}
 
-  const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
-  let res: Response;
+function applyCsrfHeader(headers: Record<string, string>, method: string) {
+  if (!STATE_CHANGING_METHODS.has(method)) return;
+  const csrfToken = getCsrfToken();
+  if (csrfToken) {
+    headers['X-CSRF-Token'] = csrfToken;
+  }
+}
+
+function resolveUrl(input: RequestInfo) {
+  if (typeof input === 'string') return input;
+  if (input instanceof Request) return input.url;
+  return String(input);
+}
+
+async function performFetch(
+  input: RequestInfo,
+  init: RequestInit | undefined,
+  headers: Record<string, string>,
+  method: string,
+  url: string
+) {
   try {
-    res = await fetch(input, {
+    return await fetch(input, {
       credentials: 'include',
-      headers,
       ...init,
+      headers,
     });
   } catch (error: unknown) {
     throw new Error(`Network error during ${method} ${url}: ${getErrorMessage(error, 'request failed')}`);
   }
-  if (!res.ok) {
-    const text = await res.text();
-    const detail = text || res.statusText;
-    throw new Error(`HTTP ${res.status} ${res.statusText} for ${method} ${url}${detail ? `: ${detail}` : ''}`);
-  }
+}
+
+async function assertOk(res: Response, method: string, url: string) {
+  if (res.ok) return;
+  const text = await res.text();
+  const detail = text || res.statusText;
+  throw new Error(`HTTP ${res.status} ${res.statusText} for ${method} ${url}${detail ? `: ${detail}` : ''}`);
+}
+
+async function parseJson<T>(res: Response): Promise<T> {
   if (res.status === 204) return undefined as unknown as T;
   return res.json() as Promise<T>;
+}
+
+async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  const method = resolveMethod(init);
+  const headers = resolveHeaders(init);
+  applyCsrfHeader(headers, method);
+
+  const url = resolveUrl(input);
+  const res = await performFetch(input, init, headers, method, url);
+  await assertOk(res, method, url);
+  return parseJson<T>(res);
 }
 
 export const restAuthAdapter: AuthAdapter = {

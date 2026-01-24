@@ -2,12 +2,12 @@
   "entry": [
     "src/main.tsx",
     "src/lib/featureFlags.ts",
-    "server/src/index.js",
+    "server/src/index.ts",
     "scripts/*.js"
   ],
   "project": [
     "src/**/*.{ts,tsx}",
-    "server/src/**/*.{js,mjs}",
+    "server/src/**/*.{ts}",
     "scripts/**/*.js"
   ],
   "ignore": [

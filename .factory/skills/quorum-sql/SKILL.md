@@ -7,12 +7,12 @@ Quick guidance for common Quorum SQL tasks (frontend, backend, database).
 - Frontend dev: `npm run dev`
 - Backend dev: `cd server && npm run dev`
 - Local services: `docker-compose up`
-- Migrations: `node server/src/migrate.js --seed`
+- Migrations: `npm --prefix server run migrate:seed`
 
 ## Code Map
 - Frontend pages: `src/pages/`
 - Shared UI: `src/components/`
-- Backend routes: `server/src/index.js`
+- Backend routes: `server/src/index.ts`
 - DB schema: `supabase/schema.sql`
 
 ## Tips

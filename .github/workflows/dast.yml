@@ -49,12 +49,17 @@ jobs:
           cd server
           npm ci
 
+      - name: Build server
+        run: |
+          cd server
+          npm run build
+
       - name: Migrate database
-        run: node server/src/migrate.js --seed
+        run: node server/dist/migrate.js --seed
 
       - name: Start server
         run: |
-          node server/src/index.js 2>&1 | tee server.log &
+          node server/dist/index.js 2>&1 | tee server.log &
           echo $! > server.pid
 
       - name: Wait for server

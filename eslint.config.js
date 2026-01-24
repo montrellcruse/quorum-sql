@@ -32,10 +32,26 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/naming-convention": [
         "warn",
-        { selector: "variable", modifiers: ["const"], format: ["camelCase", "UPPER_CASE"] },
+        { selector: "import", format: ["camelCase", "PascalCase"] },
+        { selector: "variable", modifiers: ["const"], format: ["camelCase", "PascalCase", "UPPER_CASE"] },
+        { selector: "function", format: ["camelCase", "PascalCase"] },
+        { selector: "parameter", format: ["camelCase", "PascalCase"], leadingUnderscore: "allow" },
+        { selector: "typeProperty", filter: { regex: "^__", match: true }, format: null },
+        {
+          selector: "typeProperty",
+          format: ["camelCase", "PascalCase", "snake_case"],
+          leadingUnderscore: "allow",
+        },
+        { selector: "objectLiteralProperty", modifiers: ["requiresQuotes"], format: null },
+        {
+          selector: "objectLiteralProperty",
+          format: ["camelCase", "PascalCase", "snake_case", "UPPER_CASE"],
+          leadingUnderscore: "allow",
+        },
         { selector: "default", format: ["camelCase"], leadingUnderscore: "allow" },
         { selector: "typeLike", format: ["PascalCase"] },
         { selector: "enumMember", format: ["PascalCase", "UPPER_CASE"] },
@@ -61,14 +77,16 @@ export default tseslint.config(
   },
   {
     extends: [js.configs.recommended],
-    files: ["server/**/*.{js,mjs}"],
+    files: ["server/**/*.{js,mjs,ts}"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
       globals: globals.node,
     },
     rules: {
-      camelcase: ["warn", { properties: "never", ignoreImports: true }],
+      "no-unused-vars": "off",
+      camelcase: "off",
+      "@typescript-eslint/naming-convention": "off",
       complexity: ["warn", 12],
     },
   },
@@ -96,6 +114,24 @@ export default tseslint.config(
     ],
     rules: {
       "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  {
+    files: ["src/pages/**/*.{ts,tsx}"],
+    rules: {
+      complexity: ["warn", 50],
+    },
+  },
+  {
+    files: ["src/components/**/*.{ts,tsx}"],
+    rules: {
+      complexity: ["warn", 30],
+    },
+  },
+  {
+    files: ["src/contexts/**/*.{ts,tsx}"],
+    rules: {
+      complexity: ["warn", 20],
     },
   },
 );

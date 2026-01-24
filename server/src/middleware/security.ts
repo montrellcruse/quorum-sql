@@ -1,11 +1,12 @@
 import { isProd } from '../config.js';
-import crypto from 'crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import type { FastifyInstance } from 'fastify';
 
 /**
  * Generate a cryptographically secure CSRF token
  */
-export function generateCsrfToken() {
-  return crypto.randomBytes(32).toString('hex');
+export function generateCsrfToken(): string {
+  return randomBytes(32).toString('hex');
 }
 
 /**
@@ -13,7 +14,7 @@ export function generateCsrfToken() {
  * Validates that X-CSRF-Token header matches the csrf cookie.
  * Only applies to state-changing methods (POST, PUT, PATCH, DELETE).
  */
-export function csrfProtection(fastify) {
+export function csrfProtection(fastify: FastifyInstance) {
   fastify.addHook('preHandler', (req, reply, done) => {
     // Skip CSRF check for safe methods
     const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
@@ -50,10 +51,12 @@ export function csrfProtection(fastify) {
   });
 }
 
-export function securityHeaders(fastify) {
+export function securityHeaders(fastify: FastifyInstance) {
   fastify.addHook('onRequest', (req, reply, done) => {
     // Generate request ID for tracing
-    req.requestId = req.headers['x-request-id'] || crypto.randomUUID();
+    const header = req.headers['x-request-id'];
+    const requestId = Array.isArray(header) ? header[0] : header;
+    req.requestId = requestId || randomUUID();
     done();
   });
 
@@ -78,7 +81,13 @@ export function securityHeaders(fastify) {
   });
 }
 
-export function sanitizeError(err, includeStack = false) {
+type ErrorWithContext = Error & {
+  statusCode?: number;
+  expose?: boolean;
+  requestId?: string;
+};
+
+export function sanitizeError(err: ErrorWithContext, includeStack = false) {
   if (isProd) {
     // In production, never expose internal details
     return {
@@ -97,27 +106,28 @@ export function sanitizeError(err, includeStack = false) {
   };
 }
 
-export function errorHandler(fastify) {
+export function errorHandler(fastify: FastifyInstance) {
   fastify.setErrorHandler((err, req, reply) => {
-    err.requestId = req.requestId;
+    const error = err as ErrorWithContext;
+    error.requestId = req.requestId;
     
     // Log the full error server-side
     req.log.error({
-      err,
+      err: error,
       requestId: req.requestId,
       path: req.url,
       method: req.method,
       userId: req.user?.id,
     }, 'Request error');
     
-    const statusCode = err.statusCode || 500;
-    const sanitized = sanitizeError(err);
+    const statusCode = error.statusCode || 500;
+    const sanitized = sanitizeError(error);
     
     reply.code(statusCode).send(sanitized);
   });
 }
 
-export function requestLogger(fastify) {
+export function requestLogger(fastify: FastifyInstance) {
   fastify.addHook('onResponse', (req, reply, done) => {
     const duration = reply.getResponseTime();
     req.log.info({

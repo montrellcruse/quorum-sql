@@ -64,12 +64,20 @@ jobs:
           cd server
           npm ci
 
+      - name: Build server
+        run: |
+          cd server
+          npm run build
+
+      - name: Typecheck server
+        run: npm run typecheck:server
+
       - name: Migrate database
-        run: node server/src/migrate.js --seed
+        run: node server/dist/migrate.js --seed
 
       - name: Start server
         run: |
-          node server/src/index.js 2>&1 | tee server.log &
+          node server/dist/index.js 2>&1 | tee server.log &
           echo $! > server.pid
 
       - name: Wait for server
@@ -82,10 +90,10 @@ jobs:
           exit 1
 
       - name: Smoke test
-        run: node server/src/smoke.mjs
+        run: node server/dist/smoke.js
 
       - name: API smoke test
-        run: node server/src/smoke-api.mjs
+        run: node server/dist/smoke-api.js
 
       - name: Stop server
         if: always()

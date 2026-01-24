@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { SignJWT } from 'jose';
 import { z } from 'zod';
+import type { PoolClient } from 'pg';
 
 import { createPool } from './db.js';
 import { isProd, serverConfig, securityConfig, observabilityConfig } from './config.js';
@@ -79,7 +80,7 @@ fastify.addHook('onResponse', (req, reply, done) => {
 const pool = createPool();
 
 // Database helper with RLS context
-async function withClient(userId, fn) {
+async function withClient<T>(userId: string | null, fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -99,6 +100,116 @@ async function withClient(userId, fn) {
     client.release();
   }
 }
+
+type IdParams = { id: string };
+type TeamMemberParams = { id: string; memberId: string };
+type TeamIdQuery = { teamId: string; q?: string };
+type ApprovalsQuery = { teamId: string; excludeEmail?: string };
+type FolderPathsQuery = { teamId: string };
+
+const SetupSupabaseBodySchema = z.object({
+  url: z.string().min(1),
+  anonKey: z.string().min(1),
+});
+type SetupSupabaseBody = z.infer<typeof SetupSupabaseBodySchema>;
+
+const LoginBodySchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1, 'Password is required'),
+});
+type LoginBody = z.infer<typeof LoginBodySchema>;
+
+const RegisterBodySchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  fullName: z.string().optional(),
+});
+type RegisterBody = z.infer<typeof RegisterBodySchema>;
+
+const CreateTeamBodySchema = z.object({
+  name: z.string().min(1).max(100),
+  approval_quota: z.number().int().min(1).optional(),
+});
+type CreateTeamBody = z.infer<typeof CreateTeamBodySchema>;
+
+const UpdateTeamBodySchema = z.object({
+  approval_quota: z.number().int().min(1).optional(),
+  name: z.string().min(1).max(100).optional(),
+});
+type UpdateTeamBody = z.infer<typeof UpdateTeamBodySchema>;
+
+const ConvertPersonalBodySchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+});
+type ConvertPersonalBody = z.infer<typeof ConvertPersonalBodySchema>;
+
+const TransferOwnershipBodySchema = z.object({ new_owner_user_id: z.string().uuid() });
+type TransferOwnershipBody = z.infer<typeof TransferOwnershipBodySchema>;
+
+const UpdateMemberRoleBodySchema = z.object({ role: z.enum(['admin', 'member']) });
+type UpdateMemberRoleBody = z.infer<typeof UpdateMemberRoleBodySchema>;
+
+const CreateInviteBodySchema = z.object({
+  invited_email: z.string().email(),
+  role: z.enum(['admin', 'member']),
+});
+type CreateInviteBody = z.infer<typeof CreateInviteBodySchema>;
+
+const CreateFolderBodySchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().nullable().optional(),
+  user_id: z.string().uuid().optional(),
+  created_by_email: z.string().email().nullable().optional(),
+  parent_folder_id: z.string().uuid().nullable().optional(),
+  team_id: z.string().uuid(),
+});
+type CreateFolderBody = z.infer<typeof CreateFolderBodySchema>;
+
+const UpdateFolderBodySchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().nullable().optional(),
+});
+type UpdateFolderBody = z.infer<typeof UpdateFolderBodySchema>;
+
+const CreateQueryBodySchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(1000).nullable().optional(),
+  sql_content: z.string().min(1).max(100000),
+  status: z.enum(['draft', 'pending_approval', 'approved', 'rejected']).optional(),
+  team_id: z.string().uuid(),
+  folder_id: z.string().uuid().nullable().optional(),
+  created_by_email: z.string().email().nullable().optional(),
+  last_modified_by_email: z.string().email().nullable().optional(),
+});
+type CreateQueryBody = z.infer<typeof CreateQueryBodySchema>;
+
+const UpdateQueryBodySchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().max(1000).nullable().optional(),
+  sql_content: z.string().max(100000).optional(),
+  status: z.enum(['draft', 'pending_approval', 'approved', 'rejected']).optional(),
+  folder_id: z.string().uuid().nullable().optional(),
+  last_modified_by_email: z.string().email().nullable().optional(),
+});
+type UpdateQueryBody = z.infer<typeof UpdateQueryBodySchema>;
+
+const SubmitQueryBodySchema = z.object({
+  sql: z.string().max(100000).optional().nullable(),
+  modified_by_email: z.string().email().nullable().optional(),
+  change_reason: z.string().max(500).nullable().optional(),
+  team_id: z.string().uuid().nullable().optional(),
+  user_id: z.string().uuid().nullable().optional(),
+});
+type SubmitQueryBody = z.infer<typeof SubmitQueryBodySchema>;
+
+const ApproveQueryBodySchema = z.object({ historyId: z.string().uuid() });
+type ApproveQueryBody = z.infer<typeof ApproveQueryBodySchema>;
+
+const RejectQueryBodySchema = z.object({
+  historyId: z.string().uuid(),
+  reason: z.string().max(500).nullable().optional(),
+});
+type RejectQueryBody = z.infer<typeof RejectQueryBodySchema>;
 
 // ============================================
 // HEALTH ENDPOINTS
@@ -134,12 +245,12 @@ fastify.get('/health/db', async () => {
 // ============================================
 
 // Test Supabase connection from frontend
-fastify.post('/setup/test-supabase', async (req, reply) => {
-  const { url, anonKey } = req.body || {};
-
-  if (!url || !anonKey) {
+fastify.post<{ Body: SetupSupabaseBody }>('/setup/test-supabase', async (req, reply) => {
+  const parsed = SetupSupabaseBodySchema.safeParse(req.body);
+  if (!parsed.success) {
     return reply.code(400).send({ ok: false, error: 'Missing URL or anon key' });
   }
+  const { url, anonKey } = parsed.data;
 
   // Validate URL is a legitimate Supabase URL to prevent SSRF
   let parsedUrl;
@@ -179,7 +290,8 @@ fastify.post('/setup/test-supabase', async (req, reply) => {
       return { ok: false, error: `HTTP ${response.status}: ${response.statusText}` };
     }
   } catch (err) {
-    return { ok: false, error: err.message || 'Connection failed' };
+    const message = err instanceof Error ? err.message : 'Connection failed';
+    return { ok: false, error: message };
   }
 });
 
@@ -192,7 +304,8 @@ fastify.get('/setup/test-db', async () => {
     });
     return result;
   } catch (err) {
-    return { ok: false, error: err.message || 'Database connection failed' };
+    const message = err instanceof Error ? err.message : 'Database connection failed';
+    return { ok: false, error: message };
   }
 });
 
@@ -212,7 +325,7 @@ fastify.get('/auth/me', async (req, reply) => {
   });
 });
 
-fastify.post('/auth/login', {
+fastify.post<{ Body: LoginBody }>('/auth/login', {
   config: {
     // Stricter rate limit in production, relaxed for development/testing
     rateLimit: isProd ? {
@@ -224,11 +337,7 @@ fastify.post('/auth/login', {
     },
   },
 }, async (req, reply) => {
-  const Body = z.object({
-    email: z.string().email(),
-    password: z.string().min(1, 'Password is required'),
-  });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = LoginBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -291,7 +400,7 @@ fastify.post('/auth/login', {
   return { ok: true, csrfToken };
 });
 
-fastify.post('/auth/register', {
+fastify.post<{ Body: RegisterBody }>('/auth/register', {
   config: {
     // Stricter rate limit in production, relaxed for development/testing
     rateLimit: isProd ? {
@@ -303,12 +412,7 @@ fastify.post('/auth/register', {
     },
   },
 }, async (req, reply) => {
-  const Body = z.object({
-    email: z.string().email(),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
-    fullName: z.string().optional(),
-  });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = RegisterBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -411,7 +515,7 @@ fastify.get('/teams', async (req, reply) => {
   });
 });
 
-fastify.get('/teams/:id', async (req, reply) => {
+fastify.get<{ Params: IdParams }>('/teams/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -429,15 +533,11 @@ fastify.get('/teams/:id', async (req, reply) => {
   });
 });
 
-fastify.post('/teams', async (req, reply) => {
+fastify.post<{ Body: CreateTeamBody }>('/teams', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   
-  const Body = z.object({ 
-    name: z.string().min(1).max(100), 
-    approval_quota: z.number().int().min(1).optional() 
-  });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = CreateTeamBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -470,7 +570,7 @@ fastify.post('/teams', async (req, reply) => {
   });
 });
 
-fastify.patch('/teams/:id', async (req, reply) => {
+fastify.patch<{ Params: IdParams; Body: UpdateTeamBody }>('/teams/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -479,11 +579,7 @@ fastify.patch('/teams/:id', async (req, reply) => {
     return reply.code(400).send({ error: 'Invalid team ID' });
   }
   
-  const Body = z.object({
-    approval_quota: z.number().int().min(1).optional(),
-    name: z.string().min(1).max(100).optional(),
-  });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = UpdateTeamBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -521,7 +617,7 @@ fastify.patch('/teams/:id', async (req, reply) => {
   });
 });
 
-fastify.post('/teams/:id/convert-personal', async (req, reply) => {
+fastify.post<{ Params: IdParams; Body: ConvertPersonalBody }>('/teams/:id/convert-personal', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -530,8 +626,7 @@ fastify.post('/teams/:id/convert-personal', async (req, reply) => {
     return reply.code(400).send({ error: 'Invalid team ID' });
   }
 
-  const Body = z.object({ name: z.string().min(1).max(100).optional() });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = ConvertPersonalBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -552,7 +647,7 @@ fastify.post('/teams/:id/convert-personal', async (req, reply) => {
   });
 });
 
-fastify.delete('/teams/:id', async (req, reply) => {
+fastify.delete<{ Params: IdParams }>('/teams/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -593,7 +688,7 @@ fastify.delete('/teams/:id', async (req, reply) => {
   });
 });
 
-fastify.post('/teams/:id/transfer-ownership', async (req, reply) => {
+fastify.post<{ Params: IdParams; Body: TransferOwnershipBody }>('/teams/:id/transfer-ownership', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -602,8 +697,7 @@ fastify.post('/teams/:id/transfer-ownership', async (req, reply) => {
     return reply.code(400).send({ error: 'Invalid team ID' });
   }
   
-  const Body = z.object({ new_owner_user_id: z.string().uuid() });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = TransferOwnershipBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -647,7 +741,7 @@ fastify.post('/teams/:id/transfer-ownership', async (req, reply) => {
 // TEAM MEMBERS ENDPOINTS
 // ============================================
 
-fastify.get('/teams/:id/members', async (req, reply) => {
+fastify.get<{ Params: IdParams }>('/teams/:id/members', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -674,7 +768,7 @@ fastify.get('/teams/:id/members', async (req, reply) => {
   });
 });
 
-fastify.delete('/teams/:id/members/:memberId', async (req, reply) => {
+fastify.delete<{ Params: TeamMemberParams }>('/teams/:id/members/:memberId', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id, memberId } = req.params;
@@ -717,7 +811,9 @@ fastify.delete('/teams/:id/members/:memberId', async (req, reply) => {
   });
 });
 
-fastify.patch('/teams/:id/members/:memberId', async (req, reply) => {
+fastify.patch<{ Params: TeamMemberParams; Body: UpdateMemberRoleBody }>(
+  '/teams/:id/members/:memberId',
+  async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id, memberId } = req.params;
@@ -726,8 +822,7 @@ fastify.patch('/teams/:id/members/:memberId', async (req, reply) => {
     return reply.code(400).send({ error: 'Invalid ID' });
   }
   
-  const Body = z.object({ role: z.enum(['admin', 'member']) });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = UpdateMemberRoleBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -793,7 +888,7 @@ fastify.get('/invites/mine', async (req, reply) => {
   });
 });
 
-fastify.get('/teams/:id/invites', async (req, reply) => {
+fastify.get<{ Params: IdParams }>('/teams/:id/invites', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -819,7 +914,7 @@ fastify.get('/teams/:id/invites', async (req, reply) => {
   });
 });
 
-fastify.post('/teams/:id/invites', async (req, reply) => {
+fastify.post<{ Params: IdParams; Body: CreateInviteBody }>('/teams/:id/invites', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -828,11 +923,7 @@ fastify.post('/teams/:id/invites', async (req, reply) => {
     return reply.code(400).send({ error: 'Invalid team ID' });
   }
   
-  const Body = z.object({ 
-    invited_email: z.string().email(), 
-    role: z.enum(['admin', 'member']) 
-  });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = CreateInviteBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -860,7 +951,7 @@ fastify.post('/teams/:id/invites', async (req, reply) => {
   });
 });
 
-fastify.post('/invites/:id/accept', async (req, reply) => {
+fastify.post<{ Params: IdParams }>('/invites/:id/accept', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -902,7 +993,7 @@ fastify.post('/invites/:id/accept', async (req, reply) => {
   });
 });
 
-fastify.post('/invites/:id/decline', async (req, reply) => {
+fastify.post<{ Params: IdParams }>('/invites/:id/decline', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -931,7 +1022,7 @@ fastify.post('/invites/:id/decline', async (req, reply) => {
   });
 });
 
-fastify.delete('/invites/:id', async (req, reply) => {
+fastify.delete<{ Params: IdParams }>('/invites/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -970,7 +1061,7 @@ fastify.delete('/invites/:id', async (req, reply) => {
 // FOLDERS ENDPOINTS
 // ============================================
 
-fastify.get('/teams/:id/folders', async (req, reply) => {
+fastify.get<{ Params: IdParams }>('/teams/:id/folders', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -988,7 +1079,7 @@ fastify.get('/teams/:id/folders', async (req, reply) => {
   });
 });
 
-fastify.get('/folders/:id', async (req, reply) => {
+fastify.get<{ Params: IdParams }>('/folders/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1012,11 +1103,11 @@ fastify.get('/folders/:id', async (req, reply) => {
   });
 });
 
-fastify.get('/folders/paths', async (req, reply) => {
+fastify.get<{ Querystring: FolderPathsQuery }>('/folders/paths', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
 
-  const teamId = req.query.teamId;
+  const { teamId } = req.query;
   if (!teamId || !isValidUUID(teamId)) {
     return reply.code(400).send({ error: 'Valid teamId query parameter is required' });
   }
@@ -1039,7 +1130,7 @@ fastify.get('/folders/paths', async (req, reply) => {
   });
 });
 
-fastify.get('/folders/:id/children', async (req, reply) => {
+fastify.get<{ Params: IdParams }>('/folders/:id/children', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1069,7 +1160,7 @@ fastify.get('/folders/:id/children', async (req, reply) => {
   });
 });
 
-fastify.get('/folders/:id/queries', async (req, reply) => {
+fastify.get<{ Params: IdParams }>('/folders/:id/queries', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1100,19 +1191,11 @@ fastify.get('/folders/:id/queries', async (req, reply) => {
   });
 });
 
-fastify.post('/folders', async (req, reply) => {
+fastify.post<{ Body: CreateFolderBody }>('/folders', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
 
-  const Body = z.object({
-    name: z.string().min(1).max(100),
-    description: z.string().nullable().optional(),
-    user_id: z.string().uuid().optional(),
-    created_by_email: z.string().email().nullable().optional(),
-    parent_folder_id: z.string().uuid().nullable().optional(),
-    team_id: z.string().uuid(),
-  });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = CreateFolderBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -1153,7 +1236,7 @@ fastify.post('/folders', async (req, reply) => {
   });
 });
 
-fastify.patch('/folders/:id', async (req, reply) => {
+fastify.patch<{ Params: IdParams; Body: UpdateFolderBody }>('/folders/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1162,11 +1245,7 @@ fastify.patch('/folders/:id', async (req, reply) => {
     return reply.code(400).send({ error: 'Invalid folder ID' });
   }
 
-  const Body = z.object({
-    name: z.string().min(1).max(100).optional(),
-    description: z.string().nullable().optional()
-  });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = UpdateFolderBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -1194,7 +1273,7 @@ fastify.patch('/folders/:id', async (req, reply) => {
   });
 });
 
-fastify.delete('/folders/:id', async (req, reply) => {
+fastify.delete<{ Params: IdParams }>('/folders/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1225,12 +1304,11 @@ fastify.delete('/folders/:id', async (req, reply) => {
 // QUERIES ENDPOINTS
 // ============================================
 
-fastify.get('/queries', async (req, reply) => {
+fastify.get<{ Querystring: TeamIdQuery }>('/queries', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
 
-  const teamId = req.query.teamId;
-  const q = req.query.q;
+  const { teamId, q } = req.query;
 
   if (!teamId || !isValidUUID(teamId)) {
     return reply.code(400).send({ error: 'Valid teamId is required' });
@@ -1260,7 +1338,7 @@ fastify.get('/queries', async (req, reply) => {
   });
 });
 
-fastify.get('/queries/:id', async (req, reply) => {
+fastify.get<{ Params: IdParams }>('/queries/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1284,21 +1362,11 @@ fastify.get('/queries/:id', async (req, reply) => {
   });
 });
 
-fastify.post('/queries', async (req, reply) => {
+fastify.post<{ Body: CreateQueryBody }>('/queries', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
 
-  const Body = z.object({
-    title: z.string().min(1).max(200),
-    description: z.string().max(1000).nullable().optional(),
-    sql_content: z.string().min(1).max(100000),
-    status: z.enum(['draft', 'pending_approval', 'approved', 'rejected']).optional(),
-    team_id: z.string().uuid(),
-    folder_id: z.string().uuid().nullable().optional(),
-    created_by_email: z.string().email().nullable().optional(),
-    last_modified_by_email: z.string().email().nullable().optional(),
-  });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = CreateQueryBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -1323,7 +1391,16 @@ fastify.post('/queries', async (req, reply) => {
       }
     }
 
-    const fields = ['title', 'description', 'sql_content', 'status', 'team_id', 'folder_id', 'created_by_email', 'last_modified_by_email'];
+    const fields: Array<keyof CreateQueryBody> = [
+      'title',
+      'description',
+      'sql_content',
+      'status',
+      'team_id',
+      'folder_id',
+      'created_by_email',
+      'last_modified_by_email',
+    ];
     const cols = [];
     const vals = [];
     const params = [];
@@ -1346,7 +1423,7 @@ fastify.post('/queries', async (req, reply) => {
   });
 });
 
-fastify.patch('/queries/:id', async (req, reply) => {
+fastify.patch<{ Params: IdParams; Body: UpdateQueryBody }>('/queries/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1355,15 +1432,7 @@ fastify.patch('/queries/:id', async (req, reply) => {
     return reply.code(400).send({ error: 'Invalid query ID' });
   }
 
-  const Body = z.object({
-    title: z.string().min(1).max(200).optional(),
-    description: z.string().max(1000).nullable().optional(),
-    sql_content: z.string().max(100000).optional(),
-    status: z.enum(['draft', 'pending_approval', 'approved', 'rejected']).optional(),
-    folder_id: z.string().uuid().nullable().optional(),
-    last_modified_by_email: z.string().email().nullable().optional(),
-  });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = UpdateQueryBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -1398,7 +1467,9 @@ fastify.patch('/queries/:id', async (req, reply) => {
     const params = [];
     let i = 1;
 
-    for (const [k, v] of Object.entries(body)) {
+    const entries = Object.entries(body) as Array<[keyof UpdateQueryBody, UpdateQueryBody[keyof UpdateQueryBody]]>;
+    for (const [k, v] of entries) {
+      if (v === undefined) continue;
       sets.push(`${k} = $${i++}`);
       params.push(v);
     }
@@ -1414,7 +1485,7 @@ fastify.patch('/queries/:id', async (req, reply) => {
   });
 });
 
-fastify.delete('/queries/:id', async (req, reply) => {
+fastify.delete<{ Params: IdParams }>('/queries/:id', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1445,7 +1516,7 @@ fastify.delete('/queries/:id', async (req, reply) => {
 // QUERY HISTORY & APPROVALS
 // ============================================
 
-fastify.get('/queries/:id/history', async (req, reply) => {
+fastify.get<{ Params: IdParams }>('/queries/:id/history', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1463,7 +1534,7 @@ fastify.get('/queries/:id/history', async (req, reply) => {
   });
 });
 
-fastify.get('/queries/:id/approvals', async (req, reply) => {
+fastify.get<{ Params: IdParams }>('/queries/:id/approvals', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1498,12 +1569,11 @@ fastify.get('/queries/:id/approvals', async (req, reply) => {
   });
 });
 
-fastify.get('/approvals', async (req, reply) => {
+fastify.get<{ Querystring: ApprovalsQuery }>('/approvals', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   
-  const teamId = req.query.teamId;
-  const excludeEmail = req.query.excludeEmail || '';
+  const { teamId, excludeEmail = '' } = req.query;
   
   if (!teamId || !isValidUUID(teamId)) {
     return reply.code(400).send({ error: 'Valid teamId is required' });
@@ -1537,7 +1607,7 @@ fastify.get('/approvals', async (req, reply) => {
   });
 });
 
-fastify.post('/queries/:id/submit', async (req, reply) => {
+fastify.post<{ Params: IdParams; Body: SubmitQueryBody }>('/queries/:id/submit', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1546,14 +1616,7 @@ fastify.post('/queries/:id/submit', async (req, reply) => {
     return reply.code(400).send({ error: 'Invalid query ID' });
   }
   
-  const Body = z.object({
-    sql: z.string().max(100000).optional().nullable(),
-    modified_by_email: z.string().email().nullable().optional(),
-    change_reason: z.string().max(500).nullable().optional(),
-    team_id: z.string().uuid().nullable().optional(),
-    user_id: z.string().uuid().nullable().optional(),
-  });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = SubmitQueryBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -1579,7 +1642,7 @@ fastify.post('/queries/:id/submit', async (req, reply) => {
   });
 });
 
-fastify.post('/queries/:id/approve', async (req, reply) => {
+fastify.post<{ Params: IdParams; Body: ApproveQueryBody }>('/queries/:id/approve', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1588,8 +1651,7 @@ fastify.post('/queries/:id/approve', async (req, reply) => {
     return reply.code(400).send({ error: 'Invalid query ID' });
   }
   
-  const Body = z.object({ historyId: z.string().uuid() });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = ApproveQueryBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -1610,7 +1672,7 @@ fastify.post('/queries/:id/approve', async (req, reply) => {
   });
 });
 
-fastify.post('/queries/:id/reject', async (req, reply) => {
+fastify.post<{ Params: IdParams; Body: RejectQueryBody }>('/queries/:id/reject', async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
   const { id } = req.params;
@@ -1619,11 +1681,7 @@ fastify.post('/queries/:id/reject', async (req, reply) => {
     return reply.code(400).send({ error: 'Invalid query ID' });
   }
   
-  const Body = z.object({ 
-    historyId: z.string().uuid(), 
-    reason: z.string().max(500).nullable().optional() 
-  });
-  const parsed = Body.safeParse(req.body || {});
+  const parsed = RejectQueryBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
@@ -1642,7 +1700,7 @@ fastify.post('/queries/:id/reject', async (req, reply) => {
 // GRACEFUL SHUTDOWN
 // ============================================
 
-async function gracefulShutdown(signal) {
+async function gracefulShutdown(signal: string) {
   fastify.log.info({ signal }, 'Received shutdown signal');
   
   try {

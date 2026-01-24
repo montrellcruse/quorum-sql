@@ -8,7 +8,7 @@
 ## Common Incidents
 ### Server not starting
 1. Verify database connectivity (`DATABASE_URL` or `PGHOST/PGDATABASE/PGUSER`).
-2. Check migrations ran: `node server/src/migrate.js --seed`.
+2. Check migrations ran: `npm --prefix server run migrate:seed` (builds required for dist) or `npm --prefix server run migrate:dev`.
 3. Inspect server logs (CI uploads `server.log` on failure).
 
 ### Authentication failures

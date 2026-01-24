@@ -1,4 +1,5 @@
 import client from 'prom-client';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { observabilityConfig } from '../config.js';
 
 const register = new client.Registry();
@@ -13,19 +14,24 @@ const httpRequestDuration = new client.Histogram({
 
 register.registerMetric(httpRequestDuration);
 
-function isAuthorized(req) {
+type MetricsQuery = {
+  token?: string;
+};
+
+function isAuthorized(req: FastifyRequest): boolean {
   if (!observabilityConfig.metricsAuthToken) return true;
   const header = req.headers?.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : header;
-  const queryToken = req.query?.token;
+  const query = req.query as MetricsQuery | undefined;
+  const queryToken = query?.token;
   return token === observabilityConfig.metricsAuthToken || queryToken === observabilityConfig.metricsAuthToken;
 }
 
-export function setupMetrics(fastify) {
+export function setupMetrics(fastify: FastifyInstance) {
   if (!observabilityConfig.metricsEnabled) return;
 
   fastify.addHook('onResponse', (req, reply, done) => {
-    const route = req.routerPath || req.url;
+    const route = req.routeOptions?.url || req.url;
     const duration = reply.getResponseTime();
     httpRequestDuration.observe(
       {

@@ -8,7 +8,7 @@ const devAuthHeaders = {
   'x-dev-user-email': 'ci-test@test.dev',
 };
 
-async function req(path, method = 'GET', body) {
+async function req(path: string, method = 'GET', body?: unknown) {
   const res = await fetch(base + path, {
     method,
     headers: devAuthHeaders,

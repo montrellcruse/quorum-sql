@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import crypto from 'crypto';
+import { randomBytes } from 'node:crypto';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -43,7 +43,9 @@ const envSchema = z.object({
   DEV_FAKE_USER_ID: z.string().uuid().optional(),
 });
 
-function validateEnv() {
+type EnvConfig = z.infer<typeof envSchema>;
+
+function validateEnv(): EnvConfig {
   const isProd = process.env.NODE_ENV === 'production';
   
   // In production, SESSION_SECRET is absolutely required
@@ -55,7 +57,7 @@ function validateEnv() {
   // Provide a generated secret for development if not set
   if (!isProd && !process.env.SESSION_SECRET) {
     console.warn('WARNING: SESSION_SECRET not set, using random secret (sessions will not persist across restarts)');
-    process.env.SESSION_SECRET = crypto.randomBytes(32).toString('hex');
+    process.env.SESSION_SECRET = randomBytes(32).toString('hex');
   }
   
   // Validate database connection
