@@ -80,7 +80,7 @@
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react-swc": "^4.2.2",
-    "@vitest/coverage-v8": "^1.6.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.32.0",
     "eslint-plugin-boundaries": "^4.2.2",
@@ -100,6 +100,6 @@
     "typescript-eslint": "^8.53.1",
     "vite": "^7.3.1",
     "vite-plugin-monaco-editor": "^1.1.0",
-    "vitest": "^1.6.0"
+    "vitest": "^4.0.18"
   }
 }
