@@ -38,6 +38,13 @@ const envSchema = z.object({
   METRICS_AUTH_TOKEN: z.string().optional(),
   QUERY_COUNT_WARN_THRESHOLD: z.string().default('50').transform(Number),
 
+  // OpenTelemetry
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+  OTEL_SERVICE_NAME: z.string().default('quorum-sql-server'),
+
+  // Sentry
+  SENTRY_DSN: z.string().optional(),
+
   // Dev-only settings
   ENABLE_DEV_AUTH: z.string().default('false').transform(v => v === 'true'),
   DEV_FAKE_USER_ID: z.string().uuid().optional(),
@@ -124,6 +131,9 @@ export const observabilityConfig = {
   metricsEnabled: config.ENABLE_METRICS,
   metricsAuthToken: config.METRICS_AUTH_TOKEN,
   queryCountWarnThreshold: config.QUERY_COUNT_WARN_THRESHOLD,
+  otelEndpoint: config.OTEL_EXPORTER_OTLP_ENDPOINT,
+  otelServiceName: config.OTEL_SERVICE_NAME,
+  sentryDsn: config.SENTRY_DSN,
 };
 
 export default config;

@@ -58,9 +58,12 @@
 - Update this file when adding/changing backend routes.
 
 ## Observability
-- Metrics: set `ENABLE_METRICS=true` to expose `GET /metrics` (optionally guard with `METRICS_AUTH_TOKEN`).
-- Error tracking: set `VITE_SENTRY_DSN` for frontend Sentry.
-- Analytics: set `VITE_POSTHOG_KEY` to enable PostHog.
+- **Metrics**: set `ENABLE_METRICS=true` to expose `GET /metrics` (optionally guard with `METRICS_AUTH_TOKEN`).
+- **Tracing**: set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g., `http://jaeger:4318`) to enable OpenTelemetry tracing.
+- **Error tracking (backend)**: set `SENTRY_DSN` for server-side Sentry.
+- **Error tracking (frontend)**: set `VITE_SENTRY_DSN` for frontend Sentry.
+- **Analytics**: set `VITE_POSTHOG_KEY` to enable PostHog.
+- See `docs/observability/` for alerting rules and dashboard setup.
 
 ## Testing Notes
 - Integration tests use `INTEGRATION_BASE_URL` (e.g., `http://localhost:8787`).

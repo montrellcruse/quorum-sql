@@ -1,3 +1,9 @@
+// Initialize observability first (before other imports)
+import { initTracing } from './observability/tracing.js';
+import { initSentry, setupSentryFastify } from './observability/sentry.js';
+initTracing();
+initSentry();
+
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
@@ -41,6 +47,7 @@ securityHeaders(fastify);
 requestLogger(fastify);
 errorHandler(fastify);
 setupMetrics(fastify);
+setupSentryFastify(fastify);
 
 fastify.addHook('onRequest', (req, reply, done) => {
   runWithRequestContext(req, done);
