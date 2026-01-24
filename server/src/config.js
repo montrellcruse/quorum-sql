@@ -25,11 +25,19 @@ const envSchema = z.object({
   // Rate limiting
   RATE_LIMIT_MAX: z.string().transform(Number).default('100'),
   RATE_LIMIT_WINDOW: z.string().default('1 minute'),
-  
+
+  // Feature flags
+  FEATURE_FLAGS: z.string().default(''),
+
   // Supabase JWT (optional)
   SUPABASE_URL: z.string().optional(),
   SUPABASE_JWKS_URL: z.string().optional(),
-  
+
+  // Observability
+  ENABLE_METRICS: z.string().transform(v => v === 'true').default('false'),
+  METRICS_AUTH_TOKEN: z.string().optional(),
+  QUERY_COUNT_WARN_THRESHOLD: z.string().transform(Number).default('50'),
+
   // Dev-only settings
   ENABLE_DEV_AUTH: z.string().transform(v => v === 'true').default('false'),
   DEV_FAKE_USER_ID: z.string().uuid().optional(),
@@ -107,6 +115,13 @@ export const dbConfig = {
 export const supabaseConfig = {
   url: config.SUPABASE_URL,
   jwksUrl: config.SUPABASE_JWKS_URL || (config.SUPABASE_URL ? `${config.SUPABASE_URL.replace(/\/$/, '')}/auth/v1/keys` : null),
+};
+
+export const observabilityConfig = {
+  featureFlags: config.FEATURE_FLAGS,
+  metricsEnabled: config.ENABLE_METRICS,
+  metricsAuthToken: config.METRICS_AUTH_TOKEN,
+  queryCountWarnThreshold: config.QUERY_COUNT_WARN_THRESHOLD,
 };
 
 export default config;

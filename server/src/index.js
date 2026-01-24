@@ -6,13 +6,29 @@ import { SignJWT } from 'jose';
 import { z } from 'zod';
 
 import { createPool } from './db.js';
-import { isProd, serverConfig, securityConfig } from './config.js';
+import { isProd, serverConfig, securityConfig, observabilityConfig } from './config.js';
 import { getSessionUser, verifyPassword, hashPassword, requireTeamAdmin, requireTeamMember, isValidUUID } from './middleware/auth.js';
 import { securityHeaders, errorHandler, requestLogger, csrfProtection, generateCsrfToken } from './middleware/security.js';
+import { runWithRequestContext, getQueryCount } from './observability/requestContext.js';
+import { setupMetrics } from './observability/metrics.js';
 
 // Initialize Fastify with body size limit
 const fastify = Fastify({ 
-  logger: true,
+  logger: {
+    redact: {
+      paths: [
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'req.headers.set-cookie',
+        'req.headers["set-cookie"]',
+        'req.body.password',
+        'req.body.token',
+        'req.body.refresh_token',
+        'req.body.access_token',
+      ],
+      censor: '[REDACTED]',
+    },
+  },
   bodyLimit: 1048576, // 1MB default
 });
 
@@ -23,6 +39,11 @@ await fastify.register(cookie);
 securityHeaders(fastify);
 requestLogger(fastify);
 errorHandler(fastify);
+setupMetrics(fastify);
+
+fastify.addHook('onRequest', (req, reply, done) => {
+  runWithRequestContext(req, done);
+});
 
 // CORS configuration
 await fastify.register(cors, {
@@ -44,6 +65,17 @@ await fastify.register(rateLimit, {
 // CSRF protection
 csrfProtection(fastify);
 
+fastify.addHook('onResponse', (req, reply, done) => {
+  const queryCount = getQueryCount();
+  if (queryCount > observabilityConfig.queryCountWarnThreshold) {
+    req.log.warn(
+      { queryCount, threshold: observabilityConfig.queryCountWarnThreshold, path: req.url },
+      'High query count detected (possible N+1)',
+    );
+  }
+  done();
+});
+
 const pool = createPool();
 
 // Database helper with RLS context
@@ -61,7 +93,7 @@ async function withClient(userId, fn) {
   } catch (error) {
     try {
       await client.query('ROLLBACK');
-    } catch {}
+    } catch { /* ignore rollback errors */ }
     throw error;
   } finally {
     client.release();
@@ -90,7 +122,7 @@ fastify.get('/health/ready', async (req, reply) => {
 });
 
 // Legacy endpoint
-fastify.get('/health/db', async (req, reply) => {
+fastify.get('/health/db', async () => {
   return withClient(null, async (client) => {
     const { rows } = await client.query('select now() as now');
     return { ok: true, now: rows[0].now };
@@ -152,10 +184,10 @@ fastify.post('/setup/test-supabase', async (req, reply) => {
 });
 
 // Test Docker PostgreSQL connection (alias for health/ready)
-fastify.get('/setup/test-db', async (req, reply) => {
+fastify.get('/setup/test-db', async () => {
   try {
     const result = await withClient(null, async (client) => {
-      const { rows } = await client.query('SELECT 1 as connected');
+      await client.query('SELECT 1 as connected');
       return { ok: true, message: 'Database connected' };
     });
     return result;
@@ -1539,7 +1571,7 @@ fastify.post('/queries/:id/submit', async (req, reply) => {
         user_id,
       ]);
       return { ok: true };
-    } catch (e) {
+    } catch {
       // Fallback for older function signature
       await client.query('select public.submit_query_for_approval($1, $2)', [id, sql || null]);
       return { ok: true };

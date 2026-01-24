@@ -11,7 +11,7 @@ function getSupabaseJWKS() {
   if (!supabaseJWKS) {
     try {
       supabaseJWKS = createRemoteJWKSet(new URL(supabaseConfig.jwksUrl));
-    } catch (e) {
+    } catch {
       supabaseJWKS = null;
     }
   }

@@ -1,6 +1,20 @@
 import pkg from 'pg';
 import { dbConfig } from './config.js';
+import { incrementQueryCount } from './observability/requestContext.js';
 const { Pool } = pkg;
+
+const instrumentedClients = new WeakSet();
+
+function instrumentClient(client) {
+  if (instrumentedClients.has(client)) return client;
+  const originalQuery = client.query.bind(client);
+  client.query = (...args) => {
+    incrementQueryCount();
+    return originalQuery(...args);
+  };
+  instrumentedClients.add(client);
+  return client;
+}
 
 export function createPool() {
   let connectionString = dbConfig.connectionString;
@@ -17,10 +31,16 @@ export function createPool() {
     }
   }
   if (!connectionString) throw new Error('DATABASE_URL or PG* env vars are not set');
-  return new Pool({
+  const pool = new Pool({
     connectionString,
     max: dbConfig.poolMax,
     idleTimeoutMillis: dbConfig.poolIdleTimeoutMs,
     connectionTimeoutMillis: dbConfig.poolConnTimeoutMs,
   });
+  const originalConnect = pool.connect.bind(pool);
+  pool.connect = async () => {
+    const client = await originalConnect();
+    return instrumentClient(client);
+  };
+  return pool;
 }
