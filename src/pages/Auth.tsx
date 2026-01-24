@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { restAuthAdapter } from '@/lib/auth/restAuthAdapter';
 import { Button } from '@/components/ui/button';
@@ -58,15 +58,35 @@ const Auth = () => {
   const [fullName, setFullName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
   const provider = getDbProviderType();
+
+  // Track if user just signed out to prevent redirect race condition
+  const justSignedOutRef = useRef(false);
 
   // Redirect if already logged in
   useEffect(() => {
     let mounted = true;
 
     const redirectUser = async () => {
+      // Skip redirect logic if user just signed out (prevents race condition)
+      if (searchParams.get('signout')) {
+        justSignedOutRef.current = true;
+        setSearchParams({}, { replace: true });
+        return;
+      }
+
+      // Continue skipping redirects until user state is cleared
+      if (justSignedOutRef.current) {
+        if (!user) {
+          // User state is now cleared, reset the flag
+          justSignedOutRef.current = false;
+        }
+        return;
+      }
+
       if (user && user.email) {
         // Validate domain if restriction is set
         if (ALLOWED_DOMAIN && !isEmailAllowed(user.email, ALLOWED_DOMAIN)) {
@@ -109,7 +129,7 @@ const Auth = () => {
     return () => {
       mounted = false;
     };
-  }, [user, navigate, toast, provider]);
+  }, [user, navigate, toast, provider, searchParams, setSearchParams]);
 
   const validateEmailDomain = (emailToCheck: string): boolean => {
     return isEmailAllowed(emailToCheck, ALLOWED_DOMAIN);

@@ -89,13 +89,8 @@ export async function signOut(page: Page): Promise<void> {
   await signOutButton.waitFor({ state: 'visible', timeout: 10000 });
   await signOutButton.click();
 
-  // After sign out, should redirect to /auth (or /create-team during state transition)
-  await expect(page).toHaveURL(/\/(auth|create-team)/, { timeout: 10000 });
-
-  // If we landed on /create-team, go to /auth for a clean state
-  if (page.url().includes('/create-team')) {
-    await page.goto('/auth');
-  }
+  // After sign out, should redirect to /auth with signout param (then cleaned)
+  await expect(page).toHaveURL(/\/auth/, { timeout: 10000 });
 
   // Wait for the auth form to stabilize (session fully cleared)
   // The email input being visible indicates the form is ready and not redirecting

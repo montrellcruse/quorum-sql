@@ -261,7 +261,7 @@ const Dashboard = () => {
         if (error) throw error;
       }
       toast({ title: 'Signed out', description: 'Successfully signed out.' });
-      navigate('/auth');
+      navigate('/auth?signout=1');
     } catch (error: unknown) {
       toast({
         title: 'Error',
