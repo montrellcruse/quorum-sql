@@ -18,6 +18,7 @@ import { getSessionUser, verifyPassword, hashPassword, requireTeamAdmin, require
 import { securityHeaders, errorHandler, requestLogger, csrfProtection, generateCsrfToken } from './middleware/security.js';
 import { runWithRequestContext, getQueryCount } from './observability/requestContext.js';
 import { setupMetrics } from './observability/metrics.js';
+import { getCircuitBreakerStats } from './lib/circuitBreaker.js';
 
 // Initialize Fastify with body size limit
 const fastify = Fastify({ 
@@ -245,6 +246,11 @@ fastify.get('/health/db', async () => {
     const { rows } = await client.query('select now() as now');
     return { ok: true, now: rows[0].now };
   });
+});
+
+// Circuit breaker status endpoint
+fastify.get('/health/breakers', async () => {
+  return { ok: true, breakers: getCircuitBreakerStats() };
 });
 
 // ============================================

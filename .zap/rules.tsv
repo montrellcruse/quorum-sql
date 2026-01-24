@@ -1,0 +1,25 @@
+# ZAP Baseline Scan Rules
+# Format: rule_id	action	description
+# Actions: IGNORE, WARN, FAIL
+
+# Informational rules - ignore
+10021	IGNORE	X-Content-Type-Options Header Missing
+10036	IGNORE	Server Leaks Version Information
+10037	IGNORE	Server Leaks Information via X-Powered-By
+
+# Low priority - warn only
+10020	WARN	X-Frame-Options Header Not Set
+10038	WARN	Content Security Policy Header Not Set
+10098	WARN	Cross-Domain Misconfiguration
+
+# Medium priority - fail on these
+10010	FAIL	Cookie No HttpOnly Flag
+10011	FAIL	Cookie Without Secure Flag
+10012	FAIL	Password Autocomplete in Browser
+40014	FAIL	Cross Site Scripting (Persistent)
+40016	FAIL	Cross Site Scripting (Reflected)
+40018	FAIL	SQL Injection
+
+# High priority - always fail
+90022	FAIL	Application Error Disclosure
+90033	FAIL	Loosely Scoped Cookie
