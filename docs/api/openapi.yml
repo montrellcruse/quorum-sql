@@ -1,0 +1,327 @@
+openapi: 3.0.3
+info:
+  title: Quorum SQL API
+  version: 1.0.0
+  description: REST API for Quorum SQL server.
+servers:
+  - url: http://localhost:8787
+paths:
+  /health:
+    get:
+      summary: Basic health check
+      responses:
+        '200': { description: OK }
+  /health/live:
+    get:
+      summary: Liveness check
+      responses:
+        '200': { description: OK }
+  /health/ready:
+    get:
+      summary: Readiness check
+      responses:
+        '200': { description: OK }
+  /health/db:
+    get:
+      summary: Database connectivity check
+      responses:
+        '200': { description: OK }
+  /metrics:
+    get:
+      summary: Prometheus metrics (optional)
+      responses:
+        '200': { description: OK }
+  /setup/test-supabase:
+    post:
+      summary: Test Supabase connectivity
+      responses:
+        '200': { description: OK }
+  /setup/test-db:
+    get:
+      summary: Test database connectivity
+      responses:
+        '200': { description: OK }
+  /auth/me:
+    get:
+      summary: Get current user
+      responses:
+        '200': { description: OK }
+  /auth/login:
+    post:
+      summary: Login
+      responses:
+        '200': { description: OK }
+  /auth/register:
+    post:
+      summary: Register
+      responses:
+        '200': { description: OK }
+  /auth/logout:
+    post:
+      summary: Logout
+      responses:
+        '200': { description: OK }
+  /teams:
+    get:
+      summary: List teams
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create team
+      responses:
+        '200': { description: OK }
+  /teams/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+    get:
+      summary: Get team
+      responses:
+        '200': { description: OK }
+    patch:
+      summary: Update team
+      responses:
+        '200': { description: OK }
+    delete:
+      summary: Delete team
+      responses:
+        '200': { description: OK }
+  /teams/{id}/convert-personal:
+    post:
+      summary: Convert team to personal
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /teams/{id}/transfer-ownership:
+    post:
+      summary: Transfer team ownership
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /teams/{id}/members:
+    get:
+      summary: List team members
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /teams/{id}/members/{memberId}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+      - in: path
+        name: memberId
+        required: true
+        schema: { type: string }
+    delete:
+      summary: Remove team member
+      responses:
+        '200': { description: OK }
+    patch:
+      summary: Update team member
+      responses:
+        '200': { description: OK }
+  /invites/mine:
+    get:
+      summary: List invites for current user
+      responses:
+        '200': { description: OK }
+  /teams/{id}/invites:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+    get:
+      summary: List team invites
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create team invite
+      responses:
+        '200': { description: OK }
+  /invites/{id}/accept:
+    post:
+      summary: Accept invite
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /invites/{id}/decline:
+    post:
+      summary: Decline invite
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /invites/{id}:
+    delete:
+      summary: Delete invite
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /teams/{id}/folders:
+    get:
+      summary: List team folders
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /folders/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+    get:
+      summary: Get folder
+      responses:
+        '200': { description: OK }
+    patch:
+      summary: Update folder
+      responses:
+        '200': { description: OK }
+    delete:
+      summary: Delete folder
+      responses:
+        '200': { description: OK }
+  /folders/paths:
+    get:
+      summary: List folder paths
+      responses:
+        '200': { description: OK }
+  /folders/{id}/children:
+    get:
+      summary: List child folders
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /folders/{id}/queries:
+    get:
+      summary: List queries in folder
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /folders:
+    post:
+      summary: Create folder
+      responses:
+        '200': { description: OK }
+  /queries:
+    get:
+      summary: List queries
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create query
+      responses:
+        '200': { description: OK }
+  /queries/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+    get:
+      summary: Get query
+      responses:
+        '200': { description: OK }
+    patch:
+      summary: Update query
+      responses:
+        '200': { description: OK }
+    delete:
+      summary: Delete query
+      responses:
+        '200': { description: OK }
+  /queries/{id}/history:
+    get:
+      summary: Query history
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /queries/{id}/approvals:
+    get:
+      summary: Query approvals
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /approvals:
+    get:
+      summary: List approvals
+      responses:
+        '200': { description: OK }
+  /queries/{id}/submit:
+    post:
+      summary: Submit query for approval
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /queries/{id}/approve:
+    post:
+      summary: Approve query
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /queries/{id}/reject:
+    post:
+      summary: Reject query
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
