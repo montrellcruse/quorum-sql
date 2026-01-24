@@ -223,11 +223,17 @@ type RejectQueryBody = z.infer<typeof RejectQueryBodySchema>;
 // HEALTH ENDPOINTS
 // ============================================
 
-fastify.get('/health', async () => ({ ok: true, version: '1.0.0' }));
+fastify.get('/health', {
+  config: { rateLimit: { max: 200, timeWindow: '1 minute' } },
+}, async () => ({ ok: true, version: '1.0.0' }));
 
-fastify.get('/health/live', async () => ({ ok: true }));
+fastify.get('/health/live', {
+  config: { rateLimit: { max: 200, timeWindow: '1 minute' } },
+}, async () => ({ ok: true }));
 
-fastify.get('/health/ready', async (req, reply) => {
+fastify.get('/health/ready', {
+  config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+}, async (req, reply) => {
   try {
     const result = await withClient(null, async (client) => {
       const { rows } = await client.query('select now() as now');
@@ -251,7 +257,9 @@ fastify.get('/health/db', {
 });
 
 // Circuit breaker status endpoint
-fastify.get('/health/breakers', async () => {
+fastify.get('/health/breakers', {
+  config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+}, async () => {
   return { ok: true, breakers: getCircuitBreakerStats() };
 });
 
@@ -260,7 +268,9 @@ fastify.get('/health/breakers', async () => {
 // ============================================
 
 // Test Supabase connection from frontend
-fastify.post<{ Body: SetupSupabaseBody }>('/setup/test-supabase', async (req, reply) => {
+fastify.post<{ Body: SetupSupabaseBody }>('/setup/test-supabase', {
+  config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+}, async (req, reply) => {
   const parsed = SetupSupabaseBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.code(400).send({ ok: false, error: 'Missing URL or anon key' });
@@ -330,7 +340,9 @@ fastify.get('/setup/test-db', {
 // AUTH ENDPOINTS
 // ============================================
 
-fastify.get('/auth/me', async (req, reply) => {
+fastify.get('/auth/me', {
+  config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+}, async (req, reply) => {
   const sess = await getSessionUser(req);
   if (!sess) return reply.send(null);
   return withClient(sess.id, async (client) => {
@@ -500,7 +512,9 @@ fastify.post<{ Body: RegisterBody }>('/auth/register', {
   return { ok: true, csrfToken };
 });
 
-fastify.post('/auth/logout', async (req, reply) => {
+fastify.post('/auth/logout', {
+  config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+}, async (req, reply) => {
   const sess = await getSessionUser(req);
   if (sess) {
     req.log.info({ userId: sess.id }, 'User logged out');
