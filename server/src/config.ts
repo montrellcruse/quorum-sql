@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import crypto from 'crypto';
+import { randomBytes } from 'node:crypto';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.string().transform(Number).default('8787'),
+  PORT: z.string().default('8787').transform(Number),
   
   // Database - at least one connection method required
   DATABASE_URL: z.string().optional(),
@@ -12,9 +12,9 @@ const envSchema = z.object({
   PGDATABASE: z.string().optional(),
   PGUSER: z.string().optional(),
   PGPASSWORD: z.string().optional(),
-  PGPOOL_MAX: z.string().transform(Number).default('10'),
-  PGPOOL_IDLE_TIMEOUT_MS: z.string().transform(Number).default('30000'),
-  PGPOOL_CONN_TIMEOUT_MS: z.string().transform(Number).default('2000'),
+  PGPOOL_MAX: z.string().default('10').transform(Number),
+  PGPOOL_IDLE_TIMEOUT_MS: z.string().default('30000').transform(Number),
+  PGPOOL_CONN_TIMEOUT_MS: z.string().default('2000').transform(Number),
   
   // Security - required in production
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
@@ -23,19 +23,36 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default(''),
   
   // Rate limiting
-  RATE_LIMIT_MAX: z.string().transform(Number).default('100'),
+  RATE_LIMIT_MAX: z.string().default('100').transform(Number),
   RATE_LIMIT_WINDOW: z.string().default('1 minute'),
-  
+
+  // Feature flags
+  FEATURE_FLAGS: z.string().default(''),
+
   // Supabase JWT (optional)
   SUPABASE_URL: z.string().optional(),
   SUPABASE_JWKS_URL: z.string().optional(),
-  
+
+  // Observability
+  ENABLE_METRICS: z.string().default('false').transform(v => v === 'true'),
+  METRICS_AUTH_TOKEN: z.string().optional(),
+  QUERY_COUNT_WARN_THRESHOLD: z.string().default('50').transform(Number),
+
+  // OpenTelemetry
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+  OTEL_SERVICE_NAME: z.string().default('quorum-sql-server'),
+
+  // Sentry
+  SENTRY_DSN: z.string().optional(),
+
   // Dev-only settings
-  ENABLE_DEV_AUTH: z.string().transform(v => v === 'true').default('false'),
+  ENABLE_DEV_AUTH: z.string().default('false').transform(v => v === 'true'),
   DEV_FAKE_USER_ID: z.string().uuid().optional(),
 });
 
-function validateEnv() {
+type EnvConfig = z.infer<typeof envSchema>;
+
+function validateEnv(): EnvConfig {
   const isProd = process.env.NODE_ENV === 'production';
   
   // In production, SESSION_SECRET is absolutely required
@@ -47,7 +64,7 @@ function validateEnv() {
   // Provide a generated secret for development if not set
   if (!isProd && !process.env.SESSION_SECRET) {
     console.warn('WARNING: SESSION_SECRET not set, using random secret (sessions will not persist across restarts)');
-    process.env.SESSION_SECRET = crypto.randomBytes(32).toString('hex');
+    process.env.SESSION_SECRET = randomBytes(32).toString('hex');
   }
   
   // Validate database connection
@@ -107,6 +124,16 @@ export const dbConfig = {
 export const supabaseConfig = {
   url: config.SUPABASE_URL,
   jwksUrl: config.SUPABASE_JWKS_URL || (config.SUPABASE_URL ? `${config.SUPABASE_URL.replace(/\/$/, '')}/auth/v1/keys` : null),
+};
+
+export const observabilityConfig = {
+  featureFlags: config.FEATURE_FLAGS,
+  metricsEnabled: config.ENABLE_METRICS,
+  metricsAuthToken: config.METRICS_AUTH_TOKEN,
+  queryCountWarnThreshold: config.QUERY_COUNT_WARN_THRESHOLD,
+  otelEndpoint: config.OTEL_EXPORTER_OTLP_ENDPOINT,
+  otelServiceName: config.OTEL_SERVICE_NAME,
+  sentryDsn: config.SENTRY_DSN,
 };
 
 export default config;

@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt';
 
 const SALT_ROUNDS = 12;
 
-async function seedAdminUser(pool) {
+async function seedAdminUser(pool: ReturnType<typeof createPool>) {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
   const adminName = process.env.ADMIN_NAME || 'Admin User';

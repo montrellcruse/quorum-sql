@@ -36,6 +36,7 @@ dist-ssr
 # Test artifacts
 playwright-report/
 test-results/
+reports/
 
 # Editor directories and files
 .vscode/*
@@ -47,4 +48,3 @@ test-results/
 *.njsproj
 *.sln
 *.sw?
-

@@ -1,0 +1,19 @@
+{
+  "entry": [
+    "src/main.tsx",
+    "src/lib/featureFlags.ts",
+    "server/src/index.ts",
+    "scripts/*.js"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "server/src/**/*.{ts}",
+    "scripts/**/*.js"
+  ],
+  "ignore": [
+    "dist/**",
+    "node_modules/**",
+    "server/node_modules/**",
+    "supabase/**"
+  ]
+}

@@ -1,38 +1,50 @@
 import { jwtVerify, createRemoteJWKSet } from 'jose';
 import bcrypt from 'bcrypt';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { PoolClient } from 'pg';
 import { securityConfig, supabaseConfig } from '../config.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-let supabaseJWKS = null;
+let supabaseJWKS: ReturnType<typeof createRemoteJWKSet> | null = null;
 
-function getSupabaseJWKS() {
+type AuthSource = 'supabase' | 'session' | 'dev-header' | 'dev-fake';
+type AuthPayload = {
+  id: string;
+  email?: string;
+  role?: string;
+};
+type AuthUser = AuthPayload & {
+  source: AuthSource;
+};
+
+function getSupabaseJWKS(): ReturnType<typeof createRemoteJWKSet> | null {
   if (!supabaseConfig.jwksUrl) return null;
   if (!supabaseJWKS) {
     try {
       supabaseJWKS = createRemoteJWKSet(new URL(supabaseConfig.jwksUrl));
-    } catch (e) {
+    } catch {
       supabaseJWKS = null;
     }
   }
   return supabaseJWKS;
 }
 
-export function isValidUUID(str) {
+export function isValidUUID(str: unknown): boolean {
   return typeof str === 'string' && UUID_REGEX.test(str);
 }
 
-export async function hashPassword(plainPassword) {
+export async function hashPassword(plainPassword: string): Promise<string> {
   const saltRounds = 12;
   return bcrypt.hash(plainPassword, saltRounds);
 }
 
-export async function verifyPassword(plainPassword, hashedPassword) {
+export async function verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
   if (!plainPassword || !hashedPassword) return false;
   return bcrypt.compare(plainPassword, hashedPassword);
 }
 
-async function verifySupabaseToken(token) {
+async function verifySupabaseToken(token: string): Promise<AuthPayload | null> {
   const JWKS = getSupabaseJWKS();
   if (!JWKS) return null;
 
@@ -40,35 +52,41 @@ async function verifySupabaseToken(token) {
     const { payload } = await jwtVerify(token, JWKS, {
       algorithms: ['RS256'],
     });
+    const id = typeof payload.sub === 'string' ? payload.sub : null;
+    if (!id) return null;
+    const email = typeof payload.email === 'string' ? payload.email : undefined;
+    const role = typeof payload.role === 'string' ? payload.role : 'authenticated';
     return {
-      id: payload.sub,
-      email: payload.email,
-      role: payload.role || 'authenticated',
+      id,
+      email,
+      role,
     };
   } catch {
     return null;
   }
 }
 
-async function verifySessionToken(token) {
+async function verifySessionToken(token: string): Promise<AuthPayload | null> {
   try {
     const secretKey = new TextEncoder().encode(securityConfig.sessionSecret);
     const { payload } = await jwtVerify(token, secretKey, {
       algorithms: ['HS256'],
     });
-    if (!payload.sub || !payload.email) {
+    const id = typeof payload.sub === 'string' ? payload.sub : null;
+    const email = typeof payload.email === 'string' ? payload.email : null;
+    if (!id || !email) {
       return null;
     }
     return {
-      id: payload.sub,
-      email: payload.email,
+      id,
+      email,
     };
   } catch {
     return null;
   }
 }
 
-export async function getSessionUser(req) {
+export async function getSessionUser(req: FastifyRequest): Promise<AuthUser | null> {
   // 1. Try Supabase JWT from Authorization header
   const authHeader = req.headers['authorization'];
   if (authHeader?.startsWith('Bearer ')) {
@@ -96,7 +114,7 @@ export async function getSessionUser(req) {
 
   // 3. Dev-only authentication (explicit opt-in required, never in production)
   if (securityConfig.devAuthEnabled) {
-    const devUserId = req.headers['x-dev-user-id'];
+    const devUserId = req.headers['x-dev-user-id'] as string | undefined;
     if (devUserId) {
       if (!isValidUUID(devUserId)) {
         req.log.warn({ devUserId }, 'DEV AUTH: Invalid UUID format');
@@ -116,7 +134,7 @@ export async function getSessionUser(req) {
   return null;
 }
 
-function getTeamRoleCache(req) {
+function getTeamRoleCache(req: FastifyRequest | null) {
   if (!req) return null;
   if (!req.teamRoleCache) {
     req.teamRoleCache = new Map();
@@ -124,7 +142,7 @@ function getTeamRoleCache(req) {
   return req.teamRoleCache;
 }
 
-async function getTeamRole(client, userId, teamId, req) {
+async function getTeamRole(client: PoolClient, userId: string, teamId: string, req: FastifyRequest) {
   const cache = getTeamRoleCache(req);
   const cacheKey = `${userId}:${teamId}`;
   if (cache?.has(cacheKey)) {
@@ -139,8 +157,10 @@ async function getTeamRole(client, userId, teamId, req) {
   return role;
 }
 
-export function requireAuth(handler) {
-  return async (req, reply) => {
+export function requireAuth(
+  handler: (req: FastifyRequest, reply: FastifyReply) => Promise<unknown> | unknown,
+) {
+  return async (req: FastifyRequest, reply: FastifyReply) => {
     const user = await getSessionUser(req);
     if (!user) {
       req.log.info({ path: req.url, method: req.method }, 'AUTH FAILURE: No valid session');
@@ -151,7 +171,12 @@ export function requireAuth(handler) {
   };
 }
 
-export async function requireTeamAdmin(client, userId, teamId, req) {
+export async function requireTeamAdmin(
+  client: PoolClient,
+  userId: string,
+  teamId: string,
+  req: FastifyRequest,
+) {
   const role = await getTeamRole(client, userId, teamId, req);
   if (role !== 'admin') {
     req?.log?.warn({ userId, teamId }, 'AUTH FAILURE: User is not team admin');
@@ -160,7 +185,12 @@ export async function requireTeamAdmin(client, userId, teamId, req) {
   return true;
 }
 
-export async function requireTeamMember(client, userId, teamId, req) {
+export async function requireTeamMember(
+  client: PoolClient,
+  userId: string,
+  teamId: string,
+  req: FastifyRequest,
+) {
   const role = await getTeamRole(client, userId, teamId, req);
   if (!role) {
     req?.log?.warn({ userId, teamId }, 'AUTH FAILURE: User is not team member');

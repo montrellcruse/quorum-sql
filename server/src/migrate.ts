@@ -1,11 +1,14 @@
-import fs from 'fs';
-import path from 'path';
-import url from 'url';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { Pool, PoolClient } from 'pg';
 import { createPool } from './db.js';
 
-const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function readSqlFiles(dir) {
+type SqlFile = { name: string; fullPath: string; sql: string };
+
+function readSqlFiles(dir: string): SqlFile[] {
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
@@ -14,7 +17,7 @@ function readSqlFiles(dir) {
     .map((f) => ({ name: f, fullPath: path.join(dir, f), sql: fs.readFileSync(path.join(dir, f), 'utf8') }));
 }
 
-async function ensureMigrationsTable(client) {
+async function ensureMigrationsTable(client: PoolClient) {
   await client.query(`
     create table if not exists public.__migrations (
       id serial primary key,
@@ -24,12 +27,14 @@ async function ensureMigrationsTable(client) {
   `);
 }
 
-async function applyMigrations(pool, migrations) {
+async function applyMigrations(pool: Pool, migrations: SqlFile[]) {
   const client = await pool.connect();
   try {
     await ensureMigrationsTable(client);
     const applied = new Set(
-      (await client.query('select filename from public.__migrations order by id')).rows.map((r) => r.filename)
+      (await client.query('select filename from public.__migrations order by id')).rows.map(
+        (r: { filename: string }) => r.filename,
+      ),
     );
     for (const m of migrations) {
       if (applied.has(m.name)) continue;
@@ -41,7 +46,8 @@ async function applyMigrations(pool, migrations) {
         await client.query('commit');
       } catch (err) {
         await client.query('rollback');
-        console.error(`Failed migration ${m.name}:`, err.message);
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Failed migration ${m.name}:`, message);
         throw err;
       }
     }
@@ -50,7 +56,7 @@ async function applyMigrations(pool, migrations) {
   }
 }
 
-async function applySeed(pool, file) {
+async function applySeed(pool: Pool, file: string) {
   if (!file || !fs.existsSync(file)) return;
   const sql = fs.readFileSync(file, 'utf8');
   const client = await pool.connect();

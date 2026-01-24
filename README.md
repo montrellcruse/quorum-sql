@@ -168,6 +168,18 @@ The setup wizard at `/setup` guides you through:
 2. **Configure Settings** — Email domain restrictions, app name
 3. **Generate Config** — Download your `.env` file
 
+## 📈 Observability
+
+Frontend telemetry supports:
+
+- **Sentry** error tracking (`VITE_SENTRY_DSN`, `VITE_SENTRY_ENV`, `VITE_SENTRY_TRACES_SAMPLE_RATE`)
+- **PostHog** product analytics (`VITE_POSTHOG_KEY`, `VITE_POSTHOG_HOST`)
+
+### Error-to-issue automation (Sentry → GitHub)
+
+Sentry is initialized in `src/lib/telemetry.ts`, but GitHub issue creation is configured in Sentry, not in this repo.
+Follow the placeholder runbook to enable or document the integration: `runbooks/sentry-github.md`.
+
 ## 📜 Scripts
 
 | Command | Description |

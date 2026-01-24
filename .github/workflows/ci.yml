@@ -36,10 +36,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
@@ -53,17 +53,46 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Check feature flags
+        run: npm run check:feature-flags
+
+      - name: Check large files
+        run: npm run check:large-files
+
+      - name: Tech debt report
+        run: npm run report:tech-debt
+
+      - name: Check test isolation
+        run: npm run check:test-isolation
+
+      - name: Unit tests (with coverage + timing output)
+        run: npm run test:unit:report
+
+      - name: Test timing report
+        run: npm run report:test-timing
+
       - name: Install server deps
         run: |
           cd server
           npm ci
 
+      - name: Build server
+        run: |
+          cd server
+          npm run build
+
+      - name: Lint server
+        run: npm run lint:server
+
+      - name: Typecheck server
+        run: npm run typecheck:server
+
       - name: Migrate database
-        run: node server/src/migrate.js --seed
+        run: node server/dist/migrate.js --seed
 
       - name: Start server
         run: |
-          node server/src/index.js 2>&1 | tee server.log &
+          node server/dist/index.js 2>&1 | tee server.log &
           echo $! > server.pid
 
       - name: Wait for server
@@ -76,10 +105,10 @@ jobs:
           exit 1
 
       - name: Smoke test
-        run: node server/src/smoke.mjs
+        run: node server/dist/smoke.js
 
       - name: API smoke test
-        run: node server/src/smoke-api.mjs
+        run: node server/dist/smoke-api.js
 
       - name: Stop server
         if: always()
@@ -88,7 +117,16 @@ jobs:
 
       - name: Upload server log
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: server-log
           path: server.log
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            reports/**
+            test-results/**

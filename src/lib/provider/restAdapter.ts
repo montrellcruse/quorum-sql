@@ -25,58 +25,91 @@ function baseUrl(path: string) {
   return `${getApiBaseUrl()}${path}`;
 }
 
-async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+function resolveMethod(init?: RequestInit) {
+  return init?.method?.toUpperCase() || 'GET';
+}
+
+function resolveHeaders(init?: RequestInit): Record<string, string> {
   const initHeaders = init?.headers;
   const headersFromInit: Record<string, string> =
     initHeaders instanceof Headers
       ? Object.fromEntries(initHeaders.entries())
       : (initHeaders as Record<string, string> | undefined) ?? {};
   const headers: Record<string, string> = { ...headersFromInit };
-  // Only set Content-Type for requests with a body
   if (init?.body) {
     headers['Content-Type'] = 'application/json';
   }
+  return headers;
+}
 
-  // Add CSRF token for state-changing requests
-  const method = init?.method?.toUpperCase() || 'GET';
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    const csrfToken = getCsrfToken();
-    if (csrfToken) {
-      headers['X-CSRF-Token'] = csrfToken;
-    }
+function applyCsrfHeader(headers: Record<string, string>, method: string) {
+  if (!STATE_CHANGING_METHODS.has(method)) return;
+  const csrfToken = getCsrfToken();
+  if (csrfToken) {
+    headers['X-CSRF-Token'] = csrfToken;
   }
+}
 
+async function applySupabaseAuthHeader(headers: Record<string, string>) {
   const providers = (import.meta.env.VITE_AUTH_PROVIDERS || '').toLowerCase();
-  if (providers.includes('supabase')) {
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-    } catch {
-      // ignore: Supabase not configured or session unavailable
-    }
-  }
-
-  const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
-  let res: Response;
+  if (!providers.includes('supabase')) return;
   try {
-    res = await fetch(input, {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+  } catch {
+    // ignore: Supabase not configured or session unavailable
+  }
+}
+
+function resolveUrl(input: RequestInfo) {
+  if (typeof input === 'string') return input;
+  if (input instanceof Request) return input.url;
+  return String(input);
+}
+
+async function performFetch(
+  input: RequestInfo,
+  init: RequestInit | undefined,
+  headers: Record<string, string>,
+  method: string,
+  url: string
+) {
+  try {
+    return await fetch(input, {
       credentials: 'include',
-      headers,
       ...init,
+      headers,
     });
   } catch (error: unknown) {
     throw new Error(`Network error during ${method} ${url}: ${getErrorMessage(error, 'request failed')}`);
   }
-  
-  if (!res.ok) {
-    const text = await res.text();
-    const detail = text || res.statusText;
-    throw new Error(`HTTP ${res.status} ${res.statusText} for ${method} ${url}${detail ? `: ${detail}` : ''}`);
-  }
-  
+}
+
+async function assertOk(res: Response, method: string, url: string) {
+  if (res.ok) return;
+  const text = await res.text();
+  const detail = text || res.statusText;
+  throw new Error(`HTTP ${res.status} ${res.statusText} for ${method} ${url}${detail ? `: ${detail}` : ''}`);
+}
+
+async function parseJson<T>(res: Response): Promise<T> {
   if (res.status === 204) return undefined as unknown as T;
   return res.json() as Promise<T>;
+}
+
+async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  const method = resolveMethod(init);
+  const headers = resolveHeaders(init);
+  applyCsrfHeader(headers, method);
+  await applySupabaseAuthHeader(headers);
+
+  const url = resolveUrl(input);
+  const res = await performFetch(input, init, headers, method, url);
+  await assertOk(res, method, url);
+  return parseJson<T>(res);
 }
 
 const teams: TeamsRepo = {

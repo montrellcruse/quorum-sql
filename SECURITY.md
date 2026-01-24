@@ -170,6 +170,7 @@ Monitor these sources for security updates:
 - **Query Content**: SQL queries stored in database (may contain sensitive data)
 - **Audit Trail**: All changes tracked with user email
 - **Data Retention**: No automatic deletion (implement as needed)
+- **Consent & Notices**: See `docs/privacy-consent.md` for deployment requirements
 
 ### GDPR/Privacy Requirements
 
@@ -177,7 +178,7 @@ If deploying in regulated environments:
 - Implement data retention policies
 - Add user data export functionality
 - Add user account deletion functionality
-- Update privacy policy accordingly
+- Update privacy policy accordingly (see `docs/privacy-consent.md`)
 
 ## Security Audit History
 

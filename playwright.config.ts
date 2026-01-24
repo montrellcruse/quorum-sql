@@ -2,15 +2,37 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Playwright configuration for Quorum SQL E2E tests
+ *
+ * Test Isolation Strategy:
+ * - Each test file runs in parallel (separate workers)
+ * - Tests within a file can be serial (via test.describe.configure)
+ * - Each test uses unique users (generateTestUser) for DB isolation
+ * - No shared database state between test files
+ *
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: false, // Run tests sequentially for database state consistency
+
+  // Enable parallelism at file level
+  // Tests within a file using test.describe.configure({ mode: 'serial' })
+  // will still run sequentially
+  fullyParallel: true,
+
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1, // Single worker to avoid database conflicts
-  reporter: 'html',
+
+  // Multiple workers for parallel test files
+  // Each worker gets its own browser context and unique test users
+  workers: process.env.CI ? 2 : 4,
+
+  reporter: [
+    ['html'],
+    ['line'],
+    ...(process.env.CI || process.env.PLAYWRIGHT_JSON === '1'
+      ? [['json', { outputFile: 'test-results/playwright.json' }] as const]
+      : []),
+  ],
 
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://localhost:8080',

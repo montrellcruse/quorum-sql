@@ -1,7 +1,7 @@
 // Simple smoke test for server endpoints
 const base = process.env.API_BASE || 'http://localhost:8787';
 
-async function get(path) {
+async function get(path: string) {
   const res = await fetch(base + path);
   if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
   return res.json();

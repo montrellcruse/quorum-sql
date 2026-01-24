@@ -2,6 +2,7 @@ import { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { reportError } from '@/lib/telemetry';
 
 interface Props {
   children: ReactNode;
@@ -34,6 +35,7 @@ export class ErrorBoundary extends Component<Props, State> {
     
     // In production, you would send this to an error reporting service
     // Example: Sentry.captureException(error, { extra: errorInfo });
+    reportError(error, { componentStack: errorInfo.componentStack });
   }
 
   handleReset = () => {

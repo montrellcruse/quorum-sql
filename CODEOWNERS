@@ -1,0 +1,21 @@
+# Code Owners for Quorum SQL
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything
+* @montrellcruse
+
+# Frontend
+/src/ @montrellcruse
+/e2e/ @montrellcruse
+
+# Backend
+/server/ @montrellcruse
+
+# Infrastructure
+/.github/ @montrellcruse
+/docker-compose.yml @montrellcruse
+/supabase/ @montrellcruse
+
+# Documentation
+/docs/ @montrellcruse
+*.md @montrellcruse
