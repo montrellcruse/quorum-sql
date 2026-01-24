@@ -1,0 +1,77 @@
+name: DAST
+
+on:
+  workflow_dispatch:
+
+jobs:
+  zap-baseline:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: testdb
+      PGUSER: postgres
+      APPLY_SUPABASE_MIGRATIONS: false
+      SESSION_SECRET: testsecrettestsecret123456789012
+      CORS_ORIGIN: http://localhost:5173
+      ENABLE_DEV_AUTH: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install root deps
+        run: npm ci
+
+      - name: Install server deps
+        run: |
+          cd server
+          npm ci
+
+      - name: Migrate database
+        run: node server/src/migrate.js --seed
+
+      - name: Start server
+        run: |
+          node server/src/index.js 2>&1 | tee server.log &
+          echo $! > server.pid
+
+      - name: Wait for server
+        run: |
+          for i in {1..60}; do
+            curl -sf http://localhost:8787/health && exit 0
+            sleep 2
+          done
+          echo "Server did not start in time" >&2
+          exit 1
+
+      - name: OWASP ZAP Baseline
+        uses: zaproxy/action-baseline@v0.13.0
+        with:
+          target: 'http://localhost:8787'
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then kill $(cat server.pid) || true; fi
