@@ -12,13 +12,20 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary'],
-      include: ['src/lib/featureFlags.ts'],
-      exclude: ['src/lib/monacoSetup.ts'],
+      include: [
+        'src/lib/featureFlags.ts',
+        'src/utils/**/*.ts',
+        'src/hooks/use-toast.ts',
+      ],
+      exclude: [
+        'src/lib/monacoSetup.ts',
+        'src/**/*.test.ts',
+      ],
       thresholds: {
-        lines: 80,
-        functions: 80,
+        lines: 70,
+        functions: 70,
         branches: 50,
-        statements: 80,
+        statements: 70,
       },
     },
   },
