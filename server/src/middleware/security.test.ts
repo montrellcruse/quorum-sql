@@ -12,6 +12,10 @@ describe('Security Middleware', () => {
 
   describe('generateCsrfToken', () => {
     it('generates a 64-character hex string', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { generateCsrfToken } = await import('./security.js');
 
       const token = generateCsrfToken();
@@ -19,6 +23,10 @@ describe('Security Middleware', () => {
     });
 
     it('generates unique tokens each time', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { generateCsrfToken } = await import('./security.js');
 
       const token1 = generateCsrfToken();
@@ -29,6 +37,10 @@ describe('Security Middleware', () => {
 
   describe('csrfProtection', () => {
     it('skips CSRF check for GET requests', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { csrfProtection } = await import('./security.js');
 
       const addHook = vi.fn();
@@ -57,6 +69,10 @@ describe('Security Middleware', () => {
     });
 
     it('skips CSRF check for HEAD requests', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { csrfProtection } = await import('./security.js');
 
       const addHook = vi.fn();
@@ -80,6 +96,10 @@ describe('Security Middleware', () => {
     });
 
     it('skips CSRF check for OPTIONS requests', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { csrfProtection } = await import('./security.js');
 
       const addHook = vi.fn();
@@ -103,6 +123,10 @@ describe('Security Middleware', () => {
     });
 
     it('skips CSRF check for login endpoint', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { csrfProtection } = await import('./security.js');
 
       const addHook = vi.fn();
@@ -126,6 +150,10 @@ describe('Security Middleware', () => {
     });
 
     it('skips CSRF check for health endpoints', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { csrfProtection } = await import('./security.js');
 
       const addHook = vi.fn();
@@ -151,6 +179,10 @@ describe('Security Middleware', () => {
     });
 
     it('skips validation when no CSRF cookie is set', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { csrfProtection } = await import('./security.js');
 
       const addHook = vi.fn();
@@ -174,6 +206,10 @@ describe('Security Middleware', () => {
     });
 
     it('validates CSRF token for POST requests', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { csrfProtection } = await import('./security.js');
 
       const addHook = vi.fn();
@@ -198,6 +234,10 @@ describe('Security Middleware', () => {
     });
 
     it('rejects mismatched CSRF token', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { csrfProtection } = await import('./security.js');
 
       const addHook = vi.fn();
@@ -229,6 +269,10 @@ describe('Security Middleware', () => {
     });
 
     it('rejects missing CSRF header when cookie is present', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { csrfProtection } = await import('./security.js');
 
       const addHook = vi.fn();
@@ -559,6 +603,10 @@ describe('Security Middleware', () => {
 
   describe('requestLogger', () => {
     it('logs request completion', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
       const { requestLogger } = await import('./security.js');
 
       const addHook = vi.fn();
