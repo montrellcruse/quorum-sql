@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Event, EventHint } from '@sentry/node';
+import type { ErrorEvent, EventHint } from '@sentry/node';
 
 // Mock Sentry
 const mockScope = {
@@ -113,7 +113,7 @@ describe('Sentry Module', () => {
         },
       };
 
-      const result = beforeSend?.(event as Event, {} as EventHint);
+      const result = beforeSend?.(event as unknown as ErrorEvent, {} as EventHint) as ErrorEvent | null;
 
       expect(result?.request?.headers?.authorization).toBeUndefined();
       expect(result?.request?.headers?.cookie).toBeUndefined();
