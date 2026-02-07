@@ -3,12 +3,21 @@ import { createRestAdapter } from './restAdapter';
 import { getDbProviderType } from './env';
 import type { DbAdapter } from './types';
 
+let dbAdapter: DbAdapter | undefined;
+
 export function getDbAdapter(): DbAdapter {
+  if (dbAdapter) {
+    return dbAdapter;
+  }
+
   const provider = getDbProviderType();
   if (provider === 'rest') {
-    return createRestAdapter();
+    dbAdapter = createRestAdapter();
+    return dbAdapter;
   }
-  return createSupabaseAdapter();
+
+  dbAdapter = createSupabaseAdapter();
+  return dbAdapter;
 }
 
 export { getDbProviderType } from './env';
