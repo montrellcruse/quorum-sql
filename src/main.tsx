@@ -1,3 +1,4 @@
+import React from "react";
 import { createRoot } from "react-dom/client";
 import "@/lib/monacoSetup"; // Configure Monaco to use local bundle instead of CDN
 import { initTelemetry } from "@/lib/telemetry";
@@ -6,4 +7,8 @@ import "./index.css";
 
 initTelemetry();
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);

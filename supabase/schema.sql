@@ -206,7 +206,7 @@ CREATE TABLE public.query_history (
   sql_content TEXT NOT NULL,
   modified_by_email TEXT NOT NULL,
   change_reason TEXT,
-  status TEXT NOT NULL DEFAULT 'approved',
+  status TEXT NOT NULL DEFAULT 'pending_approval',
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 

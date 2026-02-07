@@ -2,15 +2,15 @@ type FlagConfig = {
   percentage: number;
 };
 
-const rawFlags = import.meta.env.VITE_FEATURE_FLAGS ?? '';
+const rawFlags: string = import.meta.env.VITE_FEATURE_FLAGS ?? '';
 const parsedFlags = rawFlags
   .split(',')
-  .map((flag) => flag.trim())
+  .map((flag: string) => flag.trim())
   .filter(Boolean);
 
 const flagMap = new Map<string, FlagConfig>();
 for (const entry of parsedFlags) {
-  const [name, percentRaw] = entry.split(':').map((part) => part.trim());
+  const [name, percentRaw] = entry.split(':').map((part: string) => part.trim());
   if (!name) continue;
   const percent = percentRaw ? Number.parseInt(percentRaw, 10) : 100;
   const clamped = Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 100;

@@ -65,7 +65,8 @@ export function securityHeaders(fastify: FastifyInstance) {
     // Generate request ID for tracing
     const header = req.headers['x-request-id'];
     const requestId = Array.isArray(header) ? header[0] : header;
-    req.requestId = requestId || randomUUID();
+    const sanitized = requestId?.replace(/[^A-Za-z0-9-]/g, '').slice(0, 64);
+    req.requestId = sanitized || randomUUID();
     done();
   });
 
