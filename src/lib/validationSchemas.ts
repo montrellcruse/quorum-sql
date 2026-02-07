@@ -33,8 +33,8 @@ export const teamNameSchema = z
   .trim()
   .min(1, { message: "Team name cannot be empty" })
   .max(100, { message: "Team name must be less than 100 characters" })
-  .regex(/^[a-zA-Z0-9\s\-_]+$/, { 
-    message: "Team name can only contain letters, numbers, spaces, hyphens, and underscores" 
+  .regex(/^[a-zA-Z0-9\s\-_&.'(),]+$/, { 
+    message: "Team name can only contain letters, numbers, spaces, hyphens, underscores, and common punctuation (&, ', .)" 
   });
 
 /**
