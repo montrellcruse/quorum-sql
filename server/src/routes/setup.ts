@@ -61,7 +61,7 @@ export default async function setupRoutes(fastify: FastifyInstance) {
     config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
   }, async () => {
     try {
-      const result = await fastify.withClient(null, async (client) => {
+      const result = await fastify.withReadClient(null, async (client) => {
         await client.query('SELECT 1 as connected');
         return { ok: true, message: 'Database connected' };
       });

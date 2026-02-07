@@ -23,7 +23,7 @@ export default async function queryRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Valid teamId is required' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       // Validate team membership
       const isMember = await requireTeamMember(client, sess.id, teamId, req);
       if (!isMember) {
@@ -56,7 +56,7 @@ export default async function queryRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid query ID' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       const { rows } = await client.query('select * from public.sql_queries where id = $1', [id]);
       const query = rows[0];
       if (!query) return null;

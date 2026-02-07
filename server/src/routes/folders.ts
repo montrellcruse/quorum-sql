@@ -22,7 +22,7 @@ export default async function folderRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid team ID' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       const { rows } = await client.query(
         'select * from public.folders where team_id = $1 order by name',
         [id],
@@ -40,7 +40,7 @@ export default async function folderRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid folder ID' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       const { rows } = await client.query('select * from public.folders where id = $1', [id]);
       const folder = rows[0];
       if (!folder) return null;
@@ -64,7 +64,7 @@ export default async function folderRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Valid teamId query parameter is required' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       // Validate team membership
       const isMember = await requireTeamMember(client, sess.id, teamId, req);
       if (!isMember) {
@@ -91,7 +91,7 @@ export default async function folderRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid folder ID' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       // Get the parent folder to check team membership
       const { rows: parentRows } = await client.query('select team_id from public.folders where id = $1', [id]);
       if (!parentRows[0]) {
@@ -121,7 +121,7 @@ export default async function folderRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid folder ID' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       // Get the folder to check team membership
       const { rows: folderRows } = await client.query('select team_id from public.folders where id = $1', [id]);
       if (!folderRows[0]) {

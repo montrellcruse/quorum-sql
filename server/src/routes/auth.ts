@@ -18,7 +18,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const sess = await getSessionUser(req);
     if (!sess) return null;
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       const { rows } = await client.query(
         'select id, email, full_name from auth.users where id = $1',
         [sess.id],

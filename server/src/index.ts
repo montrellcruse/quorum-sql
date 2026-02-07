@@ -10,7 +10,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 
 import { createPool } from './db.js';
-import { createWithClient } from './lib/db-helpers.js';
+import { createWithClient, createWithReadClient } from './lib/db-helpers.js';
 import { isProd, serverConfig, securityConfig, observabilityConfig } from './config.js';
 import { securityHeaders, errorHandler, requestLogger, csrfProtection } from './middleware/security.js';
 import { runWithRequestContext, getQueryCount } from './observability/requestContext.js';
@@ -92,9 +92,11 @@ fastify.addHook('onResponse', (req, reply, done) => {
 
 const pool = createPool();
 const withClient = createWithClient(pool);
+const withReadClient = createWithReadClient(pool);
 
 fastify.decorate('pool', pool);
 fastify.decorate('withClient', withClient);
+fastify.decorate('withReadClient', withReadClient);
 
 await fastify.register(healthRoutes);
 await fastify.register(setupRoutes);

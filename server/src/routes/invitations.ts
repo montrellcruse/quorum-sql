@@ -14,7 +14,7 @@ export default async function invitationRoutes(fastify: FastifyInstance) {
     const sess = req.user;
     if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       const { rows } = await client.query(
         `select i.id, i.team_id, i.invited_email, i.role, i.invited_by_user_id, i.status, i.created_at,
                 t.name as team_name, p.email as inviter_email, p.full_name as inviter_full_name
@@ -37,7 +37,7 @@ export default async function invitationRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid team ID' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       // Verify admin status
       const isAdmin = await requireTeamAdmin(client, sess.id, id, req);
       if (!isAdmin) {
