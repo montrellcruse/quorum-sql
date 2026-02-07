@@ -39,6 +39,7 @@ erDiagram
         text name "NOT NULL"
         uuid admin_id FK "Team owner"
         int approval_quota "Default 1"
+        boolean is_personal "Default false"
         timestamp created_at
         timestamp updated_at
     }
@@ -47,7 +48,7 @@ erDiagram
         uuid id PK
         uuid team_id FK
         uuid user_id FK
-        text role "admin | member"
+        app_role role "admin | member"
         timestamp created_at
     }
 
@@ -55,8 +56,8 @@ erDiagram
         uuid id PK
         uuid team_id FK
         text invited_email "NOT NULL"
-        text role "admin | member"
-        text status "pending | accepted | declined"
+        app_role role "admin | member"
+        text status "pending | accepted | revoked"
         uuid invited_by_user_id FK
         timestamp created_at
         timestamp updated_at
@@ -142,15 +143,16 @@ erDiagram
   - `query_approvals(query_history_id, user_id)` (one approval per user per version)
 
 - **Check Constraints**:
-  - `team_members.role IN ('admin', 'member')`
-  - `team_invitations.role IN ('admin', 'member')`
-  - `team_invitations.status IN ('pending', 'accepted', 'declined')`
-  - `sql_queries.status IN ('draft', 'pending_approval', 'approved')`
+  - `team_members.role` uses `app_role` enum ('admin', 'member')
+  - `team_invitations.role` uses `app_role` enum ('admin', 'member')
+  - `team_invitations.status IN ('pending', 'accepted', 'revoked')`
+  - `query_history.status IN ('pending_approval', 'approved', 'rejected')`
+  - `sql_queries.sql_content` max 100KB via CHECK constraint
 
 - **Foreign Keys**:
   - All relationships use UUID foreign keys
-  - Cascading deletes handled at application level via RLS
-  - No ON DELETE CASCADE to prevent accidental data loss
+  - ON DELETE CASCADE on most foreign keys (team deletion cascades to members, folders, queries)
+  - `team_invitations.invited_by_user_id` uses ON DELETE SET NULL
 
 ## Data Flow Examples
 
@@ -232,14 +234,19 @@ All functions use:
 
 Performance indexes on frequently queried columns:
 
+- `idx_profiles_user_id` on `profiles(user_id)`
+- `idx_profiles_email` on `profiles(email)`
+- `idx_teams_admin` on `teams(admin_id)`
 - `idx_team_members_user_id` on `team_members(user_id)`
 - `idx_team_members_team_id` on `team_members(team_id)`
 - `idx_folders_team_id` on `folders(team_id)`
+- `idx_folders_parent` on `folders(parent_folder_id)`
 - `idx_sql_queries_team_id` on `sql_queries(team_id)`
 - `idx_sql_queries_folder_id` on `sql_queries(folder_id)`
 - `idx_query_history_query_id` on `query_history(query_id)`
 - `idx_query_approvals_history_id` on `query_approvals(query_history_id)`
 - `idx_team_invitations_email` on `team_invitations(invited_email)`
+- `idx_team_invitations_team` on `team_invitations(team_id)`
 
 ## Additional Resources
 
