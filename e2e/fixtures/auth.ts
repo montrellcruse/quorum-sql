@@ -15,7 +15,8 @@ export function generateTestUser(prefix: string = 'test') {
 }
 
 /**
- * Sign up a new user via the auth page
+ * Sign up a new user via the auth page.
+ * If the user already exists (e.g. Playwright serial retry), falls back to signIn.
  */
 export async function signUp(
   page: Page,
@@ -38,11 +39,17 @@ export async function signUp(
   await page.getByLabel(/email/i).fill(user.email);
   await page.getByLabel(/password/i).fill(user.password);
 
-  // Click and wait for navigation atomically
-  await Promise.all([
-    page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 20000 }),
-    page.getByRole('button', { name: /create account/i }).click(),
-  ]);
+  // Click create account
+  await page.getByRole('button', { name: /create account/i }).click();
+
+  // Wait for navigation (success) or detect failure (user already exists on retry)
+  try {
+    await page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 10000 });
+  } catch {
+    // Signup failed — user likely already exists from a previous attempt.
+    // Fall back to sign in with the same credentials.
+    await signIn(page, user);
+  }
 }
 
 /**
@@ -109,13 +116,27 @@ export async function ensureDashboardReady(page: Page): Promise<void> {
 }
 
 /**
- * Sign out the current user
+ * Sign out the current user.
+ * Resilient to cases where the user is already signed out (e.g. serial retries).
  */
 export async function signOut(page: Page): Promise<void> {
+  // If already on auth page, we're already signed out
+  if (page.url().includes('/auth')) {
+    return;
+  }
+
   // Sign out button is only on dashboard, so navigate there first if needed
   if (!page.url().includes('/dashboard')) {
     await page.goto('/dashboard');
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
+    // If we got redirected to /auth, we're already signed out
+    try {
+      await expect(page).toHaveURL(/\/(dashboard|auth)/, { timeout: 10000 });
+    } catch {
+      // Unexpected URL — bail
+    }
+    if (page.url().includes('/auth')) {
+      return;
+    }
   }
 
   const signOutButton = page.getByRole('button', { name: /sign out/i });

@@ -185,15 +185,15 @@ test.describe('Team Management Flows', () => {
     const teamSelector = page.getByRole('combobox').first();
     if (await teamSelector.isVisible().catch(() => false)) {
       await teamSelector.click();
-      // Select the personal workspace (contains admin's name)
-      const personalOption = page.getByRole('option').filter({
-        hasText: /workspace/i,
-      });
-      if (await personalOption.first().isVisible().catch(() => false)) {
-        await personalOption.first().click();
+      // Wait for dropdown to render, then select the personal workspace
+      const personalOption = page.getByRole('option', { name: /workspace/i }).first();
+      try {
+        await personalOption.waitFor({ state: 'visible', timeout: 5000 });
+        await personalOption.click();
         // Wait for the team admin page to reload with the selected team
         await page.waitForTimeout(1000);
-      } else {
+      } catch {
+        // Option not found — dismiss dropdown and continue with current team
         await page.keyboard.press('Escape');
       }
     }

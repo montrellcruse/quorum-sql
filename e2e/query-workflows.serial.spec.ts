@@ -142,12 +142,34 @@ test.describe('Query Workflow Tests', () => {
     await signIn(page, testUser);
     await waitForDashboard(page);
 
-    // Open folder and delete it from the folder page controls
+    // Open folder — must delete all queries inside before the folder can be removed
     await openFolder(page, folderName);
+
+    // Delete each query in the folder
+    let queryCards = page.locator('[data-testid="query-card"]');
+    while ((await queryCards.count()) > 0) {
+      // Click first query to open its view page
+      await queryCards.first().click();
+      await expect(page).toHaveURL(/\/query\/view\//, { timeout: 10000 });
+
+      // Delete the query via the button + confirmation dialog
+      await page.getByRole('button', { name: /delete query/i }).click();
+      const queryDeleteDialog = page.getByRole('alertdialog');
+      await expect(queryDeleteDialog).toBeVisible({ timeout: 5000 });
+      await queryDeleteDialog.getByRole('button', { name: /delete query/i }).click();
+
+      // Should navigate back to the folder page
+      await expect(page).toHaveURL(/\/folder\//, { timeout: 10000 });
+
+      // Re-query remaining cards
+      queryCards = page.locator('[data-testid="query-card"]');
+    }
+
+    // Now delete the empty folder
     await page.getByRole('button', { name: /delete folder/i }).first().click();
 
     const deleteDialog = page.getByRole('alertdialog');
-    await expect(deleteDialog).toBeVisible();
+    await expect(deleteDialog).toBeVisible({ timeout: 5000 });
     await deleteDialog.getByRole('button', { name: /delete folder/i }).click();
 
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
