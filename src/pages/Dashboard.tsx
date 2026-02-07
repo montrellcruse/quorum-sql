@@ -1,439 +1,104 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/contexts/AuthContext';
-import { useTeam } from '@/contexts/TeamContext';
-import { getAuthAdapter } from '@/lib/auth';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Plus, Search, FileText, Settings, Mail, ClipboardCheck, Loader2, Users } from 'lucide-react';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { getErrorMessage } from '@/utils/errors';
-import { useSoloUser } from '@/hooks/useSoloUser';
-import { FeatureGate } from '@/components/FeatureGate';
-import { getWorkspaceLabel } from '@/utils/terminology';
-import { useDbProvider } from '@/hooks/useDbProvider';
-import { queryKeys } from '@/hooks/queryKeys';
-import { useTeamFolders } from '@/hooks/useTeamFolders';
-import { useSearchQueriesMutation } from '@/hooks/useQueries';
-import { usePendingApprovalsCount, usePendingInvitesCount } from '@/hooks/usePendingApprovals';
-import { useAdminTeams } from '@/hooks/useTeamMembers';
+import {
+  DashboardCreateFolderDialog,
+  DashboardFolders,
+  DashboardGenericLoadingState,
+  DashboardHeader,
+  DashboardNoWorkspaceState,
+  DashboardSearch,
+  DashboardSetupLoadingState,
+} from '@/pages/dashboard/DashboardSections';
+import { useDashboardPage } from '@/pages/dashboard/useDashboardPage';
 
 const Dashboard = () => {
-  const { user } = useAuth();
-  const { activeTeam, userTeams, setActiveTeam, loading: teamLoading } = useTeam();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { adapter } = useDbProvider();
-  const queryClient = useQueryClient();
-
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [newProject, setNewProject] = useState({
-    name: '',
-    description: ''
-  });
-  const [searchTerm, setSearchTerm] = useState('');
-  const authAdapter = getAuthAdapter();
-  const activeTeamId = activeTeam?.id;
-  const soloContext = useSoloUser();
-  const { isSoloUser } = soloContext;
-
-  const teamFoldersQuery = useTeamFolders(activeTeamId, {
-    enabled: Boolean(user && activeTeamId),
-    rootOnly: true,
-  });
-  const adminTeamsQuery = useAdminTeams({ enabled: Boolean(user) });
-  const pendingInvitesCountQuery = usePendingInvitesCount(user?.email, {
-    enabled: Boolean(user?.email),
-  });
-  const pendingApprovalsCountQuery = usePendingApprovalsCount(activeTeamId, user?.email, {
-    enabled: Boolean(user?.email && activeTeamId),
-  });
-  const searchQueriesMutation = useSearchQueriesMutation(activeTeamId);
-
-  const createProjectMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeTeam) {
-        throw new Error('No active team selected');
-      }
-
-      const trimmedName = newProject.name.trim();
-      const all = await adapter.folders.listByTeam(activeTeam.id);
-      const duplicate = all.find(
-        (folder) =>
-          folder.parent_folder_id == null &&
-          folder.name.toLowerCase() === trimmedName.toLowerCase()
-      );
-
-      if (duplicate) {
-        throw new Error('A folder with this name already exists at the root.');
-      }
-
-      await adapter.folders.create({
-        name: trimmedName,
-        description: newProject.description,
-        user_id: user?.id ?? '',
-        created_by_email: user?.email || '',
-        parent_folder_id: null,
-        team_id: activeTeam.id,
-      });
-    },
-    onSuccess: async () => {
-      toast({
-        title: 'Success',
-        description: 'Folder created successfully'
-      });
-      setNewProject({ name: '', description: '' });
-      setDialogOpen(false);
-      if (activeTeamId) {
-        await queryClient.invalidateQueries({ queryKey: queryKeys.folders.byTeam(activeTeamId) });
-      }
-    },
-    onError: (error: unknown) => {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to create folder'),
-        variant: 'destructive'
-      });
-    },
-  });
-
-  const projects = teamFoldersQuery.data ?? [];
-  const loadingProjects = teamFoldersQuery.isLoading;
-  const pendingInvitesCount = pendingInvitesCountQuery.data ?? 0;
-  const pendingApprovalsCount = pendingApprovalsCountQuery.data ?? 0;
-  const searchResults = searchQueriesMutation.data ?? [];
-  const searching = searchQueriesMutation.isPending;
-  const isAdmin = Boolean(
-    activeTeamId && adminTeamsQuery.data?.some((team) => team.id === activeTeamId)
-  );
-
-  useEffect(() => {
-    if (teamFoldersQuery.isError) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(teamFoldersQuery.error, 'Failed to fetch projects'),
-        variant: 'destructive'
-      });
-    }
-  }, [teamFoldersQuery.isError, teamFoldersQuery.error, toast]);
-
-  useEffect(() => {
-    if (adminTeamsQuery.isError && import.meta.env.DEV) {
-      console.error(
-        'Error checking admin status:',
-        getErrorMessage(adminTeamsQuery.error, 'Unknown error')
-      );
-    }
-  }, [adminTeamsQuery.isError, adminTeamsQuery.error]);
-
-  const handleCreateProject = async () => {
-    if (!newProject.name.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Folder name is required',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    if (!activeTeam) {
-      toast({
-        title: 'Error',
-        description: 'No active team selected',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    await createProjectMutation.mutateAsync();
-  };
-
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchTerm.trim()) {
-      searchQueriesMutation.reset();
-      return;
-    }
-    
-    if (!activeTeam) return;
-
-    try {
-      await searchQueriesMutation.mutateAsync(searchTerm);
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to search queries'),
-        variant: 'destructive'
-      });
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await authAdapter.signOut();
-      toast({ title: 'Signed out', description: 'Successfully signed out.' });
-      navigate('/auth?signout=1');
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to sign out'),
-        variant: 'destructive'
-      });
-    }
-  };
+  const {
+    user,
+    activeTeam,
+    userTeams,
+    teamLoading,
+    isSoloUser,
+    soloContext,
+    createFolderDialogOpen,
+    setCreateFolderDialogOpen,
+    newFolder,
+    setNewFolder,
+    searchTerm,
+    setSearchTerm,
+    projects,
+    loadingProjects,
+    loadingFoldersError,
+    pendingInvitesCount,
+    pendingApprovalsCount,
+    searchResults,
+    searching,
+    isAdmin,
+    createFolderPending,
+    handleCreateFolder,
+    handleSearch,
+    handleSignOut,
+    handleTeamChange,
+    navigate,
+  } = useDashboardPage();
 
   if (!user) {
     return null;
   }
-  
+
   if (!activeTeam && userTeams.length === 0) {
     if (teamLoading) {
-      return (
-        <div className="flex min-h-screen items-center justify-center bg-background">
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">Setting up your workspace...</p>
-          </div>
-        </div>
-      );
+      return <DashboardSetupLoadingState />;
     }
 
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Card className="w-96">
-          <CardHeader>
-            <CardTitle>Welcome to Quorum</CardTitle>
-            <CardDescription>
-              Let's create your workspace to get started.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => navigate('/create-team')} className="w-full">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Workspace
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <DashboardNoWorkspaceState onCreateWorkspace={() => navigate('/create-team')} />;
   }
-  
+
   if (teamLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
-    );
+    return <DashboardGenericLoadingState />;
   }
 
   return (
     <main className="min-h-screen bg-background p-8">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Quorum</h1>
-            <p className="text-muted-foreground">Welcome back, {user.email}</p>
-            {activeTeam && userTeams.length > 1 && (
-              <div className="mt-2">
-                <Select value={activeTeam.id} onValueChange={(teamId) => {
-                  const team = userTeams.find(t => t.id === teamId);
-                  if (team) setActiveTeam(team);
-                }}>
-                  <SelectTrigger className="w-[250px]">
-                    <SelectValue placeholder="Select team" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover z-50">
-                    {userTeams.map(team => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name} {team.role === 'admin' ? '(Admin)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {activeTeam && userTeams.length === 1 && (
-              <p className="mt-1 text-sm text-muted-foreground">
-                {getWorkspaceLabel(isSoloUser)}: {activeTeam.name}
-              </p>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <ThemeToggle />
-            {pendingInvitesCount > 0 && (
-              <Button onClick={() => navigate('/accept-invites')} variant="outline">
-                <Mail className="mr-2 h-4 w-4" />
-                Pending Invites
-                <Badge className="ml-2">{pendingInvitesCount}</Badge>
-              </Button>
-            )}
-            <FeatureGate teamOnly soloContext={soloContext}>
-              {pendingApprovalsCount > 0 && (
-                <Button onClick={() => navigate('/approvals')} variant="outline">
-                  <ClipboardCheck className="mr-2 h-4 w-4" />
-                  Approvals Needed
-                  <Badge className="ml-2" variant="destructive">{pendingApprovalsCount}</Badge>
-                </Button>
-              )}
-            </FeatureGate>
-            <FeatureGate soloOnly soloContext={soloContext}>
-              <Button onClick={() => navigate('/create-team')} variant="outline">
-                <Users className="mr-2 h-4 w-4" />
-                Start Collaborating
-              </Button>
-            </FeatureGate>
-            <FeatureGate teamOnly soloContext={soloContext}>
-              <Button onClick={() => navigate('/create-team')} variant="outline">
-                <Plus className="mr-2 h-4 w-4" />
-                Create New Team
-              </Button>
-            </FeatureGate>
-            {isAdmin && (
-              <Button onClick={() => navigate('/team-admin')} variant="outline">
-                <Settings className="mr-2 h-4 w-4" />
-                {isSoloUser ? 'Settings' : 'Team Admin'}
-              </Button>
-            )}
-            <Button onClick={handleSignOut} variant="outline">
-              Sign Out
-            </Button>
-          </div>
-        </header>
+        <DashboardHeader
+          userEmail={user.email}
+          activeTeam={activeTeam}
+          userTeams={userTeams}
+          isSoloUser={isSoloUser}
+          soloContext={soloContext}
+          pendingInvitesCount={pendingInvitesCount}
+          pendingApprovalsCount={pendingApprovalsCount}
+          isAdmin={isAdmin}
+          onTeamChange={handleTeamChange}
+          onAcceptInvites={() => navigate('/accept-invites')}
+          onApprovals={() => navigate('/approvals')}
+          onCreateTeam={() => navigate('/create-team')}
+          onTeamAdmin={() => navigate('/team-admin')}
+          onSignOut={handleSignOut}
+        />
 
-        <form onSubmit={handleSearch} className="mb-6">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input 
-                type="text" 
-                placeholder="Search queries by title, description, or SQL content..." 
-                value={searchTerm} 
-                onChange={e => setSearchTerm(e.target.value)} 
-                className="pl-10" 
-              />
-            </div>
-            <Button type="submit" disabled={searching}>
-              {searching ? 'Searching...' : 'Search'}
-            </Button>
-          </div>
-        </form>
+        <DashboardSearch
+          searchTerm={searchTerm}
+          searching={searching}
+          searchResults={searchResults}
+          onSearchTermChange={setSearchTerm}
+          onSearch={handleSearch}
+          onOpenQuery={(queryId) => navigate(`/query/view/${queryId}`)}
+        />
 
-        {searchResults.length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Search Results</CardTitle>
-              <CardDescription>
-                Found {searchResults.length} {searchResults.length === 1 ? 'query' : 'queries'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {searchResults.map(result => (
-                  <div 
-                    key={result.id} 
-                    onClick={() => navigate(`/query/view/${result.id}`)} 
-                    className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
-                  >
-                    <FileText className="mt-1 h-5 w-5 text-muted-foreground" />
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{result.title}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Folder: {result.folder_name}
-                      </p>
-                      {result.description && (
-                        <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-                          {result.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <DashboardCreateFolderDialog
+          open={createFolderDialogOpen}
+          creating={createFolderPending}
+          form={newFolder}
+          onOpenChange={setCreateFolderDialogOpen}
+          onFormChange={setNewFolder}
+          onCreate={handleCreateFolder}
+        />
 
-        <div className="mb-6">
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Folder
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Folder</DialogTitle>
-                <DialogDescription>
-                  Create a new folder to organize your SQL queries
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Folder Name</Label>
-                  <Input 
-                    id="name" 
-                    value={newProject.name} 
-                    onChange={e => setNewProject({ ...newProject, name: e.target.value })} 
-                    placeholder="Enter folder name" 
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea 
-                    id="description" 
-                    value={newProject.description} 
-                    onChange={e => setNewProject({ ...newProject, description: e.target.value })} 
-                    placeholder="Enter folder description" 
-                  />
-                </div>
-                <Button onClick={handleCreateProject} className="w-full" disabled={createProjectMutation.isPending}>
-                  {createProjectMutation.isPending ? 'Creating...' : 'Create Folder'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {loadingProjects ? (
-          <p className="text-muted-foreground">Loading folders...</p>
-        ) : teamFoldersQuery.isError ? (
-          <p className="text-muted-foreground">Failed to load folders.</p>
-        ) : projects.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {projects.map(project => (
-              <Card 
-                key={project.id} 
-                data-testid="folder-card"
-                data-folder-name={project.name}
-                className="cursor-pointer transition-colors hover:bg-accent" 
-                onClick={() => navigate(`/folder/${project.id}`)}
-              >
-                <CardHeader>
-                  <CardTitle>{project.name}</CardTitle>
-                  {project.description && <CardDescription>{project.description}</CardDescription>}
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>No Folders Yet</CardTitle>
-              <CardDescription>
-                Create your first folder to start organizing your SQL queries
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        )}
+        <DashboardFolders
+          loading={loadingProjects}
+          hasError={loadingFoldersError}
+          folders={projects}
+          onOpenFolder={(folderId) => navigate(`/folder/${folderId}`)}
+        />
       </div>
     </main>
   );
