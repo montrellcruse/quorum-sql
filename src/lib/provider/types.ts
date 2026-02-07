@@ -29,6 +29,8 @@ export interface Folder {
   description?: string | null;
   created_at?: string;
   created_by_email?: string | null;
+  updated_at?: string;
+  user_id?: UUID;
 }
 
 export type QueryStatus = 'draft' | 'pending_approval' | 'approved' | 'rejected';
@@ -40,9 +42,12 @@ export interface SqlQuery {
   sql_content: string;
   status: QueryStatus;
   team_id: UUID;
-  folder_id?: UUID | null;
+  folder_id: UUID;
   created_by_email?: string | null;
   last_modified_by_email?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  user_id?: UUID;
 }
 
 export type Role = 'admin' | 'member';

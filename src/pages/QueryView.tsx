@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import type { Tables } from '@/integrations/supabase/types';
+import type { QueryApproval, QueryHistory, SqlQuery } from '@/lib/provider/types';
 
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
@@ -22,23 +22,6 @@ import { useDbProvider } from '@/hooks/useDbProvider';
 import { queryKeys } from '@/hooks/queryKeys';
 import { useQueryApprovals, useQueryById, useQueryHistory } from '@/hooks/useQueries';
 
-type Query = Tables<'sql_queries'>;
-
-interface HistoryRecord {
-  id: string;
-  modified_by_email: string;
-  created_at: string;
-  sql_content: string;
-  change_reason: string | null;
-  status: string;
-}
-
-interface Approval {
-  id: string;
-  user_id: string;
-  created_at: string;
-}
-
 const QueryView = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -49,8 +32,8 @@ const QueryView = () => {
   const { theme } = useTheme();
   const { adapter } = useDbProvider();
   const queryClient = useQueryClient();
-  const [selectedHistory, setSelectedHistory] = useState<HistoryRecord | null>(null);
-  const [previousHistory, setPreviousHistory] = useState<HistoryRecord | null>(null);
+  const [selectedHistory, setSelectedHistory] = useState<QueryHistory | null>(null);
+  const [previousHistory, setPreviousHistory] = useState<QueryHistory | null>(null);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -66,9 +49,9 @@ const QueryView = () => {
   const queryHistoryQuery = useQueryHistory(id, {
     enabled: Boolean(user && id),
   });
-  const query = (queryByIdQuery.data as Query | null) ?? null;
+  const query: SqlQuery | null = queryByIdQuery.data ?? null;
   const fullHistory = useMemo(
-    () => (queryHistoryQuery.data as HistoryRecord[] | undefined) ?? [],
+    () => queryHistoryQuery.data ?? [],
     [queryHistoryQuery.data]
   );
   const history = useMemo(
@@ -84,7 +67,7 @@ const QueryView = () => {
   });
   const latestHistoryId =
     queryApprovalsQuery.data?.latest_history_id ?? latestPendingHistory?.id ?? null;
-  const approvals = (queryApprovalsQuery.data?.approvals as Approval[] | undefined) ?? [];
+  const approvals: QueryApproval[] = queryApprovalsQuery.data?.approvals ?? [];
   const approvalQuota = queryApprovalsQuery.data?.approval_quota ?? 1;
   const hasUserApproved = approvals.some((approval) => approval.user_id === user?.id);
   const loadingQuery = queryByIdQuery.isLoading;
@@ -142,7 +125,7 @@ const QueryView = () => {
     }).format(date);
   };
 
-  const handleHistoryClick = (record: HistoryRecord, index: number) => {
+  const handleHistoryClick = (record: QueryHistory, index: number) => {
     setSelectedHistory(record);
     // Get the previous version (next in array since sorted descending)
     const previousVersion = history[index + 1] || null;
