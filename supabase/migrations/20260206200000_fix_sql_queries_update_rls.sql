@@ -55,6 +55,8 @@ CREATE TRIGGER protect_query_columns_trigger
   EXECUTE FUNCTION public.protect_query_columns();
 
 -- Update the submit function to set the bypass variable
+-- Must drop first because return type changes from json to void
+DROP FUNCTION IF EXISTS public.submit_query_for_approval(uuid, text, text, text, uuid, uuid);
 CREATE OR REPLACE FUNCTION public.submit_query_for_approval(
   _query_id UUID,
   _new_sql TEXT DEFAULT NULL,
@@ -63,13 +65,16 @@ CREATE OR REPLACE FUNCTION public.submit_query_for_approval(
   _team_id UUID DEFAULT NULL,
   _user_id UUID DEFAULT NULL
 )
-RETURNS VOID
+RETURNS json
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
   _query_record RECORD;
+  _member_count integer;
+  _status text;
+  _history_id uuid;
 BEGIN
   -- Validate the query exists and user has access
   SELECT * INTO _query_record FROM sql_queries WHERE id = _query_id;
@@ -82,6 +87,21 @@ BEGIN
     RAISE EXCEPTION 'Not a team member';
   END IF;
 
+  -- Count team members with row lock to prevent race condition
+  SELECT COUNT(*) INTO _member_count
+  FROM (
+    SELECT 1 FROM team_members
+    WHERE team_id = _query_record.team_id
+    FOR UPDATE
+  ) AS locked_members;
+
+  -- Auto-approve for single-member teams
+  IF _member_count = 1 THEN
+    _status := 'approved';
+  ELSE
+    _status := 'pending_approval';
+  END IF;
+
   -- Set bypass flag for the status check trigger
   PERFORM set_config('app.bypass_status_check', 'true', true);
 
@@ -89,13 +109,13 @@ BEGIN
   IF _new_sql IS NOT NULL THEN
     UPDATE sql_queries
     SET sql_content = _new_sql,
-        status = 'pending_approval',
+        status = _status,
         last_modified_by_email = COALESCE(_modified_by_email, _query_record.last_modified_by_email),
         updated_at = now()
     WHERE id = _query_id;
   ELSE
     UPDATE sql_queries
-    SET status = 'pending_approval',
+    SET status = _status,
         updated_at = now()
     WHERE id = _query_id;
   END IF;
@@ -105,13 +125,20 @@ BEGIN
   VALUES (
     _query_id,
     COALESCE(_new_sql, _query_record.sql_content),
-    'pending_approval',
+    _status,
     COALESCE(_modified_by_email, _query_record.last_modified_by_email),
     _change_reason
-  );
+  )
+  RETURNING id INTO _history_id;
 
   -- Clear bypass flag
   PERFORM set_config('app.bypass_status_check', 'false', true);
+
+  RETURN json_build_object(
+    'status', _status,
+    'history_id', _history_id,
+    'auto_approved', _member_count = 1
+  );
 END;
 $$;
 

@@ -18,7 +18,6 @@ COPY server/package.json server/package-lock.json ./server/
 RUN cd server && npm ci --omit=dev
 
 COPY --from=build /app/server/dist ./server/dist
-COPY --from=build /app/server/migrations ./server/migrations
 COPY --from=build /app/server/seed.sql ./server/seed.sql
 COPY --from=build /app/supabase ./supabase
 

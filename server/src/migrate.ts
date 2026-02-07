@@ -9,12 +9,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 type SqlFile = { name: string; fullPath: string; sql: string };
 
 function readSqlFiles(dir: string): SqlFile[] {
-  if (!fs.existsSync(dir)) return [];
-  return fs
+  if (!fs.existsSync(dir)) {
+    throw new Error(`Migrations directory not found: ${dir}`);
+  }
+
+  const sqlFiles = fs
     .readdirSync(dir)
     .filter((f) => f.endsWith('.sql'))
     .sort()
     .map((f) => ({ name: f, fullPath: path.join(dir, f), sql: fs.readFileSync(path.join(dir, f), 'utf8') }));
+
+  if (sqlFiles.length === 0) {
+    throw new Error(`No SQL migrations found in: ${dir}`);
+  }
+
+  return sqlFiles;
 }
 
 async function ensureMigrationsTable(client: PoolClient) {
@@ -68,19 +77,64 @@ async function applySeed(pool: Pool, file: string) {
   }
 }
 
+/**
+ * When running against plain Postgres (non-Supabase), create the auth schema
+ * shim so that Supabase migrations referencing auth.users, auth.uid(), etc. work.
+ */
+async function ensureAuthShim(pool: Pool) {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `SELECT 1 FROM information_schema.schemata WHERE schema_name = 'auth'`,
+    );
+    if (rows.length > 0) return; // auth schema exists (real Supabase), skip shim
+
+    console.log('Auth schema not found — applying compatibility shim for plain Postgres');
+    await client.query(`
+      CREATE SCHEMA IF NOT EXISTS auth;
+      CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+          CREATE ROLE authenticated;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+          CREATE ROLE anon;
+        END IF;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS auth.users (
+        id uuid PRIMARY KEY,
+        email text UNIQUE NOT NULL,
+        full_name text,
+        encrypted_password text,
+        raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+
+      CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
+      LANGUAGE sql STABLE AS $$
+        SELECT NULLIF(current_setting('app.user_id', true), '')::uuid;
+      $$;
+
+      CREATE OR REPLACE FUNCTION auth.role() RETURNS text
+      LANGUAGE sql STABLE AS $$
+        SELECT COALESCE(NULLIF(current_setting('app.role', true), ''), 'authenticated');
+      $$;
+    `);
+  } finally {
+    client.release();
+  }
+}
+
 async function main() {
   const seed = process.argv.includes('--seed');
   const pool = createPool();
   try {
-    const compatDir = path.join(__dirname, '../migrations');
-    const supaDir = path.join(__dirname, '../../supabase/migrations');
-    const applySupabase = (process.env.APPLY_SUPABASE_MIGRATIONS || 'true').toLowerCase() !== 'false';
-    const compatMigrations = readSqlFiles(compatDir);
-    const supabaseMigrations = applySupabase ? readSqlFiles(supaDir) : [];
-    console.log(
-      `Applying migrations from: server/migrations${applySupabase ? ' + supabase/migrations' : ' (supabase skipped)'} `,
-    );
-    const migrations = [...compatMigrations, ...supabaseMigrations];
+    await ensureAuthShim(pool);
+    const migrationsDir = path.join(__dirname, '../../supabase/migrations');
+    console.log('Applying migrations from: supabase/migrations');
+    const migrations = readSqlFiles(migrationsDir);
     await applyMigrations(pool, migrations);
     if (seed) {
       const seedPath = path.join(__dirname, '../seed.sql');
