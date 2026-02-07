@@ -905,7 +905,7 @@ fastify.get('/invites/mine', async (req, reply) => {
        from public.team_invitations i
        join public.teams t on t.id = i.team_id
        left join public.profiles p on p.user_id = i.invited_by_user_id
-       where i.invited_email = (select email from auth.users where id = auth.uid()) and i.status = 'pending'
+       where lower(i.invited_email) = lower((select email from auth.users where id = auth.uid())) and i.status = 'pending'
        order by i.created_at desc`
     );
     return rows;
@@ -965,9 +965,9 @@ fastify.post<{ Params: IdParams; Body: CreateInviteBody }>('/teams/:id/invites',
       `insert into public.team_invitations(team_id, invited_email, role, status, invited_by_user_id)
        select $1, $2, $3, 'pending', auth.uid()
        where not exists (
-         select 1 from public.team_invitations where team_id = $1 and invited_email = $2 and status = 'pending'
+         select 1 from public.team_invitations where team_id = $1 and lower(invited_email) = lower($2) and status = 'pending'
        )`,
-      [id, invited_email.toLowerCase(), role]
+      [id, invited_email.trim().toLowerCase(), role]
     );
     
     req.log.info({ teamId: id, invitedEmail: invited_email, role, invitedBy: sess.id }, 'ADMIN: Invitation sent');
@@ -1031,7 +1031,7 @@ fastify.post<{ Params: IdParams }>('/invites/:id/decline', async (req, reply) =>
     const invRes = await client.query(
       `select i.id, i.team_id from public.team_invitations i
        where i.id = $1 and i.status = 'pending'
-       and i.invited_email = (select email from auth.users where id = auth.uid())`,
+       and lower(i.invited_email) = lower((select email from auth.users where id = auth.uid()))`,
       [id]
     );
     
@@ -1227,11 +1227,14 @@ fastify.post<{ Body: CreateFolderBody }>('/folders', async (req, reply) => {
   const {
     name,
     description = null,
-    user_id = sess.id,
-    created_by_email = null,
+    created_by_email: rawCreatedByEmail = null,
     parent_folder_id = null,
     team_id
   } = parsed.data;
+  // Issue #79: Always use authenticated user ID, never trust client-supplied user_id
+  const user_id = sess.id;
+  // Issue #78: Normalize email to lowercase
+  const created_by_email = rawCreatedByEmail?.trim().toLowerCase() ?? null;
 
   return withClient(sess.id, async (client) => {
     // Validate team membership
@@ -1397,6 +1400,10 @@ fastify.post<{ Body: CreateQueryBody }>('/queries', async (req, reply) => {
 
   const body = parsed.data;
 
+  // Issue #78: Normalize email fields to lowercase
+  if (body.created_by_email) body.created_by_email = body.created_by_email.trim().toLowerCase();
+  if (body.last_modified_by_email) body.last_modified_by_email = body.last_modified_by_email.trim().toLowerCase();
+
   return withClient(sess.id, async (client) => {
     // Validate team membership
     const isMember = await requireTeamMember(client, sess.id, body.team_id, req);
@@ -1462,6 +1469,9 @@ fastify.patch<{ Params: IdParams; Body: UpdateQueryBody }>('/queries/:id', async
   }
 
   const body = parsed.data;
+
+  // Issue #78: Normalize email fields to lowercase
+  if (body.last_modified_by_email) body.last_modified_by_email = body.last_modified_by_email.trim().toLowerCase();
 
   return withClient(sess.id, async (client) => {
     // Get the query to check team membership
@@ -1623,9 +1633,9 @@ fastify.get<{ Querystring: ApprovalsQuery }>('/approvals', async (req, reply) =>
        left join public.folders f on f.id = q.folder_id
        left join appr a on a.query_id = q.id
        where q.team_id = $1 and q.status = 'pending_approval' 
-         and (q.last_modified_by_email is null or q.last_modified_by_email <> $2)
+         and (q.last_modified_by_email is null or lower(q.last_modified_by_email) <> lower($2))
        order by q.updated_at desc`,
-      [teamId, excludeEmail]
+      [teamId, excludeEmail.trim().toLowerCase()]
     );
     return rows;
   });
@@ -1645,8 +1655,11 @@ fastify.post<{ Params: IdParams; Body: SubmitQueryBody }>('/queries/:id/submit',
     return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
   }
   
-  const { sql, modified_by_email = null, change_reason = null, team_id = null, user_id = null } = parsed.data;
-  
+  const { sql, modified_by_email: rawModifiedByEmail = null, change_reason = null, team_id = null } = parsed.data;
+  // Issue #78: Normalize email to lowercase
+  const modified_by_email = rawModifiedByEmail?.trim().toLowerCase() ?? null;
+  // Issue #79: Always use authenticated user ID from session, never trust client-supplied user_id
+
   return withClient(sess.id, async (client) => {
     try {
       await client.query('select public.submit_query_for_approval($1, $2, $3, $4, $5, $6)', [
@@ -1655,7 +1668,7 @@ fastify.post<{ Params: IdParams; Body: SubmitQueryBody }>('/queries/:id/submit',
         modified_by_email,
         change_reason,
         team_id,
-        user_id,
+        sess.id,
       ]);
       return { ok: true };
     } catch {
