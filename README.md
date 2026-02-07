@@ -54,8 +54,8 @@ Perfect for data teams, analytics engineers, and anyone who needs governance ove
 ```bash
 git clone https://github.com/montrellcruse/quorum-sql.git
 cd quorum-sql
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Visit **http://localhost:8080/setup** and follow the configuration wizard.
@@ -66,7 +66,7 @@ Visit **http://localhost:8080/setup** and follow the configuration wizard.
 git clone https://github.com/montrellcruse/quorum-sql.git
 cd quorum-sql
 docker compose up -d db server
-npm install && npm run dev
+pnpm install && pnpm dev
 ```
 
 Open **http://localhost:8080** to access the application.
@@ -184,11 +184,12 @@ Follow the placeholder runbook to enable or document the integration: `runbooks/
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start development server on port 8080 |
-| `npm run build` | Build for production |
-| `npm run lint` | Run ESLint |
-| `npm run preview` | Preview production build |
-| `npm run setup:docker` | Run Docker setup script |
+| `pnpm dev` | Start development server on port 8080 |
+| `pnpm build` | Build for production |
+| `pnpm lint` | Run ESLint |
+| `pnpm preview` | Preview production build |
+| `pnpm test` | Run server unit tests |
+| `pnpm test:e2e` | Run end-to-end tests (Playwright) |
 
 ## 🔒 Security
 
@@ -198,9 +199,12 @@ Quorum is built with security as a core principle:
 - **Team Isolation** — Users only see their teams' data
 - **Peer Review Enforcement** — Self-approval prevented at database level
 - **Domain Restriction** — Configurable email domain authentication
+- **Strong Password Policy** — Minimum 8 chars with uppercase, lowercase, number, and special character requirements plus common password blocklist
 - **SQL Injection Protection** — Parameterized queries throughout
-- **XSS Protection** — React's automatic escaping + CSP headers
+- **XSS Protection** — React's automatic escaping + CSP headers (enforced in both dev and production)
 - **Security Definer Functions** — Controlled privilege elevation with `SET search_path`
+- **Rate Limiting** — Per-route rate limits on all endpoints via `@fastify/rate-limit`
+- **Non-Root Docker** — Container runs as `node` user, not root
 
 See [SECURITY.md](SECURITY.md) for the complete security policy and audit history.
 
@@ -221,7 +225,7 @@ See [SECURITY.md](SECURITY.md) for the complete security policy and audit histor
 │   │   └── middleware/    # Auth, rate limiting
 │   └── package.json
 ├── supabase/
-│   ├── migrations/        # 46 database migrations
+│   ├── migrations/        # Squashed baseline migration
 │   ├── schema.sql         # Schema documentation
 │   └── ERD.md             # Entity relationship diagram
 ├── docker-compose.yml     # Docker services config
@@ -234,7 +238,7 @@ Contributions are welcome! Please follow these steps:
 
 1. **Fork** the repository
 2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Test** your changes (`npm run lint && npm run build`)
+3. **Test** your changes (`pnpm lint && pnpm build`)
 4. **Commit** with a clear message (`git commit -m 'Add amazing feature'`)
 5. **Push** to your branch (`git push origin feature/amazing-feature`)
 6. **Open** a Pull Request

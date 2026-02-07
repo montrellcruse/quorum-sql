@@ -12,11 +12,11 @@ Thank you for your interest in contributing! This document provides guidelines f
    ```
 3. **Install dependencies**:
    ```bash
-   npm install
+   pnpm install
    ```
 4. **Start development server**:
    ```bash
-   npm run dev
+   pnpm dev
    ```
 
 ## Development Setup
@@ -28,7 +28,7 @@ Thank you for your interest in contributing! This document provides guidelines f
 docker compose up -d db server
 
 # Start frontend
-npm run dev
+pnpm dev
 ```
 
 ### Database Migrations
@@ -59,9 +59,8 @@ supabase db lint
 
 3. **Test your changes**:
    ```bash
-   npm run build
-   npx tsc --noEmit
-   npm run lint
+   pnpm build
+   pnpm lint
    ```
 
 4. **Commit with a clear message**:

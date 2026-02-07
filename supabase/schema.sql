@@ -2,10 +2,10 @@
 -- SQL QUERY MANAGER - DATABASE SCHEMA
 -- ============================================
 -- 
--- This file documents the CURRENT database schema as of 2025-10-27.
+-- This file documents the CURRENT database schema as of 2026-02-07.
 -- 
 -- IMPORTANT: This is DOCUMENTATION ONLY - it is NOT executed!
--- The actual schema is created by migration files in supabase/migrations/
+-- The actual schema is created by the squashed baseline migration in supabase/migrations/
 -- 
 -- Purpose: Provide a consolidated view of the database structure
 -- for developers, auditors, and new contributors.

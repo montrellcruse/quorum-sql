@@ -27,10 +27,25 @@ Quorum is built with security as a core principle. This document outlines the se
 - **Atomic Operations**: Race condition prevention through database-level locking
 - **Complete Audit Trail**: All changes tracked in query_history table
 
+### Password Security
+
+- **Minimum Length**: 8 characters
+- **Complexity Requirements**: At least one uppercase letter, one lowercase letter, one number, and one special character
+- **Common Password Blocklist**: Top 100 most common passwords rejected at registration
+
+### HTTP Security
+
+- **Content-Security-Policy**: Enforced in both production and development (dev CSP allows HMR/localhost)
+- **Strict-Transport-Security**: HSTS enabled in production
+- **Rate Limiting**: Per-route rate limits on all endpoints via `@fastify/rate-limit`
+- **Metrics Authentication**: Auth tokens accepted only via `Authorization` header (never query strings)
+- **CSRF Protection**: Double-submit cookie pattern for state-changing requests
+- **Non-Root Docker**: Container runs as `node` user, not root
+
 ### Input Validation
 
-- **Parameterized Queries**: All database operations use Supabase client (prevents SQL injection)
-- **Email Validation**: Format and domain validation for all email inputs
+- **Parameterized Queries**: All database operations use parameterized queries (prevents SQL injection)
+- **Email Validation**: Format and domain validation for all email inputs, case-insensitive via `citext`
 - **SQL Content Limits**: 100KB maximum query size
 - **XSS Protection**: React JSX automatic escaping for all dynamic content
 
@@ -149,7 +164,7 @@ If you discover a security vulnerability, please report it responsibly:
 
 ### Staying Updated
 
-- **Dependencies**: Regularly update npm packages with `npm audit`
+- **Dependencies**: Regularly update packages with `pnpm audit`
 - **Supabase**: Monitor Supabase changelog for security updates
 - **React**: Keep React and related libraries updated
 - **Migrations**: Review new migrations for security implications
@@ -159,7 +174,7 @@ If you discover a security vulnerability, please report it responsibly:
 Monitor these sources for security updates:
 - Supabase Security Advisories
 - React Security Updates
-- npm Security Advisories (`npm audit`)
+- npm Security Advisories (`pnpm audit`)
 - This repository's security advisories (if public)
 
 ## Compliance Considerations
@@ -182,6 +197,14 @@ If deploying in regulated environments:
 
 ## Security Audit History
 
+- **2026-02-07**: Comprehensive issue sweep
+  - Password policy strengthened with complexity requirements and common password blocklist (#101)
+  - Content-Security-Policy added to development mode (#100)
+  - Metrics auth token restricted to Authorization header only (#98)
+  - Dockerfile updated to run as non-root `node` user (#105)
+  - `fast-xml-parser` upgraded to 5.3.4 to fix DoS vulnerability (Dependabot #7)
+  - Migration system unified to single canonical path (#90) and squashed to clean baseline (#94)
+  - Accessible button elements replace clickable divs (#104)
 - **2025-10-27**: Comprehensive security review conducted
   - Race condition in auto-approval fixed
   - Email domain validation added

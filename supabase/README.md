@@ -255,14 +255,13 @@ Format: `YYYYMMDDHHMMSS_<uuid>.sql`
 
 Migrations are applied sequentially by timestamp.
 
-### Current Migrations (46 total)
+### Current Migrations
 
-Key migrations include:
-- Initial schema creation
-- RLS policy setup
-- Security definer functions
-- Approval workflow functions
-- Race condition fixes
+All historical migrations have been squashed into a single baseline file:
+
+- `00000000000000_squashed_baseline.sql` — Complete schema including tables, indexes, RLS policies, functions, triggers, and grants
+
+New migrations should be added after this baseline using the standard Supabase naming convention.
 
 ### Creating New Migrations
 
@@ -274,9 +273,10 @@ supabase migration new description_of_change
 ```
 
 **Important Guidelines**:
-- Never modify existing migrations
+- Never modify the squashed baseline migration
 - Test migrations locally before pushing
-- Include both UP and DOWN logic where possible
+- Use `CREATE OR REPLACE` and `IF NOT EXISTS` for idempotency
+- When changing a function's return type, `DROP FUNCTION` first (Postgres limitation)
 - Document complex changes in comments
 
 ## Seed Data
