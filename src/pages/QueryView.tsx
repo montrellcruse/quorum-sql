@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
@@ -17,9 +18,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ArrowLeft, Edit, Clock, Trash2, Copy, Check, RotateCcw, Send } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { getDbAdapter } from '@/lib/provider';
-import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
+import { getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
+import { useDbProvider } from '@/hooks/useDbProvider';
+import { queryKeys } from '@/hooks/queryKeys';
+import { useQueryApprovals, useQueryById, useQueryHistory } from '@/hooks/useQueries';
 
 type Query = Tables<'sql_queries'>;
 
@@ -46,24 +49,15 @@ const QueryView = () => {
   const location = useLocation();
   const { toast } = useToast();
   const { theme } = useTheme();
-  const [query, setQuery] = useState<Query | null>(null);
-  const [loadingQuery, setLoadingQuery] = useState(true);
-  const [history, setHistory] = useState<HistoryRecord[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  const { adapter } = useDbProvider();
+  const queryClient = useQueryClient();
   const [selectedHistory, setSelectedHistory] = useState<HistoryRecord | null>(null);
   const [previousHistory, setPreviousHistory] = useState<HistoryRecord | null>(null);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const [updating, setUpdating] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [approvals, setApprovals] = useState<Approval[]>([]);
-  const [approvalQuota, setApprovalQuota] = useState(1);
-  const [latestHistoryId, setLatestHistoryId] = useState<string | null>(null);
-  const [hasUserApproved, setHasUserApproved] = useState(false);
   const [copied, setCopied] = useState(false);
   const [revertDialogOpen, setRevertDialogOpen] = useState(false);
-  const [reverting, setReverting] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [changeReason, setChangeReason] = useState('');
   const provider = getDbProviderType();
 

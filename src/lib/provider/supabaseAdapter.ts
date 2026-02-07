@@ -9,6 +9,7 @@ import type {
   InvitationsRepo,
   Team,
   Folder,
+  FolderPath,
   SqlQuery,
   UUID,
   QueryHistory,
@@ -99,7 +100,7 @@ const teams: TeamsRepo = {
     const result = data as { team_id: string; team_name: string; admin_id: string; approval_quota: number };
     return { id: result.team_id, name: result.team_name, admin_id: result.admin_id, approval_quota: result.approval_quota } as Team;
   },
-  async update(id: UUID, updateData: { approval_quota?: number }) {
+  async update(id: UUID, updateData: { approval_quota?: number; name?: string }) {
     const { error } = await supabase
       .from('teams')
       .update(updateData)
@@ -149,6 +150,13 @@ const folders: FoldersRepo = {
       .order('name');
     if (error) throw error;
     return (data || []) as Folder[];
+  },
+  async listPaths(teamId: UUID) {
+    const { data, error } = await supabase.rpc('get_team_folder_paths', {
+      _team_id: teamId,
+    });
+    if (error) throw error;
+    return (data || []) as FolderPath[];
   },
   async getById(id: UUID) {
     const { data, error } = await supabase
@@ -217,25 +225,30 @@ const queries: QueriesRepo = {
       .eq('id', id);
     if (error) throw error;
   },
-  async submitForApproval(id, sql) {
+  async submitForApproval(id, sql, opts) {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-    
-    // Get query to extract team_id
-    const { data: query, error: queryError } = await supabase
-      .from('sql_queries')
-      .select('team_id')
-      .eq('id', id)
-      .single();
-    if (queryError || !query) throw new Error('Query not found');
-    
+    const resolvedUserId = opts?.user_id ?? user?.id;
+    const resolvedEmail = opts?.modified_by_email ?? user?.email;
+    if (!resolvedUserId || !resolvedEmail) throw new Error('Not authenticated');
+
+    let resolvedTeamId = opts?.team_id;
+    if (!resolvedTeamId) {
+      const { data: query, error: queryError } = await supabase
+        .from('sql_queries')
+        .select('team_id')
+        .eq('id', id)
+        .single();
+      if (queryError || !query) throw new Error('Query not found');
+      resolvedTeamId = query.team_id;
+    }
+
     const { error } = await supabase.rpc('submit_query_for_approval', {
       _query_id: id,
       _sql_content: sql,
-      _modified_by_email: user.email!,
-      _change_reason: '',
-      _team_id: query.team_id,
-      _user_id: user.id,
+      _modified_by_email: resolvedEmail,
+      _change_reason: opts?.change_reason || '',
+      _team_id: resolvedTeamId,
+      _user_id: resolvedUserId,
     });
     if (error) throw error;
   },

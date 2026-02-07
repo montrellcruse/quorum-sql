@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
-import { getDbAdapter } from '@/lib/provider';
 import { restAuthAdapter } from '@/lib/auth/restAuthAdapter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,113 +16,106 @@ import { Plus, Search, FileText, Settings, Mail, ClipboardCheck, Loader2, Users 
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { checkPendingInvitationsCount, getPendingApprovalsCount } from '@/utils/teamUtils';
 import { getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
 import { useSoloUser } from '@/hooks/useSoloUser';
 import { FeatureGate } from '@/components/FeatureGate';
 import { getWorkspaceLabel } from '@/utils/terminology';
-import type { SqlQuery } from '@/lib/provider/types';
-
-interface Folder {
-  id: string;
-  name: string;
-  team_id: string;
-  parent_folder_id?: string | null;
-  description?: string | null;
-  created_at?: string;
-  created_by_email?: string | null;
-}
-
-interface SearchResult {
-  id: string;
-  title: string;
-  description: string | null;
-  folder_id: string;
-  folder_name: string;
-}
+import { useDbProvider } from '@/hooks/useDbProvider';
+import { queryKeys } from '@/hooks/queryKeys';
+import { useTeamFolders } from '@/hooks/useTeamFolders';
+import { useSearchQueriesMutation } from '@/hooks/useQueries';
+import { usePendingApprovalsCount, usePendingInvitesCount } from '@/hooks/usePendingApprovals';
+import { useAdminTeams } from '@/hooks/useTeamMembers';
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const { activeTeam, userTeams, setActiveTeam, loading: teamLoading } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
-  const [projects, setProjects] = useState<Folder[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(true);
+  const { adapter } = useDbProvider();
+  const queryClient = useQueryClient();
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newProject, setNewProject] = useState({
     name: '',
     description: ''
   });
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
-  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const provider = getDbProviderType();
   const activeTeamId = activeTeam?.id;
   const soloContext = useSoloUser();
   const { isSoloUser } = soloContext;
 
-  // Define callbacks BEFORE useEffects that reference them
-  const checkAdminStatus = useCallback(async () => {
-    try {
-      const adapter = getDbAdapter();
-      const teams = await adapter.teams.listForUser();
-      const current = teams.find((team) => team.id === activeTeam?.id);
-      setIsAdmin(current?.role === 'admin');
-    } catch (error: unknown) {
-      if (import.meta.env.DEV) {
-        console.error('Error checking admin status:', getErrorMessage(error, 'Unknown error'));
+  const teamFoldersQuery = useTeamFolders(activeTeamId, {
+    enabled: Boolean(user && activeTeamId),
+    rootOnly: true,
+  });
+  const adminTeamsQuery = useAdminTeams({ enabled: Boolean(user) });
+  const pendingInvitesCountQuery = usePendingInvitesCount(user?.email, {
+    enabled: Boolean(user?.email),
+  });
+  const pendingApprovalsCountQuery = usePendingApprovalsCount(activeTeamId, user?.email, {
+    enabled: Boolean(user?.email && activeTeamId),
+  });
+  const searchQueriesMutation = useSearchQueriesMutation(activeTeamId);
+
+  const createProjectMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeTeam) {
+        throw new Error('No active team selected');
       }
-    }
-  }, [activeTeam?.id]);
 
-  const fetchPendingInvitesCount = useCallback(async () => {
-    if (!user?.email) return;
-    const count = await checkPendingInvitationsCount(user.email);
-    setPendingInvitesCount(count);
-  }, [user?.email]);
+      const trimmedName = newProject.name.trim();
+      const all = await adapter.folders.listByTeam(activeTeam.id);
+      const duplicate = all.find(
+        (folder) =>
+          folder.parent_folder_id == null &&
+          folder.name.toLowerCase() === trimmedName.toLowerCase()
+      );
 
-  const fetchPendingApprovalsCount = useCallback(async () => {
-    if (!user?.email || !activeTeam) return;
-    const count = await getPendingApprovalsCount(activeTeam.id, user.email);
-    setPendingApprovalsCount(count);
-  }, [user?.email, activeTeam]);
+      if (duplicate) {
+        throw new Error('A folder with this name already exists at the root.');
+      }
 
-  const pendingInvitesRef = useRef(fetchPendingInvitesCount);
-  const pendingApprovalsRef = useRef(fetchPendingApprovalsCount);
-
-  useEffect(() => {
-    pendingInvitesRef.current = fetchPendingInvitesCount;
-  }, [fetchPendingInvitesCount]);
-
-  useEffect(() => {
-    pendingApprovalsRef.current = fetchPendingApprovalsCount;
-  }, [fetchPendingApprovalsCount]);
-
-  const fetchProjects = useCallback(async () => {
-    if (!activeTeam) return;
-    
-    try {
-      const adapter = getDbAdapter();
-      const data = await adapter.folders.listByTeam(activeTeam.id);
-      const roots = (data || [])
-        .filter((folder) => folder.parent_folder_id == null)
-        .sort((a, b) => a.name.localeCompare(b.name));
-      setProjects(roots);
-    } catch (error: unknown) {
+      await adapter.folders.create({
+        name: trimmedName,
+        description: newProject.description,
+        user_id: user?.id ?? '',
+        created_by_email: user?.email || '',
+        parent_folder_id: null,
+        team_id: activeTeam.id,
+      });
+    },
+    onSuccess: async () => {
+      toast({
+        title: 'Success',
+        description: 'Folder created successfully'
+      });
+      setNewProject({ name: '', description: '' });
+      setDialogOpen(false);
+      if (activeTeamId) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.folders.byTeam(activeTeamId) });
+      }
+    },
+    onError: (error: unknown) => {
       toast({
         title: 'Error',
-        description: getErrorMessage(error, 'Failed to fetch projects'),
+        description: getErrorMessage(error, 'Failed to create folder'),
         variant: 'destructive'
       });
-    } finally {
-      setLoadingProjects(false);
-    }
-  }, [activeTeam, toast]);
+    },
+  });
+
+  const projects = teamFoldersQuery.data ?? [];
+  const loadingProjects = teamFoldersQuery.isLoading;
+  const pendingInvitesCount = pendingInvitesCountQuery.data ?? 0;
+  const pendingApprovalsCount = pendingApprovalsCountQuery.data ?? 0;
+  const searchResults = searchQueriesMutation.data ?? [];
+  const searching = searchQueriesMutation.isPending;
+  const isAdmin = Boolean(
+    activeTeamId && adminTeamsQuery.data?.some((team) => team.id === activeTeamId)
+  );
 
   useEffect(() => {
     if (!loading && !user) {
@@ -131,35 +124,23 @@ const Dashboard = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (user && activeTeam) {
-      fetchProjects();
-      checkAdminStatus();
+    if (teamFoldersQuery.isError) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(teamFoldersQuery.error, 'Failed to fetch projects'),
+        variant: 'destructive'
+      });
     }
-  }, [user, activeTeam, fetchProjects, checkAdminStatus]);
+  }, [teamFoldersQuery.isError, teamFoldersQuery.error, toast]);
 
   useEffect(() => {
-    if (user?.email) {
-      pendingInvitesRef.current();
-
-      // Poll every 60 seconds for new invitations
-      const interval = setInterval(() => {
-        pendingInvitesRef.current();
-      }, 60000);
-      return () => clearInterval(interval);
+    if (adminTeamsQuery.isError && import.meta.env.DEV) {
+      console.error(
+        'Error checking admin status:',
+        getErrorMessage(adminTeamsQuery.error, 'Unknown error')
+      );
     }
-  }, [user?.email]);
-
-  useEffect(() => {
-    if (user?.email && activeTeamId) {
-      pendingApprovalsRef.current();
-
-      // Poll every 60 seconds for new approvals
-      const interval = setInterval(() => {
-        pendingApprovalsRef.current();
-      }, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [user?.email, activeTeamId]);
+  }, [adminTeamsQuery.isError, adminTeamsQuery.error]);
 
   const handleCreateProject = async () => {
     if (!newProject.name.trim()) {
@@ -179,76 +160,27 @@ const Dashboard = () => {
       });
       return;
     }
-    
-    try {
-      const adapter = getDbAdapter();
-      const all = await adapter.folders.listByTeam(activeTeam.id);
-      const dup = all.find(f => (f.parent_folder_id == null) && f.name.toLowerCase() === newProject.name.trim().toLowerCase());
-      if (dup) {
-        toast({
-          title: 'Error',
-          description: 'A folder with this name already exists at the root.',
-          variant: 'destructive'
-        });
-        return;
-      }
 
-      await adapter.folders.create({
-        name: newProject.name,
-        description: newProject.description,
-        user_id: user?.id ?? '',
-        created_by_email: user?.email || '',
-        parent_folder_id: null,
-        team_id: activeTeam.id,
-      });
-
-      toast({
-        title: 'Success',
-        description: 'Folder created successfully'
-      });
-
-      setNewProject({ name: '', description: '' });
-      setDialogOpen(false);
-      fetchProjects();
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to create folder'),
-        variant: 'destructive'
-      });
-    }
+    await createProjectMutation.mutateAsync();
   };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTerm.trim()) {
-      setSearchResults([]);
+      searchQueriesMutation.reset();
       return;
     }
     
     if (!activeTeam) return;
-    
-    setSearching(true);
+
     try {
-      const adapter = getDbAdapter();
-      const data = await adapter.queries.search({ teamId: activeTeam.id, q: searchTerm.trim() });
-      // Folder name not guaranteed in REST adapter results; default to Unknown
-      const map: SearchResult[] = (data || []).map((q: SqlQuery & { folder_name?: string | null }) => ({
-        id: q.id,
-        title: q.title,
-        description: q.description ?? null,
-        folder_id: q.folder_id || '',
-        folder_name: q.folder_name || 'Unknown Folder',
-      }));
-      setSearchResults(map);
+      await searchQueriesMutation.mutateAsync(searchTerm);
     } catch (error: unknown) {
       toast({
         title: 'Error',
         description: getErrorMessage(error, 'Failed to search queries'),
         variant: 'destructive'
       });
-    } finally {
-      setSearching(false);
     }
   };
 
@@ -484,8 +416,8 @@ const Dashboard = () => {
                     placeholder="Enter folder description" 
                   />
                 </div>
-                <Button onClick={handleCreateProject} className="w-full">
-                  Create Folder
+                <Button onClick={handleCreateProject} className="w-full" disabled={createProjectMutation.isPending}>
+                  {createProjectMutation.isPending ? 'Creating...' : 'Create Folder'}
                 </Button>
               </div>
             </DialogContent>
@@ -494,6 +426,8 @@ const Dashboard = () => {
 
         {loadingProjects ? (
           <p className="text-muted-foreground">Loading folders...</p>
+        ) : teamFoldersQuery.isError ? (
+          <p className="text-muted-foreground">Failed to load folders.</p>
         ) : projects.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {projects.map(project => (
