@@ -13,19 +13,13 @@ import { getErrorMessage } from '@/utils/errors';
 
 const Approvals = () => {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const { activeTeam } = useTeam();
   const pendingQueriesQuery = usePendingApprovalQueries(activeTeam?.id, user?.email, {
     enabled: Boolean(user?.email && activeTeam),
   });
   const pendingQueries = pendingQueriesQuery.data ?? [];
   const loadingQueries = pendingQueriesQuery.isLoading;
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
 
   useEffect(() => {
     if (pendingQueriesQuery.isError && import.meta.env.DEV) {
@@ -36,7 +30,7 @@ const Approvals = () => {
     }
   }, [pendingQueriesQuery.isError, pendingQueriesQuery.error]);
 
-  if (loading || loadingQueries) {
+  if (loadingQueries) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-pulse text-muted-foreground">Loading...</div>

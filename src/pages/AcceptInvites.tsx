@@ -12,7 +12,7 @@ import { ArrowLeft } from 'lucide-react';
 import type { TeamInvitation } from '@/lib/provider/types';
 
 const AcceptInvites = () => {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const { refreshTeams } = useTeam();
   const { adapter } = useDbProvider();
   const navigate = useNavigate();
@@ -46,15 +46,10 @@ const AcceptInvites = () => {
   }, [user, adapter.invitations, navigate, toast]);
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-      return;
-    }
-
     if (user) {
       fetchPendingInvitations();
     }
-  }, [user, loading, navigate, fetchPendingInvitations]);
+  }, [user, fetchPendingInvitations]);
 
   const handleAccept = async (invitationId: string) => {
     setProcessingId(invitationId);
@@ -116,7 +111,7 @@ const AcceptInvites = () => {
     }
   };
 
-  if (loading || loadingInvites) {
+  if (loadingInvites) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-muted-foreground">Loading...</p>

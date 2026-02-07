@@ -44,7 +44,7 @@ interface TeamInvitation {
 }
 
 const TeamAdmin = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const { activeTeam, refreshTeams } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -80,12 +80,6 @@ const TeamAdmin = () => {
   const isTeamOwner = (userId: string) => {
     return selectedTeam?.admin_id === userId;
   };
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/auth');
-    }
-  }, [user, authLoading, navigate]);
 
   useEffect(() => {
     if (!user || !adminTeamsQuery.isSuccess) return;
@@ -507,7 +501,6 @@ const TeamAdmin = () => {
   };
 
   const loadingPage =
-    authLoading ||
     adminTeamsQuery.isLoading ||
     (Boolean(selectedTeamId) && teamDetailsQuery.isLoading && !selectedTeam);
 

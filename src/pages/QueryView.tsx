@@ -41,7 +41,7 @@ interface Approval {
 
 const QueryView = () => {
   const { id } = useParams<{ id: string }>();
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const { activeTeam } = useTeam();
   const navigate = useNavigate();
   const location = useLocation();
@@ -96,12 +96,6 @@ const QueryView = () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.queries.history(id) });
     await queryClient.invalidateQueries({ queryKey: queryKeys.queries.approvals(id) });
   };
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
 
   useEffect(() => {
     if (!id || !user) return;
@@ -363,7 +357,7 @@ const QueryView = () => {
     }
   };
 
-  if (loading || loadingQuery) {
+  if (loadingQuery) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-muted-foreground">Loading...</p>
