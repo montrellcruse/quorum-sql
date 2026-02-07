@@ -146,9 +146,11 @@ test.describe('Query Workflow Tests', () => {
     await openFolder(page, folderName);
 
     // Delete each query in the folder via query view page.
-    // Using the query title heading avoids clicking non-interactive card regions.
+    // Wait for the folder page to fully render before checking query cards.
+    // "SQL Queries" heading is rendered after loading completes, so it's a reliable signal.
+    await expect(page.getByRole('heading', { name: /sql queries/i })).toBeVisible({ timeout: 15000 });
+
     while (true) {
-      await expect(page.getByText(/loading\.\.\./i)).not.toBeVisible({ timeout: 10000 });
       const queryCards = page.locator('[data-testid="query-card"]');
       const queryCount = await queryCards.count();
       if (queryCount === 0) break;
@@ -162,12 +164,11 @@ test.describe('Query Workflow Tests', () => {
       await queryDeleteDialog.getByRole('button', { name: /^delete query$/i }).click();
 
       await expect(page).toHaveURL(/\/folder\//, { timeout: 10000 });
+      // Wait for the folder page to reload after redirect
+      await expect(page.getByRole('heading', { name: /sql queries/i })).toBeVisible({ timeout: 15000 });
     }
 
-    // After the last delete redirects back to /folder/, the page re-fetches
-    // queries (loadingQueries=true). Wait for loading to finish before asserting.
-    await expect(page.getByText(/loading\.\.\./i)).not.toBeVisible({ timeout: 10000 });
-    await expect(page.locator('[data-testid="query-card"]')).toHaveCount(0, { timeout: 10000 });
+    // At this point all queries are deleted and the folder page is loaded
     await expect(page.getByText(/no queries yet/i)).toBeVisible({ timeout: 10000 });
 
     // Now delete the empty folder
