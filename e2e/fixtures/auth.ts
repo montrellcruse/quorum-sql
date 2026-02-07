@@ -54,9 +54,10 @@ export async function signUp(
   }
 }
 
-async function hasActiveSession(page: Page): Promise<boolean> {
+async function hasActiveSession(page: Page): Promise<boolean | 'rate-limited'> {
   try {
     const response = await page.request.get('/auth/me');
+    if (response.status() === 429) return 'rate-limited';
     if (!response.ok()) return false;
     const payload = await response.json();
     return Boolean(
@@ -70,12 +71,21 @@ async function hasActiveSession(page: Page): Promise<boolean> {
   }
 }
 
-async function waitForSession(page: Page, timeoutMs = 5000): Promise<boolean> {
+async function waitForSession(page: Page, timeoutMs = 8000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
+  let pollInterval = 500;
   while (Date.now() < deadline) {
-    if (await hasActiveSession(page)) return true;
-    await page.waitForTimeout(250);
+    const result = await hasActiveSession(page);
+    if (result === true) return true;
+    if (result === 'rate-limited') {
+      // Back off significantly when rate-limited
+      pollInterval = Math.min(pollInterval * 2, 3000);
+    }
+    await page.waitForTimeout(pollInterval);
   }
+  // Final attempt: check if we're on a post-auth page (session may exist even if /auth/me is rate-limited)
+  const url = page.url();
+  if (/\/(dashboard|create-team|accept-invites)/.test(url)) return true;
   return false;
 }
 

@@ -13,7 +13,7 @@ import {
 
 export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/auth/me', {
-    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    config: { rateLimit: isProd ? { max: 60, timeWindow: '1 minute' } : { max: 10000, timeWindow: '1 minute' } },
   }, async (req) => {
     const sess = await getSessionUser(req);
     if (!sess) return null;
@@ -190,7 +190,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/auth/logout', {
-    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+    config: { rateLimit: isProd ? { max: 30, timeWindow: '1 minute' } : { max: 10000, timeWindow: '1 minute' } },
   }, async (req, reply) => {
     const sess = await getSessionUser(req);
     if (sess) {
