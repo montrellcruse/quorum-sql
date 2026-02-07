@@ -30,9 +30,18 @@ export function csrfProtection(fastify: FastifyInstance) {
 
     const csrfCookie = req.cookies?.csrf;
     const csrfHeader = req.headers['x-csrf-token'];
+    const sessionCookie = req.cookies?.session;
 
-    // If no CSRF cookie is set, skip validation (user not logged in yet)
+    // Only skip CSRF validation when there's no session at all (user not logged in)
     if (!csrfCookie) {
+      if (sessionCookie) {
+        // Session exists but CSRF cookie is missing — reject to prevent bypass
+        req.log.warn({
+          path: req.url,
+          method: req.method,
+        }, 'CSRF bypass attempt: session cookie present but CSRF cookie missing');
+        return reply.code(403).send({ error: 'CSRF token required' });
+      }
       return done();
     }
 
