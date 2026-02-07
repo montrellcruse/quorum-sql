@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.6.0...quorum-sql-v1.6.1) (2026-02-07)
+
+
+### Bug Fixes
+
+* allow ampersands and common punctuation in team names ([#135](https://github.com/montrellcruse/quorum-sql/issues/135)) ([ca0654a](https://github.com/montrellcruse/quorum-sql/commit/ca0654a7cc14a500926a1905441a9901d490e148))
+
 ## [1.6.0](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.5.0...quorum-sql-v1.6.0) (2026-02-07)
 
 
