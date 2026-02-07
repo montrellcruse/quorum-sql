@@ -9,12 +9,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 type SqlFile = { name: string; fullPath: string; sql: string };
 
 function readSqlFiles(dir: string): SqlFile[] {
-  if (!fs.existsSync(dir)) return [];
-  return fs
+  if (!fs.existsSync(dir)) {
+    throw new Error(`Migrations directory not found: ${dir}`);
+  }
+
+  const sqlFiles = fs
     .readdirSync(dir)
     .filter((f) => f.endsWith('.sql'))
     .sort()
     .map((f) => ({ name: f, fullPath: path.join(dir, f), sql: fs.readFileSync(path.join(dir, f), 'utf8') }));
+
+  if (sqlFiles.length === 0) {
+    throw new Error(`No SQL migrations found in: ${dir}`);
+  }
+
+  return sqlFiles;
 }
 
 async function ensureMigrationsTable(client: PoolClient) {
@@ -72,15 +81,9 @@ async function main() {
   const seed = process.argv.includes('--seed');
   const pool = createPool();
   try {
-    const compatDir = path.join(__dirname, '../migrations');
-    const supaDir = path.join(__dirname, '../../supabase/migrations');
-    const applySupabase = (process.env.APPLY_SUPABASE_MIGRATIONS || 'true').toLowerCase() !== 'false';
-    const compatMigrations = readSqlFiles(compatDir);
-    const supabaseMigrations = applySupabase ? readSqlFiles(supaDir) : [];
-    console.log(
-      `Applying migrations from: server/migrations${applySupabase ? ' + supabase/migrations' : ' (supabase skipped)'} `,
-    );
-    const migrations = [...compatMigrations, ...supabaseMigrations];
+    const migrationsDir = path.join(__dirname, '../../supabase/migrations');
+    console.log('Applying migrations from: supabase/migrations');
+    const migrations = readSqlFiles(migrationsDir);
     await applyMigrations(pool, migrations);
     if (seed) {
       const seedPath = path.join(__dirname, '../seed.sql');
