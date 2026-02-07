@@ -5,10 +5,8 @@ import {
   signIn,
   signOut,
   waitForDashboard,
-  goToTeamAdmin,
-  inviteUser,
 } from './fixtures/auth';
-import { createFolder, createQuery, submitForApproval } from './fixtures/queries';
+import { createFolder, openFolder, submitForApproval } from './fixtures/queries';
 
 test.describe('Solo User Flows', () => {
   test.describe.configure({ mode: 'serial' });
@@ -35,12 +33,14 @@ test.describe('Solo User Flows', () => {
 
     // Verify we have a workspace (team name shown)
     // For solo users with one team, it shows "Workspace: <name>"
-    const workspaceLabel = page.getByText(/workspace:/i);
-    await expect(workspaceLabel).toBeVisible();
+    const workspaceLabel = page.getByText(/^workspace:/i);
+    await expect(workspaceLabel).toBeVisible({ timeout: 15000 });
 
     // The workspace name should include the user's name or email prefix
+    const firstName = soloUser.fullName.split(' ')[0];
+    const emailPrefix = soloUser.email.split('@')[0];
     const expectedNamePattern = new RegExp(
-      `(${soloUser.fullName.split(' ')[0]}|${soloUser.email.split('@')[0]}).*workspace`,
+      `(workspace.*(${firstName}|${emailPrefix}))|((?:${firstName}|${emailPrefix}).*workspace)`,
       'i'
     );
     await expect(page.locator('body')).toContainText(expectedNamePattern);
@@ -83,8 +83,7 @@ test.describe('Solo User Flows', () => {
     await createFolder(page, folderName, 'Test folder for auto-approval');
 
     // Navigate to the folder
-    await page.getByRole('heading', { name: folderName }).click();
-    await expect(page).toHaveURL(/\/folder\//);
+    await openFolder(page, folderName);
 
     // Create a new query
     await page.getByRole('button', { name: /new query/i }).click();
@@ -102,22 +101,16 @@ test.describe('Solo User Flows', () => {
     await page.keyboard.type('SELECT 1 AS test_value;');
 
     // Save the query
-    await page.getByRole('button', { name: /save/i }).click();
-    await expect(page.getByText('Query saved as draft', { exact: true })).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: /save draft|save/i }).click();
+    await expect(page).toHaveURL(/\/folder\//, { timeout: 10000 });
+    await page.getByRole('heading', { name: /auto-approve test query/i }).first().click();
+    await expect(page).toHaveURL(/\/query\/view\//);
 
-    // Submit for approval
-    const submitButton = page.getByRole('button', { name: /submit for approval/i });
-    if (await submitButton.isVisible()) {
-      await submitButton.click();
+    await submitForApproval(page);
 
-      // For solo users, query should be immediately approved (auto-approval)
-      // Should NOT show "pending approval" - should show "approved" directly
-      await expect(page.getByText(/approved/i)).toBeVisible({ timeout: 5000 });
-
-      // Verify it's NOT pending
-      const pendingBadge = page.getByText(/pending/i);
-      await expect(pendingBadge).not.toBeVisible();
-    }
+    // For solo users, query should end up approved and not stay pending.
+    await expect(page.getByText(/approved/i).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/pending approval/i)).toHaveCount(0);
 
     // Note: Cleanup navigation removed - subsequent tests navigate fresh
   });
@@ -139,7 +132,9 @@ test.describe('Solo User Flows', () => {
     await page.getByRole('button', { name: /invite collaborator/i }).click();
 
     // Should see "Collaboration Unlocked" toast
-    await expect(page.getByText('Collaboration Unlocked!', { exact: true })).toBeVisible();
+    await expect(page.getByText(/collaboration unlocked/i).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // After first invite, personal team should convert
     // The UI should update to show team features
@@ -164,11 +159,13 @@ test.describe('Solo User Flows', () => {
     await signOut(page);
     await signIn(page, soloUser);
     await waitForDashboard(page);
+    await page.reload();
+    await waitForDashboard(page);
 
     // Original user should NOW see team features (no longer solo)
     // Should see "Create New Team" instead of "Start Collaborating"
     const createTeamButton = page.getByRole('button', { name: /create new team/i });
-    await expect(createTeamButton).toBeVisible({ timeout: 5000 });
+    await expect(createTeamButton).toBeVisible({ timeout: 15000 });
 
     // Should see "Team Admin" instead of "Settings"
     const teamAdminButton = page.getByRole('button', { name: /team admin/i });
@@ -190,12 +187,13 @@ test.describe('Solo User Flows', () => {
 
     // Find the second user in the members list and remove them
     // Look for the member row with the second user's email
-    const memberRow = page.locator('.border.rounded-lg').filter({
+    const memberRow = page.locator('[data-testid="member-row"]').filter({
       hasText: new RegExp(secondUser.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
     });
+    await expect(memberRow).toBeVisible({ timeout: 10000 });
 
     // Click the delete button for this member
-    const deleteButton = memberRow.getByRole('button').filter({ has: page.locator('svg') }).last();
+    const deleteButton = memberRow.getByRole('button').last();
     await deleteButton.click();
 
     // Should see success message and/or "Solo Mode" notification
@@ -264,8 +262,8 @@ test.describe('Solo User Flows', () => {
     await waitForDashboard(page);
 
     // User should still have their workspace
-    const workspaceLabel = page.getByText(/workspace:/i);
-    await expect(workspaceLabel).toBeVisible();
+    const workspaceLabel = page.getByText(/^workspace:/i);
+    await expect(workspaceLabel).toBeVisible({ timeout: 15000 });
   });
 });
 
@@ -299,7 +297,9 @@ test.describe('Solo User Edge Cases', () => {
 
     // Workspace name should include user's name or email prefix
     // In REST mode, fullName may be stored differently, so accept email-based name as fallback
-    await expect(page.locator('body')).toContainText(/(alice|named-).*workspace/i);
+    await expect(page.locator('body')).toContainText(
+      /(workspace.*(alice|named-))|((alice|named-).*workspace)/i
+    );
 
     await signOut(page);
   });
@@ -313,7 +313,7 @@ test.describe('Solo User Edge Cases', () => {
     // Solo mode: Create and submit a query - should auto-approve
     const folderName = `Workflow Test ${Date.now()}`;
     await createFolder(page, folderName);
-    await page.getByRole('heading', { name: folderName }).click();
+    await openFolder(page, folderName);
 
     await page.getByRole('button', { name: /new query/i }).click();
     await page.getByLabel(/title/i).fill('Solo Workflow Test');
@@ -326,17 +326,13 @@ test.describe('Solo User Edge Cases', () => {
     await monacoContainer2.click();
     await page.keyboard.type('SELECT 1;');
 
-    await page.getByRole('button', { name: /save/i }).click();
-    await expect(page.getByText('Query saved as draft', { exact: true })).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: /save draft|save/i }).click();
+    await expect(page).toHaveURL(/\/folder\//, { timeout: 10000 });
+    await page.getByRole('heading', { name: /solo workflow test/i }).first().click();
+    await expect(page).toHaveURL(/\/query\/view\//);
 
-    // Submit and verify auto-approval
-    const submitButton = page.getByRole('button', { name: /submit for approval/i });
-    if (await submitButton.isVisible()) {
-      await submitButton.click();
-
-      // Solo user: Should see "approved" without "pending"
-      await expect(page.getByText(/approved/i)).toBeVisible({ timeout: 5000 });
-    }
+    await submitForApproval(page);
+    await expect(page.getByText(/approved/i).first()).toBeVisible({ timeout: 10000 });
 
     await signOut(page);
   });

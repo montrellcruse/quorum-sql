@@ -455,6 +455,8 @@ const TeamAdmin = () => {
           {invitations.map(invitation => (
             <div
               key={invitation.id}
+              data-testid="invitation-row"
+              data-invited-email={invitation.invited_email}
               className="flex items-center justify-between p-3 border rounded-lg"
             >
               <div>
@@ -541,7 +543,11 @@ const TeamAdmin = () => {
             <CardContent>
               <form onSubmit={handleRenameTeam}>
                 <div className="flex gap-2">
+                  <Label htmlFor="workspace-name-input" className="sr-only">
+                    Workspace Name
+                  </Label>
                   <Input
+                    id="workspace-name-input"
                     value={teamName}
                     onChange={(e) => setTeamName(e.target.value)}
                     placeholder="My Team"
@@ -580,6 +586,8 @@ const TeamAdmin = () => {
                   {members.map(member => (
                     <div
                       key={member.id}
+                      data-testid="member-row"
+                      data-member-email={member.email}
                       className="flex items-center justify-between p-3 border rounded-lg"
                     >
                       <div className="flex items-center gap-3">

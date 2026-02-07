@@ -392,6 +392,8 @@ const Folder = () => {
               {childFolders.map((childFolder) => (
                 <Card
                   key={childFolder.id}
+                  data-testid="folder-card"
+                  data-folder-name={childFolder.name}
                   className="cursor-pointer transition-colors hover:bg-accent"
                   onClick={() => navigate(`/folder/${childFolder.id}`)}
                 >
@@ -430,7 +432,7 @@ const Folder = () => {
         {queries.length > 0 ? (
           <div className="space-y-4">
             {queries.map((query) => (
-              <Card key={query.id}>
+              <Card key={query.id} data-testid="query-card" data-query-title={query.title}>
                 <CardHeader>
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div className="flex-1 min-w-0">
