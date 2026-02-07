@@ -131,46 +131,71 @@ test.describe('Solo User Flows', () => {
     await expect(page.getByText(/collaboration unlocked/i).first()).toBeVisible({
       timeout: 10000,
     });
-
-    // After first invite, personal team should convert
-    // The UI should update to show team features
+    await expect(
+      page.locator('[data-testid="invitation-row"]').filter({ hasText: secondUser.email })
+    ).toBeVisible({ timeout: 15000 });
 
     // Sign out and sign up as the second user
     await signOut(page);
-
-    // Sign up the second user
     await signUp(page, secondUser);
 
-    // Second user should be redirected to accept invites or dashboard.
-    // In CI, invite visibility can lag briefly, so retry accept-invites when routed to create-team.
-    await expect(page).toHaveURL(/\/(accept-invites|dashboard|create-team)/, { timeout: 20000 });
-    if (page.url().includes('/create-team')) {
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        await page.goto('/accept-invites');
-        await expect(page).toHaveURL(/\/(accept-invites|dashboard|create-team)/, { timeout: 10000 });
-        if (!page.url().includes('/create-team')) {
-          break;
-        }
-        await page.waitForTimeout(1000);
-      }
-      await expect(page).toHaveURL(/\/(accept-invites|dashboard)/, { timeout: 10000 });
-    }
+    // Ensure second user either accepts the pending invite now or was already
+    // accepted in a previous retry attempt.
+    let inviteSatisfied = false;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const invitesResponse = await page.request.get('/invites/mine');
+      const pendingInvites = invitesResponse.ok()
+        ? await invitesResponse.json().catch(() => [])
+        : [];
 
-    // If on accept-invites, accept the invitation
-    if (page.url().includes('accept-invites')) {
-      await page.getByRole('button', { name: /accept/i }).first().click();
-      await expect(page.getByText('Invitation accepted successfully.', { exact: true })).toBeVisible({
-        timeout: 10000,
-      });
-      await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
+      if (Array.isArray(pendingInvites) && pendingInvites.length > 0) {
+        await page.goto('/accept-invites');
+        await expect(page).toHaveURL(/\/accept-invites/, { timeout: 10000 });
+        const acceptButton = page.getByRole('button', { name: /^accept$/i }).first();
+        await expect(acceptButton).toBeVisible({ timeout: 10000 });
+        await acceptButton.click();
+        await expect(page.getByText('Invitation accepted successfully.', { exact: true })).toBeVisible({
+          timeout: 10000,
+        });
+        await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
+        inviteSatisfied = true;
+        break;
+      }
+
+      const teamsResponse = await page.request.get('/teams');
+      const teams = teamsResponse.ok()
+        ? await teamsResponse.json().catch(() => [])
+        : [];
+      if (Array.isArray(teams) && teams.length > 1) {
+        inviteSatisfied = true;
+        break;
+      }
+
+      await page.goto('/accept-invites');
+      await expect(page).toHaveURL(/\/(accept-invites|dashboard|create-team)/, { timeout: 10000 });
+      await page.waitForTimeout(1000);
     }
+    expect(inviteSatisfied, 'Second user never received or accepted the invitation').toBeTruthy();
 
     // Sign out second user, sign back in as original user
     await signOut(page);
     await signIn(page, soloUser);
     await waitForDashboard(page);
-    await page.reload();
-    await waitForDashboard(page);
+
+    let teamModeReady = false;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const createTeamButton = page.getByRole('button', { name: /create new team/i });
+      if (await createTeamButton.isVisible().catch(() => false)) {
+        teamModeReady = true;
+        break;
+      }
+      if (attempt < 2) {
+        await page.reload();
+        await waitForDashboard(page);
+        await page.waitForTimeout(1000);
+      }
+    }
+    expect(teamModeReady, 'Solo user did not transition to team mode after invite acceptance').toBeTruthy();
 
     // Original user should NOW see team features (no longer solo)
     // Should see "Create New Team" instead of "Start Collaborating"
