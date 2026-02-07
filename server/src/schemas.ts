@@ -2,9 +2,19 @@ import { z } from 'zod';
 
 export type IdParams = { id: string };
 export type TeamMemberParams = { id: string; memberId: string };
-export type TeamIdQuery = { teamId: string; q?: string };
+export type PaginationQuery = { limit?: string; offset?: string };
+export type TeamIdQuery = PaginationQuery & { teamId: string; q?: string };
 export type ApprovalsQuery = { teamId: string; excludeEmail?: string };
 export type FolderPathsQuery = { teamId: string };
+
+export const DEFAULT_PAGE_LIMIT = 50;
+export const MAX_PAGE_LIMIT = 200;
+
+export const PaginationQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).default(DEFAULT_PAGE_LIMIT),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+export type ParsedPaginationQuery = z.infer<typeof PaginationQuerySchema>;
 
 export const SetupSupabaseBodySchema = z.object({
   url: z.string().min(1),

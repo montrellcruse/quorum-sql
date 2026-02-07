@@ -2,8 +2,10 @@ import type { FastifyInstance } from 'fastify';
 
 import { requireAuthenticatedUser, requireTeamAdmin, requireTeamMember, isValidUUID } from '../middleware/auth.js';
 import {
+  PaginationQuerySchema,
   UpdateMemberRoleBodySchema,
   type IdParams,
+  type PaginationQuery,
   type TeamMemberParams,
   type UpdateMemberRoleBody,
 } from '../schemas.js';
@@ -11,14 +13,20 @@ import {
 export default async function memberRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', requireAuthenticatedUser);
 
-  fastify.get<{ Params: IdParams }>('/teams/:id/members', async (req, reply) => {
+  fastify.get<{ Params: IdParams; Querystring: PaginationQuery }>('/teams/:id/members', async (req, reply) => {
     const sess = req.user;
     if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
     const { id } = req.params;
+    const parsedPagination = PaginationQuerySchema.safeParse(req.query);
 
     if (!isValidUUID(id)) {
       return reply.code(400).send({ error: 'Invalid team ID' });
     }
+    if (!parsedPagination.success) {
+      return reply.code(400).send({ error: parsedPagination.error.issues[0]?.message || 'Invalid query parameters' });
+    }
+
+    const { limit, offset } = parsedPagination.data;
 
     return fastify.withReadClient(sess.id, async (client) => {
       // Verify user is a team member
@@ -31,8 +39,9 @@ export default async function memberRoutes(fastify: FastifyInstance) {
         `select tm.id, tm.user_id, tm.role, p.email
          from public.team_members tm
          join public.profiles p on p.user_id = tm.user_id
-         where tm.team_id = $1`,
-        [id],
+         where tm.team_id = $1
+         limit $2 offset $3`,
+        [id, limit, offset],
       );
       return rows;
     });

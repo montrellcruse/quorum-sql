@@ -3,29 +3,37 @@ import type { FastifyInstance } from 'fastify';
 import { requireAuthenticatedUser, requireTeamMember, isValidUUID } from '../middleware/auth.js';
 import {
   CreateFolderBodySchema,
+  PaginationQuerySchema,
   UpdateFolderBodySchema,
   type CreateFolderBody,
   type FolderPathsQuery,
   type IdParams,
+  type PaginationQuery,
   type UpdateFolderBody,
 } from '../schemas.js';
 
 export default async function folderRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', requireAuthenticatedUser);
 
-  fastify.get<{ Params: IdParams }>('/teams/:id/folders', async (req, reply) => {
+  fastify.get<{ Params: IdParams; Querystring: PaginationQuery }>('/teams/:id/folders', async (req, reply) => {
     const sess = req.user;
     if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
     const { id } = req.params;
+    const parsedPagination = PaginationQuerySchema.safeParse(req.query);
 
     if (!isValidUUID(id)) {
       return reply.code(400).send({ error: 'Invalid team ID' });
     }
+    if (!parsedPagination.success) {
+      return reply.code(400).send({ error: parsedPagination.error.issues[0]?.message || 'Invalid query parameters' });
+    }
+
+    const { limit, offset } = parsedPagination.data;
 
     return fastify.withReadClient(sess.id, async (client) => {
       const { rows } = await client.query(
-        'select * from public.folders where team_id = $1 order by name',
-        [id],
+        'select * from public.folders where team_id = $1 order by name limit $2 offset $3',
+        [id, limit, offset],
       );
       return rows;
     });
