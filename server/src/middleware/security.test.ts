@@ -178,7 +178,7 @@ describe('Security Middleware', () => {
       expect(done).toHaveBeenCalledTimes(4);
     });
 
-    it('skips validation when no CSRF cookie is set', async () => {
+    it('skips validation when no CSRF cookie and no session cookie', async () => {
       vi.doMock('../config.js', () => ({
         isProd: false,
       }));
@@ -203,6 +203,42 @@ describe('Security Middleware', () => {
       hookFn(mockReq, {}, done);
 
       expect(done).toHaveBeenCalled();
+    });
+
+    it('rejects when session cookie exists but CSRF cookie is missing', async () => {
+      vi.doMock('../config.js', () => ({
+        isProd: false,
+      }));
+
+      const { csrfProtection } = await import('./security.js');
+
+      const addHook = vi.fn();
+      const mockFastify = { addHook } as unknown as FastifyInstance;
+
+      csrfProtection(mockFastify);
+
+      const hookFn = addHook.mock.calls[0][1];
+      const done = vi.fn();
+      const mockCode = vi.fn().mockReturnThis();
+      const mockSend = vi.fn();
+
+      const mockReq = {
+        method: 'POST',
+        url: '/api/data',
+        cookies: { session: 'some-jwt-token' },
+        headers: {},
+        log: { warn: vi.fn() },
+      } as unknown as FastifyRequest;
+
+      const mockReply = {
+        code: mockCode,
+        send: mockSend,
+      };
+
+      hookFn(mockReq, mockReply, done);
+
+      expect(done).not.toHaveBeenCalled();
+      expect(mockCode).toHaveBeenCalledWith(403);
     });
 
     it('validates CSRF token for POST requests', async () => {

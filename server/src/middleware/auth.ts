@@ -71,6 +71,8 @@ async function verifySessionToken(token: string): Promise<AuthPayload | null> {
     const secretKey = new TextEncoder().encode(securityConfig.sessionSecret);
     const { payload } = await jwtVerify(token, secretKey, {
       algorithms: ['HS256'],
+      issuer: 'quorum-sql',
+      audience: 'quorum-sql',
     });
     const id = typeof payload.sub === 'string' ? payload.sub : null;
     const email = typeof payload.email === 'string' ? payload.email : null;

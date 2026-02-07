@@ -403,6 +403,8 @@ fastify.post<{ Body: LoginBody }>('/auth/login', {
   const token = await new SignJWT({ email: row.email })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(row.id)
+    .setIssuer('quorum-sql')
+    .setAudience('quorum-sql')
     .setIssuedAt()
     .setExpirationTime('7d')
     .sign(secretKey);
@@ -487,6 +489,8 @@ fastify.post<{ Body: RegisterBody }>('/auth/register', {
   const token = await new SignJWT({ email: newUser.email })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(newUser.id)
+    .setIssuer('quorum-sql')
+    .setAudience('quorum-sql')
     .setIssuedAt()
     .setExpirationTime('7d')
     .sign(secretKey);
@@ -576,28 +580,20 @@ fastify.post<{ Body: CreateTeamBody }>('/teams', async (req, reply) => {
   const { name, approval_quota = 1 } = parsed.data;
   
   return withClient(sess.id, async (client) => {
-    try {
-      await client.query('begin');
-      const tRes = await client.query(
-        `insert into public.teams(name, approval_quota, admin_id) 
-         values ($1, $2, auth.uid()) returning id, name, approval_quota, admin_id, is_personal, created_at`,
-        [name, approval_quota]
-      );
-      const team = tRes.rows[0];
-      await client.query(
-        `insert into public.team_members(team_id, user_id, role) 
-         values($1, auth.uid(), 'admin') on conflict do nothing`,
-        [team.id]
-      );
-      await client.query('commit');
-      
-      req.log.info({ teamId: team.id, userId: sess.id }, 'ADMIN: Team created');
-      return team;
-    } catch (e) {
-      await client.query('rollback');
-      req.log.error({ err: e, userId: sess.id }, 'Failed to create team');
-      return reply.code(400).send({ error: 'Failed to create team' });
-    }
+    const tRes = await client.query(
+      `insert into public.teams(name, approval_quota, admin_id) 
+       values ($1, $2, auth.uid()) returning id, name, approval_quota, admin_id, is_personal, created_at`,
+      [name, approval_quota]
+    );
+    const team = tRes.rows[0];
+    await client.query(
+      `insert into public.team_members(team_id, user_id, role) 
+       values($1, auth.uid(), 'admin') on conflict do nothing`,
+      [team.id]
+    );
+    
+    req.log.info({ teamId: team.id, userId: sess.id }, 'ADMIN: Team created');
+    return team;
   });
 });
 
