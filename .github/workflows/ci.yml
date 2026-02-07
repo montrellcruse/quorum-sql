@@ -65,6 +65,9 @@ jobs:
       - name: Check test isolation
         run: npm run check:test-isolation
 
+      - name: Typecheck frontend
+        run: npm run typecheck
+
       - name: Unit tests (with coverage + timing output)
         run: npm run test:unit:report
 
@@ -86,6 +89,9 @@ jobs:
 
       - name: Typecheck server
         run: npm run typecheck:server
+
+      - name: Server unit tests
+        run: cd server && npx vitest run
 
       - name: Migrate database
         run: node server/dist/migrate.js --seed
@@ -130,3 +136,106 @@ jobs:
           path: |
             reports/**
             test-results/**
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: testdb
+      PGUSER: postgres
+      APPLY_SUPABASE_MIGRATIONS: false
+      SESSION_SECRET: testsecrettestsecret123456789012
+      CORS_ORIGIN: http://localhost:5173
+      ENABLE_DEV_AUTH: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install root deps
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Install server deps
+        run: cd server && npm ci
+
+      - name: Build server
+        run: cd server && npm run build
+
+      - name: Migrate database
+        run: node server/dist/migrate.js --seed
+
+      - name: Start server
+        run: |
+          node server/dist/index.js 2>&1 | tee server.log &
+          echo $! > server.pid
+
+      - name: Wait for server
+        run: |
+          for i in {1..60}; do
+            curl -sf http://localhost:8787/health && exit 0
+            sleep 2
+          done
+          echo "Server did not start in time" >&2
+          exit 1
+
+      - name: Start frontend dev server
+        run: |
+          npm run dev 2>&1 | tee frontend.log &
+          echo $! > frontend.pid
+
+      - name: Wait for frontend
+        run: |
+          for i in {1..60}; do
+            curl -sf http://localhost:8080 && exit 0
+            sleep 2
+          done
+          echo "Frontend did not start in time" >&2
+          exit 1
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - name: Stop servers
+        if: always()
+        run: |
+          if [ -f frontend.pid ]; then kill $(cat frontend.pid) || true; fi
+          if [ -f server.pid ]; then kill $(cat server.pid) || true; fi
+
+      - name: Upload E2E artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: e2e-artifacts
+          path: |
+            test-results/**
+            playwright-report/**
+            server.log
+            frontend.log
