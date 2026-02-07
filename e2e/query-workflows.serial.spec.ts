@@ -164,6 +164,9 @@ test.describe('Query Workflow Tests', () => {
       await expect(page).toHaveURL(/\/folder\//, { timeout: 10000 });
     }
 
+    // After the last delete redirects back to /folder/, the page re-fetches
+    // queries (loadingQueries=true). Wait for loading to finish before asserting.
+    await expect(page.getByText(/loading\.\.\./i)).not.toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-testid="query-card"]')).toHaveCount(0, { timeout: 10000 });
     await expect(page.getByText(/no queries yet/i)).toBeVisible({ timeout: 10000 });
 

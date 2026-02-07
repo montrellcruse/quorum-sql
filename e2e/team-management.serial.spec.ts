@@ -181,27 +181,33 @@ test.describe('Team Management Flows', () => {
     await expect(page).toHaveURL(/\/team-admin/);
 
     // Admin may have multiple teams (personal + created teams).
-    // Switch to the personal workspace where the member was invited.
-    const teamSelector = page.getByRole('combobox').first();
-    if (await teamSelector.isVisible().catch(() => false)) {
-      await teamSelector.click();
-      // Wait for dropdown to render, then select the personal workspace
-      const personalOption = page.getByRole('option', { name: /workspace/i }).first();
-      try {
-        await personalOption.waitFor({ state: 'visible', timeout: 5000 });
-        await personalOption.click();
-        // Wait for the team admin page to reload with the selected team
-        await page.waitForTimeout(1000);
-      } catch {
-        // Option not found — dismiss dropdown and continue with current team
-        await page.keyboard.press('Escape');
-      }
-    }
-
-    // Find the member in the list
+    // The member was invited to the personal workspace. Try each team
+    // in the selector until we find the one with the member row.
     const memberRow = page.locator('[data-testid="member-row"]').filter({
       hasText: new RegExp(memberUser.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
     });
+
+    // Check if member is already visible on the default team
+    const alreadyVisible = await memberRow.isVisible().catch(() => false);
+
+    if (!alreadyVisible) {
+      const teamSelector = page.getByRole('combobox').first();
+      if (await teamSelector.isVisible().catch(() => false)) {
+        await teamSelector.click();
+        const options = page.getByRole('option');
+        const optionCount = await options.count();
+        // Close the dropdown first, then try each option
+        await page.keyboard.press('Escape');
+
+        for (let i = 0; i < optionCount; i++) {
+          await teamSelector.click();
+          await options.nth(i).click();
+          await page.waitForTimeout(1000);
+          if (await memberRow.isVisible().catch(() => false)) break;
+        }
+      }
+    }
+
     await expect(memberRow).toBeVisible({ timeout: 10000 });
 
     // Click delete/remove button
