@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { requireAuthenticatedUser, requireTeamMember, isValidUUID } from '../middleware/auth.js';
 import {
   CreateQueryBodySchema,
+  PaginationQuerySchema,
   UpdateQueryBodySchema,
   type CreateQueryBody,
   type IdParams,
@@ -18,10 +19,16 @@ export default async function queryRoutes(fastify: FastifyInstance) {
     if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
 
     const { teamId, q } = req.query;
+    const parsedPagination = PaginationQuerySchema.safeParse(req.query);
 
     if (!teamId || !isValidUUID(teamId)) {
       return reply.code(400).send({ error: 'Valid teamId is required' });
     }
+    if (!parsedPagination.success) {
+      return reply.code(400).send({ error: parsedPagination.error.issues[0]?.message || 'Invalid query parameters' });
+    }
+
+    const { limit, offset } = parsedPagination.data;
 
     return fastify.withReadClient(sess.id, async (client) => {
       // Validate team membership
@@ -30,7 +37,7 @@ export default async function queryRoutes(fastify: FastifyInstance) {
         return reply.code(403).send({ error: 'Access denied' });
       }
 
-      const params = [teamId];
+      const params: Array<string | number> = [teamId];
       let sql = `select q.*, f.name as folder_name
                  from public.sql_queries q
                  left join public.folders f on f.id = q.folder_id
@@ -41,7 +48,11 @@ export default async function queryRoutes(fastify: FastifyInstance) {
         params.push(`%${escapedQ}%`, `%${escapedQ}%`, `%${escapedQ}%`);
         sql += ' and (q.title ilike $2 or q.description ilike $3 or q.sql_content ilike $4)';
       }
-      sql += ' order by q.updated_at desc nulls last';
+      const limitParam = params.length + 1;
+      params.push(limit);
+      const offsetParam = params.length + 1;
+      params.push(offset);
+      sql += ` order by q.updated_at desc nulls last limit $${limitParam} offset $${offsetParam}`;
       const { rows } = await client.query(sql, params);
       return rows;
     });
