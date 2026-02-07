@@ -14,17 +14,11 @@ const httpRequestDuration = new client.Histogram({
 
 register.registerMetric(httpRequestDuration);
 
-type MetricsQuery = {
-  token?: string;
-};
-
 function isAuthorized(req: FastifyRequest): boolean {
   if (!observabilityConfig.metricsAuthToken) return true;
   const header = req.headers?.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : header;
-  const query = req.query as MetricsQuery | undefined;
-  const queryToken = query?.token;
-  return token === observabilityConfig.metricsAuthToken || queryToken === observabilityConfig.metricsAuthToken;
+  return token === observabilityConfig.metricsAuthToken;
 }
 
 export function setupMetrics(fastify: FastifyInstance) {
