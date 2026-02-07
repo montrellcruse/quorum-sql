@@ -5,377 +5,2108 @@ info:
   description: REST API for Quorum SQL server.
 servers:
   - url: http://localhost:8787
+
+tags:
+  - name: Health
+  - name: Setup
+  - name: Auth
+  - name: Teams
+  - name: Members
+  - name: Invitations
+  - name: Folders
+  - name: Queries
+  - name: Approvals
+  - name: Metrics
+
 paths:
   /health:
     get:
+      tags: [Health]
       summary: Basic health check
+      operationId: getHealth
       responses:
-        '200': { description: OK }
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /health/live:
     get:
+      tags: [Health]
       summary: Liveness check
+      operationId: getHealthLive
       responses:
-        '200': { description: OK }
+        '200':
+          description: Service process is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /health/ready:
     get:
+      tags: [Health]
       summary: Readiness check
+      operationId: getHealthReady
       responses:
-        '200': { description: OK }
+        '200':
+          description: Service is ready and database is reachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyUnavailableResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /health/db:
     get:
+      tags: [Health]
       summary: Database connectivity check
+      operationId: getHealthDb
       responses:
-        '200': { description: OK }
+        '200':
+          description: Database connectivity probe result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthDbResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /health/breakers:
+    get:
+      tags: [Health]
+      summary: Circuit breaker status
+      operationId: getHealthBreakers
+      responses:
+        '200':
+          description: Circuit breaker state and counters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthBreakersResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /metrics:
     get:
-      summary: Prometheus metrics (optional)
+      tags: [Metrics]
+      summary: Prometheus metrics (when enabled)
+      operationId: getMetrics
+      description: >-
+        Returns Prometheus-formatted metrics text. If `METRICS_AUTH_TOKEN` is configured,
+        pass it either as `Authorization` header (plain token or `Bearer <token>`) or as
+        `token` query parameter.
+      parameters:
+        - $ref: '#/components/parameters/MetricsAuthHeader'
+        - $ref: '#/components/parameters/MetricsTokenQuery'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Prometheus metrics text
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /setup/test-supabase:
     post:
+      tags: [Setup]
       summary: Test Supabase connectivity
+      operationId: postSetupTestSupabase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetupSupabaseBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Connectivity test result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupSupabaseTestResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /setup/test-db:
     get:
+      tags: [Setup]
       summary: Test database connectivity
+      operationId: getSetupTestDb
       responses:
-        '200': { description: OK }
+        '200':
+          description: Database connectivity test result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupDbTestResult'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /auth/me:
     get:
-      summary: Get current user
+      tags: [Auth]
+      summary: Get current user (or null)
+      operationId: getAuthMe
+      description: Returns the authenticated user identity or `null` if not signed in.
       responses:
-        '200': { description: OK }
+        '200':
+          description: Current user identity or null
+          content:
+            application/json:
+              schema:
+                nullable: true
+                allOf:
+                  - $ref: '#/components/schemas/UserIdentity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /auth/login:
     post:
+      tags: [Auth]
       summary: Login
+      operationId: postAuthLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              description: Sets `session` (HttpOnly) and `csrf` cookies.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /auth/register:
     post:
+      tags: [Auth]
       summary: Register
+      operationId: postAuthRegister
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Registration successful
+          headers:
+            Set-Cookie:
+              description: Sets `session` (HttpOnly) and `csrf` cookies.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /auth/logout:
     post:
+      tags: [Auth]
       summary: Logout
+      operationId: postAuthLogout
+      description: Clears `session` and `csrf` cookies.
       responses:
-        '200': { description: OK }
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /teams:
     get:
-      summary: List teams
+      tags: [Teams]
+      summary: List teams for current user
+      operationId: getTeams
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       responses:
-        '200': { description: OK }
+        '200':
+          description: Teams the user belongs to
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeamWithRole'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     post:
+      tags: [Teams]
       summary: Create team
+      operationId: postTeams
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeamBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Team created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /teams/{id}:
     parameters:
-      - in: path
-        name: id
-        required: true
-        schema: { type: string }
+      - $ref: '#/components/parameters/IdPath'
+
     get:
-      summary: Get team
+      tags: [Teams]
+      summary: Get team by ID
+      operationId: getTeamById
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       responses:
-        '200': { description: OK }
+        '200':
+          description: Team object or null when not found
+          content:
+            application/json:
+              schema:
+                nullable: true
+                allOf:
+                  - $ref: '#/components/schemas/Team'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     patch:
+      tags: [Teams]
       summary: Update team
+      operationId: patchTeamById
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTeamBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Team updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     delete:
+      tags: [Teams]
       summary: Delete team
+      operationId: deleteTeamById
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       responses:
-        '200': { description: OK }
+        '200':
+          description: Team deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /teams/{id}/convert-personal:
     post:
-      summary: Convert team to personal
+      tags: [Teams]
+      summary: Convert personal workspace to collaborative team
+      operationId: postConvertPersonalTeam
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConvertPersonalBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Conversion result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConvertPersonalResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /teams/{id}/transfer-ownership:
     post:
+      tags: [Teams]
       summary: Transfer team ownership
+      operationId: postTransferOwnership
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferOwnershipBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Ownership transferred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /teams/{id}/members:
     get:
+      tags: [Members]
       summary: List team members
+      operationId: getTeamMembers
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
-        - in: query
-          name: limit
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-            default: 50
-        - in: query
-          name: offset
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
+        - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Team members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeamMember'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /teams/{id}/members/{memberId}:
     parameters:
-      - in: path
-        name: id
-        required: true
-        schema: { type: string }
-      - in: path
-        name: memberId
-        required: true
-        schema: { type: string }
+      - $ref: '#/components/parameters/IdPath'
+      - $ref: '#/components/parameters/MemberIdPath'
+
     delete:
+      tags: [Members]
       summary: Remove team member
+      operationId: deleteTeamMember
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       responses:
-        '200': { description: OK }
+        '200':
+          description: Member removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     patch:
-      summary: Update team member
+      tags: [Members]
+      summary: Update team member role
+      operationId: patchTeamMember
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemberRoleBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Member role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /invites/mine:
     get:
-      summary: List invites for current user
+      tags: [Invitations]
+      summary: List pending invites for current user
+      operationId: getMyInvites
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       responses:
-        '200': { description: OK }
+        '200':
+          description: Pending invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeamInvitation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /teams/{id}/invites:
     parameters:
-      - in: path
-        name: id
-        required: true
-        schema: { type: string }
+      - $ref: '#/components/parameters/IdPath'
+
     get:
-      summary: List team invites
+      tags: [Invitations]
+      summary: List pending team invites
+      operationId: getTeamInvites
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       responses:
-        '200': { description: OK }
+        '200':
+          description: Pending team invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeamInvitation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     post:
+      tags: [Invitations]
       summary: Create team invite
+      operationId: postTeamInvite
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInviteBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Invite created (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /invites/{id}/accept:
     post:
+      tags: [Invitations]
       summary: Accept invite
+      operationId: postAcceptInvite
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Invite accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /invites/{id}/decline:
     post:
+      tags: [Invitations]
       summary: Decline invite
+      operationId: postDeclineInvite
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Invite declined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /invites/{id}:
     delete:
-      summary: Delete invite
+      tags: [Invitations]
+      summary: Revoke invite
+      operationId: deleteInvite
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Invite revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /teams/{id}/folders:
     get:
-      summary: List team folders
+      tags: [Folders]
+      summary: List folders for a team
+      operationId: getTeamFolders
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
-        - in: query
-          name: limit
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-            default: 50
-        - in: query
-          name: offset
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
+        - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Team folders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Folder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /folders/{id}:
     parameters:
-      - in: path
-        name: id
-        required: true
-        schema: { type: string }
+      - $ref: '#/components/parameters/IdPath'
+
     get:
+      tags: [Folders]
       summary: Get folder
+      operationId: getFolderById
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       responses:
-        '200': { description: OK }
+        '200':
+          description: Folder object or null when not found
+          content:
+            application/json:
+              schema:
+                nullable: true
+                allOf:
+                  - $ref: '#/components/schemas/Folder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     patch:
+      tags: [Folders]
       summary: Update folder
+      operationId: patchFolderById
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFolderBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Folder updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     delete:
+      tags: [Folders]
       summary: Delete folder
+      operationId: deleteFolderById
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       responses:
-        '200': { description: OK }
+        '200':
+          description: Folder deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /folders/paths:
     get:
-      summary: List folder paths
+      tags: [Folders]
+      summary: List computed folder paths
+      operationId: getFolderPaths
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
+      parameters:
+        - $ref: '#/components/parameters/TeamIdQuery'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Flattened folder paths for a team
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FolderPath'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /folders/{id}/children:
     get:
+      tags: [Folders]
       summary: List child folders
+      operationId: getFolderChildren
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Child folders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Folder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /folders/{id}/queries:
     get:
-      summary: List queries in folder
+      tags: [Folders]
+      summary: List queries in a folder
+      operationId: getFolderQueries
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Query summaries in the folder
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FolderQuery'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /folders:
     post:
+      tags: [Folders]
       summary: Create folder
+      operationId: postFolders
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFolderBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Folder created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Folder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /queries:
     get:
-      summary: List queries
+      tags: [Queries]
+      summary: List/search queries in a team
+      operationId: getQueries
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       parameters:
-        - in: query
-          name: teamId
-          required: true
-          schema: { type: string }
-        - in: query
-          name: q
-          required: false
-          schema: { type: string }
-        - in: query
-          name: limit
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-            default: 50
-        - in: query
-          name: offset
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
+        - $ref: '#/components/parameters/TeamIdQuery'
+        - $ref: '#/components/parameters/SearchQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Matching SQL queries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SqlQuery'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     post:
+      tags: [Queries]
       summary: Create query
+      operationId: postQueries
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQueryBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Query created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SqlQuery'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /queries/{id}:
     parameters:
-      - in: path
-        name: id
-        required: true
-        schema: { type: string }
+      - $ref: '#/components/parameters/IdPath'
+
     get:
+      tags: [Queries]
       summary: Get query
+      operationId: getQueryById
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       responses:
-        '200': { description: OK }
+        '200':
+          description: Query object or null when not found
+          content:
+            application/json:
+              schema:
+                nullable: true
+                allOf:
+                  - $ref: '#/components/schemas/SqlQuery'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     patch:
+      tags: [Queries]
       summary: Update query
+      operationId: patchQueryById
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateQueryBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Query updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     delete:
+      tags: [Queries]
       summary: Delete query
+      operationId: deleteQueryById
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       responses:
-        '200': { description: OK }
+        '200':
+          description: Query deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /queries/{id}/history:
     get:
-      summary: Query history
+      tags: [Approvals]
+      summary: List query history
+      operationId: getQueryHistory
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Query history entries (empty when none)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QueryHistory'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /queries/{id}/approvals:
     get:
-      summary: Query approvals
+      tags: [Approvals]
+      summary: Get latest approval state for a query
+      operationId: getQueryApprovals
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Approval summary for latest query history entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryApprovalsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /approvals:
     get:
-      summary: List approvals
+      tags: [Approvals]
+      summary: List pending approvals for team
+      operationId: getApprovals
+      security:
+        - sessionCookie: []
+        - supabaseBearer: []
+      parameters:
+        - $ref: '#/components/parameters/TeamIdQuery'
+        - $ref: '#/components/parameters/ExcludeEmailQuery'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Queries waiting for approval
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PendingApprovalQuery'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /queries/{id}/submit:
     post:
+      tags: [Approvals]
       summary: Submit query for approval
+      operationId: postSubmitQuery
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitQueryBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Submission accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /queries/{id}/approve:
     post:
+      tags: [Approvals]
       summary: Approve query
+      operationId: postApproveQuery
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveQueryBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Query approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /queries/{id}/reject:
     post:
+      tags: [Approvals]
       summary: Reject query
+      operationId: postRejectQuery
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectQueryBody'
       responses:
-        '200': { description: OK }
+        '200':
+          description: Query rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Quorum session JWT cookie.
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: CSRF token header required for session-cookie authenticated state-changing requests.
+    supabaseBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Optional Supabase access token accepted by the backend.
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      description: Resource ID (UUID)
+      schema:
+        type: string
+        format: uuid
+    MemberIdPath:
+      name: memberId
+      in: path
+      required: true
+      description: Team member row ID (UUID)
+      schema:
+        type: string
+        format: uuid
+    TeamIdQuery:
+      name: teamId
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uuid
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    OffsetQuery:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    SearchQuery:
+      name: q
+      in: query
+      required: false
+      schema:
+        type: string
+    ExcludeEmailQuery:
+      name: excludeEmail
+      in: query
+      required: false
+      schema:
+        type: string
+        format: email
+    MetricsAuthHeader:
+      name: Authorization
+      in: header
+      required: false
+      description: Metrics auth token (plain token or `Bearer <token>`)
+      schema:
+        type: string
+    MetricsTokenQuery:
+      name: token
+      in: query
+      required: false
+      description: Metrics auth token query alternative
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Authentication required or credentials invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated but not allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Request conflicts with existing state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+          description: Included by global error handler.
+        requestId:
+          type: string
+          description: Request correlation ID from response header `X-Request-Id`.
+        details:
+          type: object
+          additionalProperties: true
+
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    AuthSessionResponse:
+      type: object
+      required: [ok, csrfToken]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        csrfToken:
+          type: string
+          description: CSRF token mirrored in response body and `csrf` cookie.
+
+    UserIdentity:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+          nullable: true
+
+    Role:
+      type: string
+      enum: [admin, member]
+
+    QueryStatus:
+      type: string
+      enum: [draft, pending_approval, approved, rejected]
+
+    Team:
+      type: object
+      required: [id, name, approval_quota, admin_id, is_personal]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        approval_quota:
+          type: integer
+        admin_id:
+          type: string
+          format: uuid
+        is_personal:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TeamWithRole:
+      allOf:
+        - $ref: '#/components/schemas/Team'
+        - type: object
+          properties:
+            role:
+              $ref: '#/components/schemas/Role'
+
+    TeamMember:
+      type: object
+      required: [id, user_id, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role:
+          $ref: '#/components/schemas/Role'
+        email:
+          type: string
+          format: email
+
+    TeamInvitation:
+      type: object
+      required: [id, team_id, invited_email, role, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        team_id:
+          type: string
+          format: uuid
+        invited_email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+        status:
+          type: string
+          enum: [pending, accepted, declined, revoked]
+        invited_by_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        team_name:
+          type: string
+        inviter_email:
+          type: string
+          format: email
+          nullable: true
+        inviter_full_name:
+          type: string
+          nullable: true
+
+    Folder:
+      type: object
+      required: [id, team_id, name, user_id, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        team_id:
+          type: string
+          format: uuid
+        parent_folder_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        user_id:
+          type: string
+          format: uuid
+        created_by_email:
+          type: string
+          format: email
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    FolderPath:
+      type: object
+      required: [id, full_path]
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_path:
+          type: string
+
+    SqlQuery:
+      type: object
+      required: [id, title, sql_content, status, team_id, user_id, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        team_id:
+          type: string
+          format: uuid
+        folder_id:
+          type: string
+          format: uuid
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sql_content:
+          type: string
+        status:
+          $ref: '#/components/schemas/QueryStatus'
+        user_id:
+          type: string
+          format: uuid
+        created_by_email:
+          type: string
+          format: email
+          nullable: true
+        last_modified_by_email:
+          type: string
+          format: email
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        folder_name:
+          type: string
+          nullable: true
+
+    FolderQuery:
+      type: object
+      required: [id, title, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/QueryStatus'
+        description:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        created_by_email:
+          type: string
+          format: email
+          nullable: true
+        last_modified_by_email:
+          type: string
+          format: email
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    QueryHistory:
+      type: object
+      required: [id, query_id, sql_content, modified_by_email, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        query_id:
+          type: string
+          format: uuid
+        sql_content:
+          type: string
+        modified_by_email:
+          type: string
+          format: email
+        change_reason:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/QueryStatus'
+        created_at:
+          type: string
+          format: date-time
+
+    QueryApproval:
+      type: object
+      required: [id, query_history_id, user_id, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        query_history_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+
+    QueryApprovalsResponse:
+      type: object
+      required: [approvals, approval_quota]
+      properties:
+        approvals:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryApproval'
+        approval_quota:
+          type: integer
+        latest_history_id:
+          type: string
+          format: uuid
+
+    PendingApprovalQuery:
+      type: object
+      required: [id, title, description, folder_id, last_modified_by_email, updated_at, folder_name, approval_count, approval_quota]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        folder_id:
+          type: string
+          format: uuid
+          nullable: true
+        last_modified_by_email:
+          type: string
+          format: email
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+        folder_name:
+          type: string
+          nullable: true
+        approval_count:
+          oneOf:
+            - type: integer
+            - type: string
+              pattern: '^[0-9]+$'
+        approval_quota:
+          type: integer
+
+    CircuitBreakerStats:
+      type: object
+      required: [state, failures, successes, timeouts, rejects, fallbacks]
+      properties:
+        state:
+          type: string
+          enum: [OPEN, HALF-OPEN, CLOSED]
+        failures:
+          type: number
+        successes:
+          type: number
+        timeouts:
+          type: number
+        rejects:
+          type: number
+        fallbacks:
+          type: number
+
+    HealthResponse:
+      type: object
+      required: [ok, version]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        version:
+          type: string
+          example: 1.0.0
+
+    LiveResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    ReadyResponse:
+      type: object
+      required: [ok, database, now]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        database:
+          type: string
+          enum: [connected]
+        now:
+          type: string
+          format: date-time
+
+    ReadyUnavailableResponse:
+      type: object
+      required: [error, details]
+      properties:
+        error:
+          type: string
+          example: Service unavailable
+        details:
+          type: object
+          required: [database]
+          properties:
+            database:
+              type: string
+              enum: [disconnected]
+
+    HealthDbResponse:
+      type: object
+      required: [ok, now]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        now:
+          type: string
+          format: date-time
+
+    HealthBreakersResponse:
+      type: object
+      required: [ok, breakers]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        breakers:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/CircuitBreakerStats'
+
+    SetupSupabaseBody:
+      type: object
+      required: [url, anonKey]
+      properties:
+        url:
+          type: string
+          minLength: 1
+          description: Supabase project URL.
+        anonKey:
+          type: string
+          minLength: 1
+
+    SetupSupabaseTestResult:
+      oneOf:
+        - type: object
+          required: [ok, message]
+          properties:
+            ok:
+              type: boolean
+              enum: [true]
+            message:
+              type: string
+        - type: object
+          required: [ok, error]
+          properties:
+            ok:
+              type: boolean
+              enum: [false]
+            error:
+              type: string
+
+    SetupDbTestResult:
+      oneOf:
+        - type: object
+          required: [ok, message]
+          properties:
+            ok:
+              type: boolean
+              enum: [true]
+            message:
+              type: string
+        - type: object
+          required: [ok, error]
+          properties:
+            ok:
+              type: boolean
+              enum: [false]
+            error:
+              type: string
+
+    LoginBody:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+
+    RegisterBody:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        fullName:
+          type: string
+
+    CreateTeamBody:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        approval_quota:
+          type: integer
+          minimum: 1
+
+    UpdateTeamBody:
+      type: object
+      properties:
+        approval_quota:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    ConvertPersonalBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    ConvertPersonalResponse:
+      type: object
+      required: [ok, converted]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        converted:
+          type: boolean
+
+    TransferOwnershipBody:
+      type: object
+      required: [new_owner_user_id]
+      properties:
+        new_owner_user_id:
+          type: string
+          format: uuid
+
+    UpdateMemberRoleBody:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: '#/components/schemas/Role'
+
+    CreateInviteBody:
+      type: object
+      required: [invited_email, role]
+      properties:
+        invited_email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+
+    CreateFolderBody:
+      type: object
+      required: [name, team_id]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+        user_id:
+          type: string
+          format: uuid
+          description: Ignored by server; authenticated user is always used.
+        created_by_email:
+          type: string
+          format: email
+          nullable: true
+        parent_folder_id:
+          type: string
+          format: uuid
+          nullable: true
+        team_id:
+          type: string
+          format: uuid
+
+    UpdateFolderBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+
+    CreateQueryBody:
+      type: object
+      required: [title, sql_content, team_id]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        sql_content:
+          type: string
+          minLength: 1
+          maxLength: 100000
+        status:
+          $ref: '#/components/schemas/QueryStatus'
+        team_id:
+          type: string
+          format: uuid
+        folder_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_by_email:
+          type: string
+          format: email
+          nullable: true
+        last_modified_by_email:
+          type: string
+          format: email
+          nullable: true
+
+    UpdateQueryBody:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        sql_content:
+          type: string
+          maxLength: 100000
+        status:
+          $ref: '#/components/schemas/QueryStatus'
+        folder_id:
+          type: string
+          format: uuid
+          nullable: true
+        last_modified_by_email:
+          type: string
+          format: email
+          nullable: true
+
+    SubmitQueryBody:
+      type: object
+      properties:
+        sql:
+          type: string
+          maxLength: 100000
+          nullable: true
+        modified_by_email:
+          type: string
+          format: email
+          nullable: true
+        change_reason:
+          type: string
+          maxLength: 500
+          nullable: true
+        team_id:
+          type: string
+          format: uuid
+          nullable: true
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Ignored by server; authenticated user is always used.
+
+    ApproveQueryBody:
+      type: object
+      required: [historyId]
+      properties:
+        historyId:
+          type: string
+          format: uuid
+
+    RejectQueryBody:
+      type: object
+      required: [historyId]
+      properties:
+        historyId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          maxLength: 500
+          nullable: true
