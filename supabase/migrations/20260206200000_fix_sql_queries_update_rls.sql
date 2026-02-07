@@ -55,6 +55,8 @@ CREATE TRIGGER protect_query_columns_trigger
   EXECUTE FUNCTION public.protect_query_columns();
 
 -- Update the submit function to set the bypass variable
+-- Must drop first because return type changes from json to void
+DROP FUNCTION IF EXISTS public.submit_query_for_approval(uuid, text, text, text, uuid, uuid);
 CREATE OR REPLACE FUNCTION public.submit_query_for_approval(
   _query_id UUID,
   _new_sql TEXT DEFAULT NULL,
