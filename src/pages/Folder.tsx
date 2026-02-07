@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type KeyboardEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getDbAdapter } from '@/lib/provider';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,6 +19,13 @@ import type { Folder as DbFolder, FolderQuery } from '@/lib/provider/types';
 import { getErrorMessage } from '@/utils/errors';
 
 type BreadcrumbFolder = Pick<DbFolder, 'id' | 'name'>;
+
+const handleInteractiveKeyDown = (event: KeyboardEvent<HTMLElement>, onActivate: () => void) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    onActivate();
+  }
+};
 
 const Folder = () => {
   const { id } = useParams<{ id: string }>();
@@ -396,6 +403,11 @@ const Folder = () => {
                   data-folder-name={childFolder.name}
                   className="cursor-pointer transition-colors hover:bg-accent"
                   onClick={() => navigate(`/folder/${childFolder.id}`)}
+                  onKeyDown={(event) =>
+                    handleInteractiveKeyDown(event, () => navigate(`/folder/${childFolder.id}`))
+                  }
+                  role="button"
+                  tabIndex={0}
                 >
                   <CardHeader>
                     <div className="flex items-center gap-2">
@@ -439,6 +451,11 @@ const Folder = () => {
                       <div
                         className="cursor-pointer"
                         onClick={() => navigate(`/query/view/${query.id}`)}
+                        onKeyDown={(event) =>
+                          handleInteractiveKeyDown(event, () => navigate(`/query/view/${query.id}`))
+                        }
+                        role="button"
+                        tabIndex={0}
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
