@@ -2,8 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
 describe('Metrics Module', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
+    // Clear prom-client's global registry to avoid "already registered" errors
+    const client = await import('prom-client');
+    client.register.clear();
   });
 
   afterEach(() => {
