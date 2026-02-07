@@ -24,7 +24,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid query ID' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       const { rows } = await client.query(
         'select * from public.query_history where query_id = $1 order by created_at desc limit 100',
         [id],
@@ -42,7 +42,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid query ID' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       const quotaRes = await client.query(
         `select q.team_id, t.approval_quota
          from public.sql_queries q
@@ -78,7 +78,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Valid teamId is required' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       const { rows } = await client.query(
         `with latest_hist as (
            select h.query_id, (array_agg(h.id order by h.created_at desc))[1] as latest_id

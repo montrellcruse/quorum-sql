@@ -20,7 +20,7 @@ export default async function teamRoutes(fastify: FastifyInstance) {
     const sess = req.user;
     if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       const { rows } = await client.query(
         `select distinct on (t.id)
                 t.id, t.name, t.approval_quota, t.admin_id, t.is_personal,
@@ -43,7 +43,7 @@ export default async function teamRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid team ID' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       const { rows } = await client.query(
         'select id, name, approval_quota, admin_id, is_personal from public.teams where id = $1',
         [id],

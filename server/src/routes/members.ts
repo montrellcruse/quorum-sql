@@ -20,7 +20,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid team ID' });
     }
 
-    return fastify.withClient(sess.id, async (client) => {
+    return fastify.withReadClient(sess.id, async (client) => {
       // Verify user is a team member
       const isMember = await requireTeamMember(client, sess.id, id, req);
       if (!isMember) {

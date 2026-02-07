@@ -1,6 +1,6 @@
 import 'fastify';
 import type { Pool } from 'pg';
-import type { WithClient } from '../lib/db-helpers.js';
+import type { WithClient, WithReadClient } from '../lib/db-helpers.js';
 
 export type AuthSource = 'supabase' | 'session' | 'dev-header' | 'dev-fake';
 
@@ -15,6 +15,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     pool: Pool;
     withClient: WithClient;
+    withReadClient: WithReadClient;
   }
 
   interface FastifyRequest {

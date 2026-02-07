@@ -15,7 +15,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
     config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
   }, async (req, reply) => {
     try {
-      const result = await fastify.withClient(null, async (client) => {
+      const result = await fastify.withReadClient(null, async (client) => {
         const { rows } = await client.query('select now() as now');
         return { ok: true, database: 'connected', now: rows[0].now };
       });
@@ -33,7 +33,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
   fastify.get('/health/db', {
     config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
   }, async () => {
-    return fastify.withClient(null, async (client) => {
+    return fastify.withReadClient(null, async (client) => {
       const { rows } = await client.query('select now() as now');
       return { ok: true, now: rows[0].now };
     });
