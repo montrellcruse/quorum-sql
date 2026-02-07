@@ -15,6 +15,8 @@ import type {
   TeamInvitation,
   Role,
   PendingApprovalQuery,
+  FolderPath,
+  FolderQuery,
 } from './types';
 import { supabase } from '@/integrations/supabase/client';
 import { getApiBaseUrl } from './env';
@@ -125,7 +127,7 @@ const teams: TeamsRepo = {
       body: JSON.stringify({ name, approval_quota: approvalQuota }),
     });
   },
-  async update(id: UUID, data: { approval_quota?: number }) {
+  async update(id: UUID, data: { approval_quota?: number; name?: string }) {
     await http<void>(baseUrl(`/teams/${id}`), {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -133,6 +135,12 @@ const teams: TeamsRepo = {
   },
   async remove(id: UUID) {
     await http<void>(baseUrl(`/teams/${id}`), { method: 'DELETE' });
+  },
+  async convertPersonal(id: UUID, name?: string | null) {
+    await http<void>(baseUrl(`/teams/${id}/convert-personal`), {
+      method: 'POST',
+      body: JSON.stringify({ name: name ?? null }),
+    });
   },
   async transferOwnership(id: UUID, newOwnerUserId: UUID) {
     await http<void>(baseUrl(`/teams/${id}/transfer-ownership`), {
@@ -149,8 +157,24 @@ const folders: FoldersRepo = {
   async getById(id: UUID) {
     return http<Folder | null>(baseUrl(`/folders/${id}`));
   },
+  async listChildren(parentId: UUID) {
+    return http<Folder[]>(baseUrl(`/folders/${parentId}/children`));
+  },
+  async listPaths(teamId: UUID) {
+    const qs = new URLSearchParams({ teamId }).toString();
+    return http<FolderPath[]>(baseUrl(`/folders/paths?${qs}`));
+  },
   async create(input) {
     return http<Folder>(baseUrl(`/folders`), { method: 'POST', body: JSON.stringify(input) });
+  },
+  async update(id: UUID, patch: { name?: string; description?: string | null }) {
+    await http<void>(baseUrl(`/folders/${id}`), {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  },
+  async remove(id: UUID) {
+    await http<void>(baseUrl(`/folders/${id}`), { method: 'DELETE' });
   },
 };
 
@@ -161,6 +185,9 @@ const queries: QueriesRepo = {
   async search({ teamId, q }) {
     const qs = new URLSearchParams({ teamId, ...(q ? { q } : {}) }).toString();
     return http<SqlQuery[]>(baseUrl(`/queries?${qs}`));
+  },
+  async listByFolder(folderId: UUID) {
+    return http<FolderQuery[]>(baseUrl(`/folders/${folderId}/queries`));
   },
   async create(input) {
     return http<SqlQuery>(baseUrl('/queries'), { method: 'POST', body: JSON.stringify(input) });
@@ -200,6 +227,10 @@ const queries: QueriesRepo = {
 const members: TeamMembersRepo = {
   async list(teamId: UUID) {
     return http<TeamMember[]>(baseUrl(`/teams/${teamId}/members`));
+  },
+  async countByRole(teamId: UUID, role: Role) {
+    const members = await http<TeamMember[]>(baseUrl(`/teams/${teamId}/members`));
+    return members.filter((member) => member.role === role).length;
   },
   async remove(teamId: UUID, memberId: UUID) {
     await http<void>(baseUrl(`/teams/${teamId}/members/${memberId}`), { method: 'DELETE' });

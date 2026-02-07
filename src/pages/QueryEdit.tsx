@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { useTheme } from 'next-themes';
@@ -40,10 +39,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { querySchema, changeReasonSchema, validateSqlSafety } from '@/lib/validationSchemas';
 import { getDbAdapter } from '@/lib/provider';
-import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
-import type { QueryHistory, QueryStatus } from '@/lib/provider/types';
-import type { TablesInsert } from '@/integrations/supabase/types';
+import type { QueryStatus } from '@/lib/provider/types';
 
 interface Query {
   id: string;
@@ -79,7 +76,6 @@ const QueryEdit = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [changeReason, setChangeReason] = useState('');
   const [sqlWarnings, setSqlWarnings] = useState<string[]>([]);
-  const provider = getDbProviderType();
   
   const isNewQuery = id === 'new';
   const folderId = location.state?.folderId;
@@ -101,20 +97,9 @@ const QueryEdit = () => {
         setLoadingQuery(false);
         return;
       }
-      if (provider === 'rest') {
-        const q = await getDbAdapter().queries.getById(id);
-        if (!q) throw new Error('Query not found');
-        setQuery(q as unknown as Query);
-      } else {
-        const { data, error } = await supabase
-          .from('sql_queries')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
-        if (error) throw error;
-        if (!data) throw new Error('Query not found');
-        setQuery(data as unknown as Query);
-      }
+      const q = await getDbAdapter().queries.getById(id);
+      if (!q) throw new Error('Query not found');
+      setQuery(q as unknown as Query);
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -125,7 +110,7 @@ const QueryEdit = () => {
     } finally {
       setLoadingQuery(false);
     }
-  }, [id, toast, navigate, provider]);
+  }, [id, toast, navigate]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -206,75 +191,29 @@ const QueryEdit = () => {
         throw new Error('Missing query ID');
       }
 
-      const teamId = activeTeam?.id;
-      if (provider !== 'rest' && isNewQuery && !teamId) {
-        throw new Error('Active team is required to create a query');
-      }
-      if (provider !== 'rest' && newStatus === 'pending_approval' && !teamId) {
-        throw new Error('Active team is required to request approval');
-      }
-
       let queryId = isNewQuery ? '' : (id ?? '');
       if (isNewQuery) {
-        if (provider === 'rest') {
-          const folder = await getDbAdapter().folders.getById(query.folder_id);
-          if (!folder?.team_id) throw new Error('Folder does not have a team_id');
-          const created = await getDbAdapter().queries.create({
-            title: query.title,
-            description: query.description,
-            sql_content: query.sql_content,
-            status: newStatus as QueryStatus,
-            folder_id: query.folder_id,
-            team_id: folder.team_id,
-            created_by_email: userEmail,
-            last_modified_by_email: userEmail,
-          });
-          queryId = created.id;
-        } else {
-          const insertTeamId = teamId;
-          if (!insertTeamId) {
-            throw new Error('Active team is required to create a query');
-          }
-          const { data, error } = await supabase
-            .from('sql_queries')
-            .insert({
-              title: query.title,
-              description: query.description,
-              sql_content: query.sql_content,
-              status: newStatus,
-              folder_id: query.folder_id,
-              team_id: insertTeamId,
-              user_id: userId,
-              created_by_email: userEmail,
-              last_modified_by_email: userEmail,
-            } satisfies TablesInsert<'sql_queries'>)
-            .select()
-            .single();
-          if (error) throw error;
-          queryId = data.id;
-        }
+        const folder = await getDbAdapter().folders.getById(query.folder_id);
+        if (!folder?.team_id) throw new Error('Folder does not have a team_id');
+        const created = await getDbAdapter().queries.create({
+          title: query.title,
+          description: query.description,
+          sql_content: query.sql_content,
+          status: newStatus as QueryStatus,
+          folder_id: query.folder_id,
+          team_id: folder.team_id,
+          created_by_email: userEmail,
+          last_modified_by_email: userEmail,
+        });
+        queryId = created.id;
       } else {
-        if (provider === 'rest') {
-          await getDbAdapter().queries.update(queryId, {
-            title: query.title,
-            description: query.description,
-            sql_content: query.sql_content,
-            status: newStatus as QueryStatus,
-            last_modified_by_email: userEmail,
-          });
-        } else {
-          const { error } = await supabase
-            .from('sql_queries')
-            .update({
-              title: query.title,
-              description: query.description,
-              sql_content: query.sql_content,
-              status: newStatus,
-              last_modified_by_email: userEmail,
-            })
-            .eq('id', queryId);
-          if (error) throw error;
-        }
+        await getDbAdapter().queries.update(queryId, {
+          title: query.title,
+          description: query.description,
+          sql_content: query.sql_content,
+          status: newStatus as QueryStatus,
+          last_modified_by_email: userEmail,
+        });
       }
 
       // Step 1: If requesting approval, use atomic function to handle single-person team auto-approval
@@ -283,37 +222,14 @@ const QueryEdit = () => {
       }
 
       if (newStatus === 'pending_approval') {
-        if (provider === 'rest') {
-          await getDbAdapter().queries.submitForApproval(queryId, query.sql_content, {
-            modified_by_email: userEmail,
-            change_reason: changeReason.trim() || null,
-            team_id: teamId,
-            user_id: userId,
-          });
-          setChangeReason('');
-          toast({ title: 'Success', description: 'Query submitted for approval' });
-        } else {
-          const approvalTeamId = teamId;
-          if (!approvalTeamId) {
-            throw new Error('Active team is required to request approval');
-          }
-          const { data, error: rpcError } = await supabase.rpc('submit_query_for_approval', {
-            _query_id: queryId,
-            _sql_content: query.sql_content,
-            _modified_by_email: userEmail,
-            _change_reason: changeReason.trim() || '',
-            _team_id: approvalTeamId,
-            _user_id: userId,
-          });
-          if (rpcError) throw rpcError;
-          setChangeReason('');
-          const result = data as { success: boolean; status: string; auto_approved: boolean; history_id: string };
-          if (result.auto_approved) {
-            toast({ title: 'Success', description: 'Query auto-approved (single-person team)' });
-          } else {
-            toast({ title: 'Success', description: 'Query submitted for approval' });
-          }
-        }
+        await getDbAdapter().queries.submitForApproval(queryId, query.sql_content, {
+          modified_by_email: userEmail,
+          change_reason: changeReason.trim() || null,
+          team_id: activeTeam?.id,
+          user_id: userId,
+        });
+        setChangeReason('');
+        toast({ title: 'Success', description: 'Query submitted for approval' });
       } else {
         toast({
           title: 'Success',
@@ -344,15 +260,7 @@ const QueryEdit = () => {
       if (!id) {
         throw new Error('Missing query ID');
       }
-      if (provider === 'rest') {
-        await getDbAdapter().queries.update(id, { status: 'draft' });
-      } else {
-        const { error } = await supabase
-            .from('sql_queries')
-            .update({ status: 'draft' })
-            .eq('id', id);
-        if (error) throw error;
-      }
+      await getDbAdapter().queries.update(id, { status: 'draft' });
 
       // Refresh local state before showing success
       await fetchQuery();
@@ -378,57 +286,20 @@ const QueryEdit = () => {
       if (!id) {
         throw new Error('Missing query ID');
       }
-      if (provider === 'rest') {
-        // fetch last approved history via REST
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/queries/${id}/history`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const all = (await res.json()) as QueryHistory[];
-        const approvedHistory = (all || []).find((h) => h.status === 'approved');
-        if (approvedHistory) {
-          await getDbAdapter().queries.update(id, {
-            sql_content: approvedHistory.sql_content,
-            status: 'approved',
-            last_modified_by_email: approvedHistory.modified_by_email,
-          });
-          toast({ title: 'Success', description: 'Draft discarded and reverted to last approved version' });
-          navigate(`/query/view/${id}`);
-        } else {
-          await getDbAdapter().queries.remove(id);
-          toast({ title: 'Success', description: 'Draft discarded successfully' });
-          navigate(`/folder/${query?.folder_id}`);
-        }
+      const all = await getDbAdapter().queries.getHistory(id);
+      const approvedHistory = (all || []).find((h) => h.status === 'approved');
+      if (approvedHistory) {
+        await getDbAdapter().queries.update(id, {
+          sql_content: approvedHistory.sql_content,
+          status: 'approved',
+          last_modified_by_email: approvedHistory.modified_by_email,
+        });
+        toast({ title: 'Success', description: 'Draft discarded and reverted to last approved version' });
+        navigate(`/query/view/${id}`);
       } else {
-        const { data: approvedHistory, error: historyError } = await supabase
-          .from('query_history')
-          .select('*')
-          .eq('query_id', id)
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (historyError) throw historyError;
-        if (approvedHistory) {
-          const { error: updateError } = await supabase
-            .from('sql_queries')
-            .update({
-              sql_content: approvedHistory.sql_content,
-              status: 'approved',
-              last_modified_by_email: approvedHistory.modified_by_email,
-            })
-            .eq('id', id);
-          if (updateError) throw updateError;
-          toast({ title: 'Success', description: 'Draft discarded and reverted to last approved version' });
-          navigate(`/query/view/${id}`);
-        } else {
-          const { error: deleteError } = await supabase
-            .from('sql_queries')
-            .delete()
-            .eq('id', id);
-          if (deleteError) throw deleteError;
-          toast({ title: 'Success', description: 'Draft discarded successfully' });
-          navigate(`/folder/${query?.folder_id}`);
-        }
+        await getDbAdapter().queries.remove(id);
+        toast({ title: 'Success', description: 'Draft discarded successfully' });
+        navigate(`/folder/${query?.folder_id}`);
       }
     } catch (error: unknown) {
       toast({
@@ -446,21 +317,9 @@ const QueryEdit = () => {
     if (!activeTeam) return;
     
     try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/folders/paths?team_id=${activeTeam.id}`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const data = (await res.json()) as Folder[];
-        const filtered = (data || []).filter((f: Folder) => f.id !== query?.folder_id);
-        setFolders(filtered);
-      } else {
-        const { data, error } = await supabase.rpc('get_team_folder_paths', {
-          _team_id: activeTeam.id
-        });
-        if (error) throw error;
-        const filteredFolders = (data || []).filter((folder: Folder) => folder.id !== query?.folder_id);
-        setFolders(filteredFolders);
-      }
+      const data = await getDbAdapter().folders.listPaths(activeTeam.id);
+      const filteredFolders = (data || []).filter((folder: Folder) => folder.id !== query?.folder_id);
+      setFolders(filteredFolders);
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -500,15 +359,7 @@ const QueryEdit = () => {
       if (!id) {
         throw new Error('Missing query ID');
       }
-      if (provider === 'rest') {
-        await getDbAdapter().queries.update(id, { folder_id: selectedFolderId });
-      } else {
-        const { error } = await supabase
-          .from('sql_queries')
-          .update({ folder_id: selectedFolderId })
-          .eq('id', id);
-        if (error) throw error;
-      }
+      await getDbAdapter().queries.update(id, { folder_id: selectedFolderId });
 
       toast({
         title: 'Success',

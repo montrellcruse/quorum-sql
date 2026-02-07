@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { getPendingApprovalsCount } from '@/utils/teamUtils';
@@ -9,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import type { QueryWithTeam, ApproveQueryResult, Tables } from '@/integrations/supabase/types';
+import type { Tables } from '@/integrations/supabase/types';
 
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import { Label } from '@/components/ui/label';
@@ -18,7 +17,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ArrowLeft, Edit, Clock, Trash2, Copy, Check, RotateCcw, Send } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { getDbAdapter } from '@/lib/provider';
-import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
 
 type Query = Tables<'sql_queries'>;
@@ -65,7 +63,6 @@ const QueryView = () => {
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [changeReason, setChangeReason] = useState('');
-  const provider = getDbProviderType();
 
   const fetchQuery = useCallback(async () => {
     try {
@@ -73,28 +70,13 @@ const QueryView = () => {
         setLoadingQuery(false);
         return;
       }
-      if (provider === 'rest') {
-        const q = await getDbAdapter().queries.getById(id);
-        if (!q) {
-          toast({ title: 'Error', description: 'Query not found', variant: 'destructive' });
-          navigate('/dashboard');
-          return;
-        }
-        setQuery(q as Query);
-      } else {
-        const { data, error } = await supabase
-          .from('sql_queries')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
-        if (error) throw error;
-        if (!data) {
-          toast({ title: 'Error', description: 'Query not found', variant: 'destructive' });
-          navigate('/dashboard');
-          return;
-        }
-        setQuery(data);
+      const q = await getDbAdapter().queries.getById(id);
+      if (!q) {
+        toast({ title: 'Error', description: 'Query not found', variant: 'destructive' });
+        navigate('/dashboard');
+        return;
       }
+      setQuery(q as Query);
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -105,35 +87,18 @@ const QueryView = () => {
     } finally {
       setLoadingQuery(false);
     }
-  }, [id, toast, navigate, provider]);
+  }, [id, toast, navigate]);
 
   const fetchHistory = useCallback(async () => {
     if (!id) return;
 
     setLoadingHistory(true);
     try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/queries/${id}/history`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const data = (await res.json()) as HistoryRecord[];
-        const approvedHistory = (data || []).filter((h) => h.status === 'approved');
-        setHistory(approvedHistory);
-        const pendingHistory = (data || []).find((h) => h.status === 'pending_approval');
-        if (pendingHistory) setLatestHistoryId(pendingHistory.id);
-      } else {
-        const { data, error } = await supabase
-          .from('query_history')
-          .select('*')
-          .eq('query_id', id)
-          .order('created_at', { ascending: false })
-          .limit(100);
-        if (error) throw error;
-        const approvedHistory = (data || []).filter(h => h.status === 'approved');
-        setHistory(approvedHistory);
-        const pendingHistory = (data || []).find(h => h.status === 'pending_approval');
-        if (pendingHistory) setLatestHistoryId(pendingHistory.id);
-      }
+      const data = await getDbAdapter().queries.getHistory(id);
+      const approvedHistory = (data || []).filter((h) => h.status === 'approved');
+      setHistory(approvedHistory as HistoryRecord[]);
+      const pendingHistory = (data || []).find((h) => h.status === 'pending_approval');
+      if (pendingHistory) setLatestHistoryId(pendingHistory.id);
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -143,49 +108,23 @@ const QueryView = () => {
     } finally {
       setLoadingHistory(false);
     }
-  }, [id, toast, provider]);
+  }, [id, toast]);
 
   const fetchApprovals = useCallback(async () => {
-    if (!latestHistoryId || !id) return;
+    if (!id) return;
 
     try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/queries/${id}/approvals`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const payload = (await res.json()) as {
-          approval_quota?: number;
-          approvals?: Approval[];
-          latest_history_id?: string;
-        };
-        const approvals = Array.isArray(payload.approvals) ? payload.approvals : [];
-        setApprovalQuota(payload.approval_quota || 1);
-        setApprovals(approvals);
-        if (payload.latest_history_id) setLatestHistoryId(payload.latest_history_id);
-        const userApproval = approvals.some((a) => a.user_id === user?.id);
-        setHasUserApproved(userApproval);
-      } else {
-        const { data: queryData, error: queryError } = await supabase
-          .from('sql_queries')
-          .select('team_id, teams(approval_quota)')
-          .eq('id', id)
-          .single();
-        if (queryError) throw queryError;
-        const quota = (queryData as QueryWithTeam)?.teams?.approval_quota || 1;
-        setApprovalQuota(quota);
-        const { data: approvalsData, error: approvalsError } = await supabase
-          .from('query_approvals')
-          .select('*')
-          .eq('query_history_id', latestHistoryId);
-        if (approvalsError) throw approvalsError;
-        setApprovals(approvalsData || []);
-        const userApproval = (approvalsData || []).some(a => a.user_id === user?.id);
-        setHasUserApproved(userApproval);
-      }
+      const payload = await getDbAdapter().queries.getApprovals(id);
+      const approvals = Array.isArray(payload.approvals) ? payload.approvals : [];
+      setApprovalQuota(payload.approval_quota || 1);
+      setApprovals(approvals as Approval[]);
+      if (payload.latest_history_id) setLatestHistoryId(payload.latest_history_id);
+      const userApproval = approvals.some((a) => a.user_id === user?.id);
+      setHasUserApproved(userApproval);
     } catch {
       // Error fetching approvals - silently fail as this is not critical
     }
-  }, [latestHistoryId, id, user?.id, provider]);
+  }, [id, user?.id]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -230,27 +169,8 @@ const QueryView = () => {
     
     setUpdating(true);
     try {
-      if (provider === 'rest') {
-        await getDbAdapter().queries.approve(id, latestHistoryId);
-        toast({ title: 'Success', description: 'Approval recorded.' });
-      } else {
-        const { data, error } = await supabase.rpc('approve_query_with_quota', {
-          _query_id: id,
-          _query_history_id: latestHistoryId,
-          _approver_user_id: user.id,
-        });
-        if (error) throw error;
-        const result = data as unknown as ApproveQueryResult;
-        if (!result.success) {
-          toast({ title: 'Error', description: result.error, variant: 'destructive' });
-          return;
-        }
-        if (result.approved) {
-          toast({ title: 'Success', description: `${result.message} (${result.approval_count}/${result.approval_quota} approvals reached)` });
-        } else {
-          toast({ title: 'Approval Recorded', description: `${result.message} (${result.approval_count}/${result.approval_quota} approvals)` });
-        }
-      }
+      await getDbAdapter().queries.approve(id, latestHistoryId);
+      toast({ title: 'Success', description: 'Approval recorded.' });
 
       // Check if we should redirect back to approvals page
       if (location.state?.from === 'approvals' && activeTeam && user?.email) {
@@ -289,18 +209,7 @@ const QueryView = () => {
     
     setUpdating(true);
     try {
-      if (provider === 'rest') {
-        await getDbAdapter().queries.reject(id, latestHistoryId);
-      } else {
-        const { data, error } = await supabase.rpc('reject_query_with_authorization', {
-          _query_id: id,
-          _query_history_id: latestHistoryId,
-          _rejecter_user_id: user.id,
-        });
-        if (error) throw error;
-        const result = data as { success: boolean; error?: string; message?: string };
-        if (!result.success) throw new Error(result.error || 'Failed to reject query');
-      }
+      await getDbAdapter().queries.reject(id, latestHistoryId);
 
       toast({
         title: 'Success',
@@ -342,15 +251,7 @@ const QueryView = () => {
     if (!query) return;
 
     try {
-      if (provider === 'rest') {
-        await getDbAdapter().queries.remove(query.id);
-      } else {
-        const { error } = await supabase
-          .from('sql_queries')
-          .delete()
-          .eq('id', query.id);
-        if (error) throw error;
-      }
+      await getDbAdapter().queries.remove(query.id);
 
       toast({
         title: 'Success',
@@ -388,23 +289,11 @@ const QueryView = () => {
     
     setReverting(true);
     try {
-      if (provider === 'rest') {
-        await getDbAdapter().queries.update(id, {
-          sql_content: selectedHistory.sql_content,
-          status: 'draft',
-          last_modified_by_email: user.email,
-        });
-      } else {
-        const { error } = await supabase
-          .from('sql_queries')
-          .update({
-            sql_content: selectedHistory.sql_content,
-            status: 'draft',
-            last_modified_by_email: user.email,
-          })
-          .eq('id', id);
-        if (error) throw error;
-      }
+      await getDbAdapter().queries.update(id, {
+        sql_content: selectedHistory.sql_content,
+        status: 'draft',
+        last_modified_by_email: user.email,
+      });
       
       toast({
         title: 'Success',
@@ -451,33 +340,13 @@ const QueryView = () => {
     
     setSubmitting(true);
     try {
-      if (provider === 'rest') {
-        await getDbAdapter().queries.submitForApproval(id, query.sql_content, {
-          modified_by_email: user.email || '',
-          change_reason: changeReason.trim() || null,
-          team_id: activeTeam.id,
-          user_id: user.id,
-        });
-        toast({ title: 'Success', description: 'Query submitted for approval' });
-      } else {
-        const { data, error } = await supabase.rpc('submit_query_for_approval', {
-          _query_id: id,
-          _sql_content: query.sql_content,
-          _modified_by_email: user.email || '',
-          _change_reason: changeReason.trim() || '',
-          _team_id: activeTeam.id,
-          _user_id: user.id,
-        });
-        
-        if (error) throw error;
-        
-        const result = data as { success: boolean; status: string; auto_approved: boolean };
-        if (result.auto_approved) {
-          toast({ title: 'Success', description: 'Query auto-approved (single-member team)' });
-        } else {
-          toast({ title: 'Success', description: 'Query submitted for approval' });
-        }
-      }
+      await getDbAdapter().queries.submitForApproval(id, query.sql_content, {
+        modified_by_email: user.email || '',
+        change_reason: changeReason.trim() || null,
+        team_id: activeTeam.id,
+        user_id: user.id,
+      });
+      toast({ title: 'Success', description: 'Query submitted for approval' });
       
       setSubmitDialogOpen(false);
       setChangeReason('');

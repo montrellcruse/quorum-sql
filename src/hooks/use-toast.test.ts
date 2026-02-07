@@ -1,10 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { reducer } from './use-toast';
+
+type ToastState = Parameters<typeof reducer>[0];
 
 describe('Toast Reducer', () => {
   describe('ADD_TOAST', () => {
     it('adds a new toast to the beginning of the list', () => {
-      const initialState = { toasts: [] };
+      const initialState: ToastState = { toasts: [] };
       const newToast = { id: '1', title: 'Test Toast', open: true };
 
       const result = reducer(initialState, {
@@ -31,7 +33,7 @@ describe('Toast Reducer', () => {
     });
 
     it('limits toasts to TOAST_LIMIT', () => {
-      const initialState = { toasts: [] };
+      const initialState: ToastState = { toasts: [] };
 
       let state = initialState;
       for (let i = 0; i < 5; i++) {
@@ -177,7 +179,7 @@ describe('Toast Reducer', () => {
 
   describe('state immutability', () => {
     it('does not mutate original state on ADD_TOAST', () => {
-      const initialState = { toasts: [] };
+      const initialState: ToastState = { toasts: [] };
       const originalToasts = initialState.toasts;
 
       reducer(initialState, {
