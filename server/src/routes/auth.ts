@@ -13,7 +13,7 @@ import {
 
 export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/auth/me', {
-    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    config: { rateLimit: isProd ? { max: 60, timeWindow: '1 minute' } : { max: 10000, timeWindow: '1 minute' } },
   }, async (req) => {
     const sess = await getSessionUser(req);
     if (!sess) return null;
@@ -29,10 +29,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.post<{ Body: LoginBody }>('/auth/login', {
     config: {
-      // Strict rate limit: 5 attempts per 15 minutes per IP to mitigate brute-force
-      rateLimit: {
+      // Strict rate limit in production; relaxed for development/testing
+      rateLimit: isProd ? {
         max: 5,
         timeWindow: '15 minutes',
+      } : {
+        max: 1000,
+        timeWindow: '1 minute',
       },
     },
   }, async (req, reply) => {
@@ -187,7 +190,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/auth/logout', {
-    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+    config: { rateLimit: isProd ? { max: 30, timeWindow: '1 minute' } : { max: 10000, timeWindow: '1 minute' } },
   }, async (req, reply) => {
     const sess = await getSessionUser(req);
     if (sess) {

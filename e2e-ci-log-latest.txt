@@ -1,0 +1,44 @@
+CI Run Results (commit 588cbd3 on fix/e2e-auth-timeout branch)
+==============================================================
+
+SUMMARY: 2 failed, 5 flaky, 2 did not run, 18 passed (2.6m)
+
+FAILED:
+1. "Query Workflow Tests > user can delete a folder" — alertdialog not visible (line 172)
+2. "Solo User Flows > invite converts to team mode" — accept button timeout (line 161) + "Create New Team" button not visible after re-signin (line 178)
+
+FLAKY (pass on first attempt, fail on retries):
+1. "Query Workflow Tests > user can create a folder" — retries land on /auth
+2. "Solo User Flows > new user gets personal workspace on signup" — retries land on /auth
+3. "Team Management Flows > admin can create a new team" — retries land on /auth
+4. "Team Management Flows > admin can update team settings" — retries land on /auth (cascade from #3)
+5. "Team Invitation Edge Cases > cannot invite user who is already a member" — retries land on /auth
+
+ROOT CAUSE ANALYSIS:
+
+1. AUTH RETRY ISSUE (5 flaky tests):
+   - Serial test suites use test.beforeAll() to generate user credentials (email/password) ONCE
+   - On Playwright serial retry, beforeAll does NOT re-run — same credentials used
+   - First attempt: signUp() creates user successfully
+   - Retry: signUp() fails because user already exists in DB
+   - Commit 588cbd3 added signUp() fallback to signIn() on failure, but it's STILL NOT WORKING
+   - The signIn() fallback navigates to /auth and fills credentials, but page stays on /auth
+   - HYPOTHESIS: Either signIn form submission fails, or the auth endpoint rejects the login
+   - Need to investigate: Does the REST auth adapter's /auth/login endpoint work after /auth/register was called with the same email? Is there a race condition or error state?
+
+2. FOLDER DELETE (1 hard failure):
+   - Test tries to delete a folder that still contains queries from earlier serial tests
+   - Commit 588cbd3 added query deletion loop before folder deletion, but alertdialog STILL not showing
+   - The deletion loop code checks for [data-testid="query-card"] elements, deletes each one
+   - EITHER: the query cards have a different selector, OR the delete query flow has different button text, OR the loop completes but folder still thinks it has queries (stale state)
+
+3. INVITE CONVERTS TO TEAM MODE (1 hard failure):
+   - First attempt: secondUser signs up, lands on accept-invites, but getByRole('button', { name: /accept/i }) times out (30s)
+   - The page IS on accept-invites but no Accept button is visible — invitation might not be ready yet
+   - Retry #2: Gets past accept somehow but after signing back in as soloUser, "Create New Team" button is not visible — UI still shows solo mode even though a second member was added
+   - HYPOTHESIS: The invitation acceptance flow has a timing issue — invite might not be created/visible when secondUser lands on accept-invites page
+
+WHAT HAS BEEN FIXED (comparing to previous run):
+- Auto-approval: "solo user queries auto-approve" and "approval workflow differs" no longer fail (migration 00000000000005 added auto-approve for solo teams)
+- Team selector: "admin can remove a team member" no longer fails
+- Progress: 4 failed → 2 failed, same 5 flaky

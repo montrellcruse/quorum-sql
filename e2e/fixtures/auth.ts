@@ -1,5 +1,7 @@
 import { Page, expect } from '@playwright/test';
 
+const POST_AUTH_URL = /\/(dashboard|create-team|accept-invites)/;
+
 /**
  * Test user credentials generator
  * Creates unique test users for each test run
@@ -15,7 +17,8 @@ export function generateTestUser(prefix: string = 'test') {
 }
 
 /**
- * Sign up a new user via the auth page
+ * Sign up a new user via the auth page.
+ * If the user already exists (e.g. Playwright serial retry), falls back to signIn.
  */
 export async function signUp(
   page: Page,
@@ -38,11 +41,77 @@ export async function signUp(
   await page.getByLabel(/email/i).fill(user.email);
   await page.getByLabel(/password/i).fill(user.password);
 
-  // Click and wait for navigation atomically
-  await Promise.all([
-    page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 15000 }),
-    page.getByRole('button', { name: /create account/i }).click(),
-  ]);
+  // Click create account
+  await page.getByRole('button', { name: /create account/i }).click();
+
+  // Wait for navigation (success) or detect failure (user already exists on retry)
+  try {
+    await page.waitForURL(POST_AUTH_URL, { timeout: 10000 });
+  } catch {
+    // Signup failed — user likely already exists from a previous attempt.
+    // Fall back to sign in with the same credentials.
+    await signIn(page, user);
+  }
+}
+
+async function hasActiveSession(page: Page): Promise<boolean | 'rate-limited'> {
+  try {
+    const response = await page.request.get('/auth/me');
+    if (response.status() === 429) return 'rate-limited';
+    if (!response.ok()) return false;
+    const payload = await response.json();
+    return Boolean(
+      payload &&
+      typeof payload === 'object' &&
+      'id' in payload &&
+      typeof (payload as { id?: unknown }).id === 'string'
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function waitForSession(page: Page, timeoutMs = 8000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  let pollInterval = 500;
+  while (Date.now() < deadline) {
+    const result = await hasActiveSession(page);
+    if (result === true) return true;
+    if (result === 'rate-limited') {
+      // Back off significantly when rate-limited
+      pollInterval = Math.min(pollInterval * 2, 3000);
+    }
+    await page.waitForTimeout(pollInterval);
+  }
+  // Final attempt: check if we're on a post-auth page (session may exist even if /auth/me is rate-limited)
+  const url = page.url();
+  if (/\/(dashboard|create-team|accept-invites)/.test(url)) return true;
+  return false;
+}
+
+async function apiSignIn(
+  page: Page,
+  user: { email: string; password: string }
+): Promise<void> {
+  const response = await page.request.post('/auth/login', {
+    data: { email: user.email, password: user.password },
+  });
+
+  if (!response.ok()) {
+    const detail = await response.text();
+    throw new Error(`API sign-in failed (${response.status()}): ${detail}`);
+  }
+
+  try {
+    const payload = (await response.json()) as { csrfToken?: string };
+    if (payload?.csrfToken) {
+      await page.evaluate((csrfToken) => {
+        localStorage.setItem('quorum_csrf_token', csrfToken);
+      }, payload.csrfToken);
+    }
+  } catch {
+    // Ignore non-JSON responses in fallback path.
+  }
 }
 
 /**
@@ -68,21 +137,82 @@ export async function signIn(
   await page.getByLabel(/email/i).fill(user.email);
   await page.getByLabel(/password/i).fill(user.password);
 
-  // Click and wait for navigation atomically
-  await Promise.all([
-    page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 15000 }),
-    page.locator('form button[type="submit"]').click(),
+  // Attempt UI sign-in first.
+  await page.locator('form button[type="submit"]').click();
+
+  const [navigatedByUi, sessionReadyByUi] = await Promise.all([
+    page.waitForURL(POST_AUTH_URL, { timeout: 12000 }).then(() => true).catch(() => false),
+    waitForSession(page, 5000),
   ]);
+
+  // If UI sign-in did not produce a stable session, use direct API fallback.
+  if (!navigatedByUi || !sessionReadyByUi || page.url().includes('/auth')) {
+    await apiSignIn(page, user);
+    const sessionReadyByApi = await waitForSession(page, 8000);
+    if (!sessionReadyByApi) {
+      throw new Error('Sign-in failed: session did not initialize');
+    }
+
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(POST_AUTH_URL, { timeout: 20000 });
+  }
 }
 
 /**
- * Sign out the current user
+ * Ensure a signed-in user can reach dashboard, completing create-team onboarding when needed.
+ */
+export async function ensureDashboardReady(page: Page): Promise<void> {
+  // If routed to create-team, either finish onboarding or return to dashboard
+  // if the user already has a workspace (stale redirect case).
+  if (page.url().includes('/create-team')) {
+    const teamsResponse = await page.request.get('/teams');
+    let teamCount = 0;
+    if (teamsResponse.ok()) {
+      try {
+        const payload = await teamsResponse.json();
+        if (Array.isArray(payload)) {
+          teamCount = payload.length;
+        }
+      } catch {
+        teamCount = 0;
+      }
+    }
+
+    if (teamCount > 0) {
+      await page.goto('/dashboard');
+    } else {
+      const teamName = `E2E Workspace ${Date.now()}`;
+      await page.getByLabel(/team name/i).fill(teamName);
+      await Promise.all([
+        page.waitForURL(/\/dashboard/, { timeout: 20000 }),
+        page.getByRole('button', { name: /create team/i }).click(),
+      ]);
+    }
+  }
+}
+
+/**
+ * Sign out the current user.
+ * Resilient to cases where the user is already signed out (e.g. serial retries).
  */
 export async function signOut(page: Page): Promise<void> {
+  // If already on auth page, we're already signed out
+  if (page.url().includes('/auth')) {
+    return;
+  }
+
   // Sign out button is only on dashboard, so navigate there first if needed
   if (!page.url().includes('/dashboard')) {
     await page.goto('/dashboard');
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
+    // If we got redirected to /auth, we're already signed out
+    try {
+      await expect(page).toHaveURL(/\/(dashboard|auth)/, { timeout: 10000 });
+    } catch {
+      // Unexpected URL — bail
+    }
+    if (page.url().includes('/auth')) {
+      return;
+    }
   }
 
   const signOutButton = page.getByRole('button', { name: /sign out/i });
@@ -101,7 +231,8 @@ export async function signOut(page: Page): Promise<void> {
  * Wait for the dashboard to fully load
  */
 export async function waitForDashboard(page: Page): Promise<void> {
-  await expect(page).toHaveURL(/\/dashboard/);
+  await ensureDashboardReady(page);
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
   // Wait for the main heading to appear
   await expect(page.getByRole('heading', { name: /quorum/i })).toBeVisible();
   // Wait for loading states to finish

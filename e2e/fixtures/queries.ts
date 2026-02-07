@@ -26,15 +26,24 @@ export async function createFolder(
   // Wait for dialog to close
   await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 5000 });
 
-  // Verify folder appears
-  await expect(page.getByRole('heading', { name })).toBeVisible();
+  // Verify folder appears on dashboard
+  const folderCard = page
+    .locator('[data-testid="folder-card"]')
+    .filter({ hasText: name })
+    .first();
+  await expect(folderCard).toBeVisible({ timeout: 15000 });
 }
 
 /**
  * Navigate to a folder
  */
 export async function openFolder(page: Page, folderName: string): Promise<void> {
-  await page.getByRole('heading', { name: folderName }).click();
+  const folderCard = page
+    .locator('[data-testid="folder-card"]')
+    .filter({ hasText: folderName })
+    .first();
+  await expect(folderCard).toBeVisible({ timeout: 15000 });
+  await folderCard.click();
   await expect(page).toHaveURL(/\/folder\//);
 }
 
@@ -50,7 +59,7 @@ export async function createQuery(
   await page.getByRole('button', { name: /new query/i }).click();
 
   // Wait for query editor page
-  await expect(page).toHaveURL(/\/query\/(new|create)/);
+  await expect(page).toHaveURL(/\/query\/(new|create|edit\/new)/);
 
   // Fill in query details
   await page.getByLabel(/title/i).fill(title);
@@ -66,17 +75,31 @@ export async function createQuery(
   await page.getByRole('button', { name: /save/i }).click();
 
   // Wait for save confirmation
-  await expect(page.getByText(/saved|created/i)).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText(/query saved as draft|saved|created/i).first()).toBeVisible({
+    timeout: 10000,
+  });
 }
 
 /**
  * Submit a query for approval
  */
 export async function submitForApproval(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /submit for approval/i }).click();
+  const submitOrRequestButton = page
+    .getByRole('button', { name: /submit for approval|request approval/i })
+    .first();
+  await expect(submitOrRequestButton).toBeVisible({ timeout: 10000 });
+  await submitOrRequestButton.click();
+
+  const confirmSubmitButton = page
+    .getByRole('button', { name: /^submit for approval$/i })
+    .first();
+  if (await confirmSubmitButton.isVisible().catch(() => false)) {
+    await confirmSubmitButton.click();
+  }
+
   // Wait for either pending state or auto-approval
   await expect(
-    page.getByText(/pending approval|approved|auto-approved/i)
+    page.getByText(/pending approval|approved|auto-approved|submitted for approval/i).first()
   ).toBeVisible({ timeout: 5000 });
 }
 

@@ -412,6 +412,8 @@ const Dashboard = () => {
             {projects.map(project => (
               <Card 
                 key={project.id} 
+                data-testid="folder-card"
+                data-folder-name={project.name}
                 className="cursor-pointer transition-colors hover:bg-accent" 
                 onClick={() => navigate(`/folder/${project.id}`)}
               >

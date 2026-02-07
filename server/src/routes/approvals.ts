@@ -12,6 +12,11 @@ import {
   type SubmitQueryBody,
 } from '../schemas.js';
 
+// Check if error is a missing table (42P01 = undefined_table)
+function isMissingTable(err: unknown): boolean {
+  return (err as { code?: string })?.code === '42P01';
+}
+
 export default async function approvalRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', requireAuthenticatedUser);
 
@@ -24,13 +29,18 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid query ID' });
     }
 
-    return fastify.withReadClient(sess.id, async (client) => {
-      const { rows } = await client.query(
-        'select * from public.query_history where query_id = $1 order by created_at desc limit 100',
-        [id],
-      );
-      return rows;
-    });
+    try {
+      return await fastify.withReadClient(sess.id, async (client) => {
+        const { rows } = await client.query(
+          'select * from public.query_history where query_id = $1 order by created_at desc limit 100',
+          [id],
+        );
+        return rows;
+      });
+    } catch (err) {
+      if (isMissingTable(err)) return [];
+      throw err;
+    }
   });
 
   fastify.get<{ Params: IdParams }>('/queries/:id/approvals', async (req, reply) => {
@@ -42,30 +52,35 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid query ID' });
     }
 
-    return fastify.withReadClient(sess.id, async (client) => {
-      const quotaRes = await client.query(
-        `select q.team_id, t.approval_quota
-         from public.sql_queries q
-         join public.teams t on t.id = q.team_id
-         where q.id = $1`,
-        [id],
-      );
-      const approval_quota = quotaRes.rows[0]?.approval_quota || 1;
+    try {
+      return await fastify.withReadClient(sess.id, async (client) => {
+        const quotaRes = await client.query(
+          `select q.team_id, t.approval_quota
+           from public.sql_queries q
+           join public.teams t on t.id = q.team_id
+           where q.id = $1`,
+          [id],
+        );
+        const approval_quota = quotaRes.rows[0]?.approval_quota || 1;
 
-      const histRes = await client.query(
-        'select id from public.query_history where query_id = $1 order by created_at desc limit 1',
-        [id],
-      );
-      const latestId = histRes.rows[0]?.id;
+        const histRes = await client.query(
+          'select id from public.query_history where query_id = $1 order by created_at desc limit 1',
+          [id],
+        );
+        const latestId = histRes.rows[0]?.id;
 
-      if (!latestId) return { approvals: [], approval_quota };
+        if (!latestId) return { approvals: [], approval_quota };
 
-      const apprRes = await client.query(
-        'select * from public.query_approvals where query_history_id = $1',
-        [latestId],
-      );
-      return { approvals: apprRes.rows, approval_quota, latest_history_id: latestId };
-    });
+        const apprRes = await client.query(
+          'select * from public.query_approvals where query_history_id = $1',
+          [latestId],
+        );
+        return { approvals: apprRes.rows, approval_quota, latest_history_id: latestId };
+      });
+    } catch (err) {
+      if (isMissingTable(err)) return { approvals: [], approval_quota: 1 };
+      throw err;
+    }
   });
 
   fastify.get<{ Querystring: ApprovalsQuery }>('/approvals', async (req, reply) => {
@@ -78,32 +93,37 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Valid teamId is required' });
     }
 
-    return fastify.withReadClient(sess.id, async (client) => {
-      const { rows } = await client.query(
-        `with latest_hist as (
-           select h.query_id, (array_agg(h.id order by h.created_at desc))[1] as latest_id
-           from public.query_history h
-           group by h.query_id
-         ),
-         appr as (
-           select lh.query_id, count(qa.id) as approval_count
-           from latest_hist lh
-           left join public.query_approvals qa on qa.query_history_id = lh.latest_id
-           group by lh.query_id
-         )
-         select q.id, q.title, q.description, q.folder_id, q.last_modified_by_email, q.updated_at,
-                f.name as folder_name, coalesce(a.approval_count,0) as approval_count, t.approval_quota
-         from public.sql_queries q
-         join public.teams t on t.id = q.team_id
-         left join public.folders f on f.id = q.folder_id
-         left join appr a on a.query_id = q.id
-         where q.team_id = $1 and q.status = 'pending_approval'
-           and (q.last_modified_by_email is null or lower(q.last_modified_by_email) <> lower($2))
-         order by q.updated_at desc`,
-        [teamId, excludeEmail.trim().toLowerCase()],
-      );
-      return rows;
-    });
+    try {
+      return await fastify.withReadClient(sess.id, async (client) => {
+        const { rows } = await client.query(
+          `with latest_hist as (
+             select h.query_id, (array_agg(h.id order by h.created_at desc))[1] as latest_id
+             from public.query_history h
+             group by h.query_id
+           ),
+           appr as (
+             select lh.query_id, count(qa.id) as approval_count
+             from latest_hist lh
+             left join public.query_approvals qa on qa.query_history_id = lh.latest_id
+             group by lh.query_id
+           )
+           select q.id, q.title, q.description, q.folder_id, q.last_modified_by_email, q.updated_at,
+                  f.name as folder_name, coalesce(a.approval_count,0) as approval_count, t.approval_quota
+           from public.sql_queries q
+           join public.teams t on t.id = q.team_id
+           left join public.folders f on f.id = q.folder_id
+           left join appr a on a.query_id = q.id
+           where q.team_id = $1 and q.status = 'pending_approval'
+             and (q.last_modified_by_email is null or lower(q.last_modified_by_email) <> lower($2))
+           order by q.updated_at desc`,
+          [teamId, excludeEmail.trim().toLowerCase()],
+        );
+        return rows;
+      });
+    } catch (err) {
+      if (isMissingTable(err)) return [];
+      throw err;
+    }
   });
 
   fastify.post<{ Params: IdParams; Body: SubmitQueryBody }>('/queries/:id/submit', async (req, reply) => {

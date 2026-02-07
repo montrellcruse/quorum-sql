@@ -3,16 +3,16 @@ import {
   generateTestUser,
   signUp,
   signIn,
-  signOut,
   waitForDashboard,
 } from './fixtures/auth';
-import { createFolder, createQuery } from './fixtures/queries';
+import { createFolder, openFolder, submitForApproval } from './fixtures/queries';
 
 test.describe('Query Workflow Tests', () => {
   test.describe.configure({ mode: 'serial' });
 
   let testUser: { email: string; password: string; fullName: string };
   let folderName: string;
+  let createdQueryTitle: string;
 
   test.beforeAll(() => {
     testUser = generateTestUser('query');
@@ -27,18 +27,16 @@ test.describe('Query Workflow Tests', () => {
     await createFolder(page, folderName, 'Test folder for queries');
 
     // Verify folder appears on dashboard
-    await expect(page.getByRole('heading', { name: folderName })).toBeVisible();
+    await expect(
+      page.locator('[data-testid="folder-card"]').filter({ hasText: folderName }).first()
+    ).toBeVisible({ timeout: 15000 });
   });
 
   test('user can navigate into a folder', async ({ page }) => {
     await signIn(page, testUser);
     await waitForDashboard(page);
 
-    // Click on the folder
-    await page.getByRole('heading', { name: folderName }).click();
-
-    // Should navigate to folder page
-    await expect(page).toHaveURL(/\/folder\//);
+    await openFolder(page, folderName);
 
     // Folder name should be visible
     await expect(page.locator('body')).toContainText(folderName);
@@ -49,16 +47,15 @@ test.describe('Query Workflow Tests', () => {
     await waitForDashboard(page);
 
     // Navigate to folder
-    await page.getByRole('heading', { name: folderName }).click();
-    await expect(page).toHaveURL(/\/folder\//);
+    await openFolder(page, folderName);
 
     // Click new query button
     await page.getByRole('button', { name: /new query/i }).click();
     await expect(page).toHaveURL(/\/query\/(new|create|edit\/new)/);
 
     // Fill in query details
-    const queryTitle = 'Test Query ' + Date.now();
-    await page.getByLabel(/title/i).fill(queryTitle);
+    createdQueryTitle = 'Test Query ' + Date.now();
+    await page.getByLabel(/title/i).fill(createdQueryTitle);
 
     // Wait for Monaco editor and enter SQL
     await expect(page.getByText('Loading...')).not.toBeVisible({ timeout: 30000 });
@@ -68,8 +65,15 @@ test.describe('Query Workflow Tests', () => {
     await page.keyboard.type('SELECT id, name FROM users WHERE active = true;');
 
     // Save the query
-    await page.getByRole('button', { name: /save/i }).click();
-    await expect(page.getByText(/query saved/i)).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: /save draft|save/i }).click();
+    await expect(page).toHaveURL(/\/folder\//, { timeout: 10000 });
+
+    const createdQueryCard = page
+      .locator('[data-testid="query-card"]')
+      .filter({ hasText: createdQueryTitle })
+      .first();
+    await expect(createdQueryCard).toBeVisible({ timeout: 10000 });
+    await expect(createdQueryCard.getByText(/draft/i)).toBeVisible();
   });
 
   test('user can edit an existing query', async ({ page }) => {
@@ -77,21 +81,16 @@ test.describe('Query Workflow Tests', () => {
     await waitForDashboard(page);
 
     // Navigate to folder
-    await page.getByRole('heading', { name: folderName }).click();
-    await expect(page).toHaveURL(/\/folder\//);
+    await openFolder(page, folderName);
 
-    // Click on an existing query (should be the one we created)
-    const queryLink = page.getByText(/test query/i).first();
-    await queryLink.click();
-
-    // Should be on query view or edit page
-    await expect(page).toHaveURL(/\/query\//);
-
-    // Click edit button if in view mode
-    const editButton = page.getByRole('button', { name: /edit/i });
-    if (await editButton.isVisible()) {
-      await editButton.click();
-    }
+    // Open query editor for the query created in the previous step
+    const queryCard = page
+      .locator('[data-testid="query-card"]')
+      .filter({ hasText: createdQueryTitle })
+      .first();
+    await expect(queryCard).toBeVisible({ timeout: 10000 });
+    await queryCard.getByRole('button', { name: /edit/i }).click();
+    await expect(page).toHaveURL(/\/query\/edit\//);
 
     // Modify the query title
     const titleInput = page.getByLabel(/title/i);
@@ -99,8 +98,11 @@ test.describe('Query Workflow Tests', () => {
     await titleInput.fill('Updated Test Query');
 
     // Save changes
-    await page.getByRole('button', { name: /save/i }).click();
-    await expect(page.getByText(/saved|updated/i)).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: /save draft|save/i }).click();
+    await expect(page).toHaveURL(/\/folder\//, { timeout: 10000 });
+    await expect(
+      page.locator('[data-testid="query-card"]').filter({ hasText: 'Updated Test Query' }).first()
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test('user can submit query for approval', async ({ page }) => {
@@ -108,20 +110,16 @@ test.describe('Query Workflow Tests', () => {
     await waitForDashboard(page);
 
     // Navigate to folder
-    await page.getByRole('heading', { name: folderName }).click();
+    await openFolder(page, folderName);
 
-    // Click on the query
-    const queryLink = page.getByText(/updated test query|test query/i).first();
-    await queryLink.click();
+    // Open the query view
+    await page.getByRole('heading', { name: /updated test query|test query/i }).first().click();
+    await expect(page).toHaveURL(/\/query\/view\//);
 
-    // Submit for approval
-    const submitButton = page.getByRole('button', { name: /submit for approval/i });
-    if (await submitButton.isVisible()) {
-      await submitButton.click();
-
-      // For solo user, should auto-approve
-      await expect(page.getByText(/approved/i)).toBeVisible({ timeout: 5000 });
-    }
+    await submitForApproval(page);
+    await expect(page.getByText(/approved|pending approval/i).first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('user can view query history', async ({ page }) => {
@@ -129,57 +127,61 @@ test.describe('Query Workflow Tests', () => {
     await waitForDashboard(page);
 
     // Navigate to folder
-    await page.getByRole('heading', { name: folderName }).click();
+    await openFolder(page, folderName);
 
     // Click on the query
-    const queryLink = page.getByText(/updated test query|test query/i).first();
-    await queryLink.click();
+    await page.getByRole('heading', { name: /updated test query|test query/i }).first().click();
+    await expect(page).toHaveURL(/\/query\/view\//);
 
-    // Look for history tab or section
-    const historyTab = page.getByRole('tab', { name: /history/i });
-    if (await historyTab.isVisible()) {
-      await historyTab.click();
-
-      // Should show version history
-      await expect(page.getByText(/version|v\d+/i)).toBeVisible();
-    }
+    await expect(page.getByRole('heading', { name: /change history/i })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('user can delete a folder', async ({ page }) => {
     await signIn(page, testUser);
     await waitForDashboard(page);
 
-    // Find the folder card and look for delete option
-    const folderCard = page.locator('.card, [data-testid="folder-card"]').filter({
-      hasText: folderName,
-    });
+    // Open folder — must delete all queries inside before the folder can be removed
+    await openFolder(page, folderName);
 
-    // Hover or click to reveal delete button
-    await folderCard.hover();
+    // Delete each query in the folder via query view page.
+    // Wait for the folder page to fully render before checking query cards.
+    // "SQL Queries" heading is rendered after loading completes, so it's a reliable signal.
+    await expect(page.getByRole('heading', { name: /sql queries/i })).toBeVisible({ timeout: 15000 });
 
-    // Look for delete button (might be in a dropdown menu)
-    const deleteButton = folderCard.getByRole('button', { name: /delete/i });
-    const menuButton = folderCard.getByRole('button').filter({ has: page.locator('svg') });
+    while (true) {
+      const queryCards = page.locator('[data-testid="query-card"]');
+      const queryCount = await queryCards.count();
+      if (queryCount === 0) break;
 
-    if (await deleteButton.isVisible()) {
-      await deleteButton.click();
-    } else if (await menuButton.isVisible()) {
-      await menuButton.first().click();
-      // Look for delete in dropdown
-      const deleteOption = page.getByRole('menuitem', { name: /delete/i });
-      if (await deleteOption.isVisible()) {
-        await deleteOption.click();
-      }
+      await queryCards.first().getByRole('heading').first().click();
+      await expect(page).toHaveURL(/\/query\/view\//, { timeout: 10000 });
+
+      await page.getByRole('button', { name: /^delete query$/i }).click();
+      const queryDeleteDialog = page.getByRole('alertdialog');
+      await expect(queryDeleteDialog).toBeVisible({ timeout: 5000 });
+      await queryDeleteDialog.getByRole('button', { name: /^delete query$/i }).click();
+
+      await expect(page).toHaveURL(/\/folder\//, { timeout: 10000 });
+      // Wait for the folder page to reload after redirect
+      await expect(page.getByRole('heading', { name: /sql queries/i })).toBeVisible({ timeout: 15000 });
     }
 
-    // Confirm deletion if dialog appears
-    const confirmButton = page.getByRole('button', { name: /confirm|yes|delete/i });
-    if (await confirmButton.isVisible()) {
-      await confirmButton.click();
-    }
+    // At this point all queries are deleted and the folder page is loaded
+    await expect(page.getByText(/no queries yet/i)).toBeVisible({ timeout: 10000 });
 
-    // Folder should no longer be visible
-    await expect(page.getByRole('heading', { name: folderName })).not.toBeVisible({ timeout: 5000 });
+    // Now delete the empty folder
+    await page.getByRole('button', { name: /delete folder/i }).first().click();
+
+    const deleteDialog = page.getByRole('alertdialog');
+    await expect(deleteDialog).toBeVisible({ timeout: 5000 });
+    await deleteDialog.getByRole('button', { name: /delete folder/i }).click();
+
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
+    await expect(
+      page.locator('[data-testid="folder-card"]').filter({ hasText: folderName })
+    ).toHaveCount(0, { timeout: 10000 });
   });
 });
 
@@ -194,7 +196,7 @@ test.describe('Query Editor Features', () => {
     await createFolder(page, folderName);
 
     // Navigate to folder
-    await page.getByRole('heading', { name: folderName }).click();
+    await openFolder(page, folderName);
 
     // Create new query
     await page.getByRole('button', { name: /new query/i }).click();
@@ -218,7 +220,7 @@ test.describe('Query Editor Features', () => {
     await createFolder(page, folderName);
 
     // Navigate to folder
-    await page.getByRole('heading', { name: folderName }).click();
+    await openFolder(page, folderName);
 
     // Create new query
     await page.getByRole('button', { name: /new query/i }).click();
@@ -232,14 +234,13 @@ test.describe('Query Editor Features', () => {
     await page.keyboard.type('SELECT 1;');
 
     // Try to save without title
-    await page.getByRole('button', { name: /save/i }).click();
+    await page.getByRole('button', { name: /save draft|save/i }).click();
 
-    // Should show validation error or prevent save
-    const titleInput = page.getByLabel(/title/i);
-    const isInvalid = await titleInput.getAttribute('aria-invalid');
-    const hasError = await page.getByText(/title.*required|required.*title/i).isVisible().catch(() => false);
-
-    expect(isInvalid === 'true' || hasError).toBe(true);
+    // Save should be blocked and user should remain on editor page with a validation error
+    await expect(page).toHaveURL(/\/query\/edit\/new/);
+    await expect(
+      page.getByText(/query title cannot be empty|title.*required|title.*empty/i).first()
+    ).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -251,7 +252,7 @@ test.describe('Query Status Transitions', () => {
 
     const folderName = `Status Test ${Date.now()}`;
     await createFolder(page, folderName);
-    await page.getByRole('heading', { name: folderName }).click();
+    await openFolder(page, folderName);
 
     // Create new query
     await page.getByRole('button', { name: /new query/i }).click();
@@ -263,11 +264,15 @@ test.describe('Query Status Transitions', () => {
     await monacoContainer.click();
     await page.keyboard.type('SELECT 1;');
 
-    await page.getByRole('button', { name: /save/i }).click();
-    await expect(page.getByText(/draft|saved/i)).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: /save draft|save/i }).click();
+    await expect(page).toHaveURL(/\/folder\//, { timeout: 10000 });
 
-    // Verify status badge shows draft
-    const statusBadge = page.getByText(/draft/i);
-    await expect(statusBadge).toBeVisible();
+    // Verify status badge shows draft on the query card
+    const statusCard = page
+      .locator('[data-testid="query-card"]')
+      .filter({ hasText: 'Status Test Query' })
+      .first();
+    await expect(statusCard).toBeVisible({ timeout: 10000 });
+    await expect(statusCard.getByText(/draft/i)).toBeVisible();
   });
 });

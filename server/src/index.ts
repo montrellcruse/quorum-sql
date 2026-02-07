@@ -25,6 +25,10 @@ import folderRoutes from './routes/folders.js';
 import queryRoutes from './routes/queries.js';
 import approvalRoutes from './routes/approvals.js';
 
+function isLocalDevOrigin(origin: string): boolean {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+}
+
 // Initialize Fastify with body size limit
 const fastify = Fastify({
   logger: {
@@ -64,15 +68,16 @@ await fastify.register(cors, {
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
     if (!isProd && securityConfig.corsOrigins.length === 0) return cb(null, true);
+    if (!isProd && isLocalDevOrigin(origin)) return cb(null, true);
     if (securityConfig.corsOrigins.includes(origin)) return cb(null, true);
     return cb(new Error('CORS not allowed'), false);
   },
   credentials: true,
 });
 
-// Rate limiting
+// Rate limiting — relaxed in development to avoid test flakiness
 await fastify.register(rateLimit, {
-  max: securityConfig.rateLimitMax,
+  max: isProd ? securityConfig.rateLimitMax : 10000,
   timeWindow: securityConfig.rateLimitWindow,
 });
 
