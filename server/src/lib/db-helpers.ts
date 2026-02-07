@@ -38,12 +38,24 @@ export function createWithClient(pool: Pool): WithClient {
 }
 
 // Use a plain pooled client for read-only queries while preserving RLS context.
+// Still uses set_config with `true` (transaction-local), so we wrap in a
+// lightweight read-only transaction to scope the config properly.
 export function createWithReadClient(pool: Pool): WithReadClient {
   return async <T>(userId: string | null, fn: (client: PoolClient) => Promise<T>): Promise<T> => {
     const client = await pool.connect();
     try {
+      await client.query('BEGIN READ ONLY');
       await setRequestContext(client, userId);
-      return await fn(client);
+      const result = await fn(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Ignore rollback failures, surface original error.
+      }
+      throw error;
     } finally {
       client.release();
     }
