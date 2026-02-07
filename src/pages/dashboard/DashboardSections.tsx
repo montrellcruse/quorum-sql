@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import type { FormEvent, KeyboardEvent } from 'react';
 import { FeatureGate } from '@/components/FeatureGate';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -79,6 +79,13 @@ interface DashboardFoldersProps {
   folders: Folder[];
   onOpenFolder: (folderId: string) => void;
 }
+
+const handleInteractiveKeyDown = (event: KeyboardEvent<HTMLElement>, onActivate: () => void) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    onActivate();
+  }
+};
 
 export function DashboardSetupLoadingState() {
   return (
@@ -249,6 +256,11 @@ export function DashboardSearch({
                 <div
                   key={result.id}
                   onClick={() => onOpenQuery(result.id)}
+                  onKeyDown={(event) =>
+                    handleInteractiveKeyDown(event, () => onOpenQuery(result.id))
+                  }
+                  role="button"
+                  tabIndex={0}
                   className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent"
                 >
                   <FileText className="mt-1 h-5 w-5 text-muted-foreground" />
@@ -358,6 +370,11 @@ export function DashboardFolders({ loading, hasError, folders, onOpenFolder }: D
           data-folder-name={folder.name}
           className="cursor-pointer transition-colors hover:bg-accent"
           onClick={() => onOpenFolder(folder.id)}
+          onKeyDown={(event) =>
+            handleInteractiveKeyDown(event, () => onOpenFolder(folder.id))
+          }
+          role="button"
+          tabIndex={0}
         >
           <CardHeader>
             <CardTitle>{folder.name}</CardTitle>
