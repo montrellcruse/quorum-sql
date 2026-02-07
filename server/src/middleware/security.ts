@@ -2,6 +2,25 @@ import { isProd } from '../config.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 
+const PROD_CSP = [
+  "default-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "object-src 'none'",
+].join('; ');
+
+const DEV_CSP = [
+  "default-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "script-src 'self' 'unsafe-eval' http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*",
+  "style-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*",
+  "connect-src 'self' http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* wss://localhost:* wss://127.0.0.1:*",
+  "img-src 'self' data: blob: http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*",
+  "font-src 'self' data: http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*",
+].join('; ');
+
 /**
  * Generate a cryptographically secure CSRF token
  */
@@ -79,14 +98,15 @@ export function securityHeaders(fastify: FastifyInstance) {
     
     // Request tracing header
     reply.header('X-Request-Id', req.requestId);
-    
+
+    // Apply CSP in all environments. Development keeps local/HMR allowances.
+    reply.header('Content-Security-Policy', isProd ? PROD_CSP : DEV_CSP);
+
     if (isProd) {
       // HSTS only in production (requires HTTPS)
       reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-      // Stricter CSP in production
-      reply.header('Content-Security-Policy', "default-src 'self'; frame-ancestors 'none'");
     }
-    
+
     done();
   });
 }
