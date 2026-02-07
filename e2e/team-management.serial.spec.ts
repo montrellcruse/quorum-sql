@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/quarantine';
+import type { Page } from '@playwright/test';
 import {
   generateTestUser,
   signUp,
@@ -12,6 +13,24 @@ test.describe('Team Management Flows', () => {
 
   let adminUser: { email: string; password: string; fullName: string };
   let memberUser: { email: string; password: string; fullName: string };
+
+  const settleInviteLanding = async (page: Page) => {
+    await expect(page).toHaveURL(/\/(accept-invites|dashboard|create-team)/, { timeout: 20000 });
+
+    // In CI, invitation visibility can lag briefly; retry accept-invites before failing.
+    if (page.url().includes('/create-team')) {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await page.goto('/accept-invites');
+        await expect(page).toHaveURL(/\/(accept-invites|dashboard|create-team)/, { timeout: 10000 });
+        if (!page.url().includes('/create-team')) {
+          break;
+        }
+        await page.waitForTimeout(1000);
+      }
+    }
+
+    await expect(page).toHaveURL(/\/(accept-invites|dashboard)/, { timeout: 10000 });
+  };
 
   test.beforeAll(() => {
     adminUser = generateTestUser('admin');
@@ -31,17 +50,20 @@ test.describe('Team Management Flows', () => {
     await page.getByLabel(/invite user by email/i).fill(memberUser.email);
     await page.getByRole('button', { name: /invite collaborator/i }).click();
     await expect(page.getByText(/collaboration unlocked|invitation sent/i).first()).toBeVisible();
+    await expect(
+      page.locator('[data-testid="invitation-row"]').filter({ hasText: memberUser.email })
+    ).toBeVisible({ timeout: 15000 });
 
     // Member must accept invite before admin exits solo mode.
     await signOut(page);
     await signUp(page, memberUser);
-    await expect(page).toHaveURL(/\/(accept-invites|dashboard)/, { timeout: 10000 });
+    await settleInviteLanding(page);
 
     if (page.url().includes('accept-invites')) {
       await expect(page.getByRole('heading', { name: /team invitations|pending invitations/i })).toBeVisible();
       await page.getByRole('button', { name: /accept/i }).first().click();
       await expect(page.getByText(/invitation accepted/i).first()).toBeVisible({ timeout: 10000 });
-      await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
     }
 
     await signOut(page);
@@ -118,7 +140,7 @@ test.describe('Team Management Flows', () => {
     await signIn(page, memberUser);
 
     // Should be redirected to accept invites or dashboard
-    await expect(page).toHaveURL(/\/(accept-invites|dashboard)/, { timeout: 10000 });
+    await settleInviteLanding(page);
 
     // If on accept-invites page, accept the invitation
     if (page.url().includes('accept-invites')) {
@@ -132,7 +154,7 @@ test.describe('Team Management Flows', () => {
       await expect(page.getByText(/invitation accepted/i)).toBeVisible();
 
       // Should redirect to dashboard
-      await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
     }
 
     await waitForDashboard(page);

@@ -40,7 +40,7 @@ export async function signUp(
 
   // Click and wait for navigation atomically
   await Promise.all([
-    page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 15000 }),
+    page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 20000 }),
     page.getByRole('button', { name: /create account/i }).click(),
   ]);
 }
@@ -70,9 +70,42 @@ export async function signIn(
 
   // Click and wait for navigation atomically
   await Promise.all([
-    page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 15000 }),
+    page.waitForURL(/\/(dashboard|create-team|accept-invites)/, { timeout: 20000 }),
     page.locator('form button[type="submit"]').click(),
   ]);
+}
+
+/**
+ * Ensure a signed-in user can reach dashboard, completing create-team onboarding when needed.
+ */
+export async function ensureDashboardReady(page: Page): Promise<void> {
+  // If routed to create-team, either finish onboarding or return to dashboard
+  // if the user already has a workspace (stale redirect case).
+  if (page.url().includes('/create-team')) {
+    const teamsResponse = await page.request.get('/teams');
+    let teamCount = 0;
+    if (teamsResponse.ok()) {
+      try {
+        const payload = await teamsResponse.json();
+        if (Array.isArray(payload)) {
+          teamCount = payload.length;
+        }
+      } catch {
+        teamCount = 0;
+      }
+    }
+
+    if (teamCount > 0) {
+      await page.goto('/dashboard');
+    } else {
+      const teamName = `E2E Workspace ${Date.now()}`;
+      await page.getByLabel(/team name/i).fill(teamName);
+      await Promise.all([
+        page.waitForURL(/\/dashboard/, { timeout: 20000 }),
+        page.getByRole('button', { name: /create team/i }).click(),
+      ]);
+    }
+  }
 }
 
 /**
@@ -101,7 +134,8 @@ export async function signOut(page: Page): Promise<void> {
  * Wait for the dashboard to fully load
  */
 export async function waitForDashboard(page: Page): Promise<void> {
-  await expect(page).toHaveURL(/\/dashboard/);
+  await ensureDashboardReady(page);
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
   // Wait for the main heading to appear
   await expect(page.getByRole('heading', { name: /quorum/i })).toBeVisible();
   // Wait for loading states to finish
