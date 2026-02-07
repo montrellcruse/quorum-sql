@@ -60,7 +60,7 @@ interface Query {
 const QueryEdit = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const { activeTeam } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -100,12 +100,6 @@ const QueryEdit = () => {
       setSqlWarnings([]);
     }
   }, [query?.sql_content]);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
 
   useEffect(() => {
     setHasInitializedQuery(false);
@@ -451,7 +445,7 @@ const QueryEdit = () => {
   // Only draft queries are editable
   const isEditable = (query?.status === 'draft') || isNewQuery;
 
-  if (loading || loadingQuery) {
+  if (loadingQuery) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-muted-foreground">Loading...</p>

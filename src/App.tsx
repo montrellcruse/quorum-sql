@@ -7,6 +7,7 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TeamProvider } from "@/contexts/TeamContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import { lazy, Suspense } from "react";
 
 // Lazy load all page components for better performance
@@ -42,14 +43,16 @@ const App = () => (
                   <Route path="/setup" element={<Setup />} />
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
-                  <Route path="/accept-invites" element={<AcceptInvites />} />
-                  <Route path="/approvals" element={<Approvals />} />
                   <Route path="/create-team" element={<CreateTeam />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/folder/:id" element={<Folder />} />
-                  <Route path="/query/view/:id" element={<QueryView />} />
-                  <Route path="/query/edit/:id" element={<QueryEdit />} />
-                  <Route path="/team-admin" element={<TeamAdmin />} />
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/accept-invites" element={<AcceptInvites />} />
+                    <Route path="/approvals" element={<Approvals />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/folder/:id" element={<Folder />} />
+                    <Route path="/query/view/:id" element={<QueryView />} />
+                    <Route path="/query/edit/:id" element={<QueryEdit />} />
+                    <Route path="/team-admin" element={<TeamAdmin />} />
+                  </Route>
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>

@@ -37,7 +37,7 @@ interface BreadcrumbFolder {
 
 const Folder = () => {
   const { id } = useParams<{ id: string }>();
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const { activeTeam } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -136,12 +136,6 @@ const Folder = () => {
       toast({ title: 'Error', description: getErrorMessage(error, 'Failed to load breadcrumbs'), variant: 'destructive' });
     }
   }, [id, toast]);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
 
   useEffect(() => {
     if (user && id) {
@@ -328,7 +322,7 @@ const Folder = () => {
     }
   };
 
-  if (loading || loadingFolder || loadingQueries || loadingChildFolders) {
+  if (loadingFolder || loadingQueries || loadingChildFolders) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-muted-foreground">Loading...</p>

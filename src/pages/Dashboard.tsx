@@ -27,7 +27,7 @@ import { usePendingApprovalsCount, usePendingInvitesCount } from '@/hooks/usePen
 import { useAdminTeams } from '@/hooks/useTeamMembers';
 
 const Dashboard = () => {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const { activeTeam, userTeams, setActiveTeam, loading: teamLoading } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -116,12 +116,6 @@ const Dashboard = () => {
   );
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
-
-  useEffect(() => {
     if (teamFoldersQuery.isError) {
       toast({
         title: 'Error',
@@ -195,14 +189,6 @@ const Dashboard = () => {
       });
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
-    );
-  }
 
   if (!user) {
     return null;
