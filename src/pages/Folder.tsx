@@ -15,25 +15,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { folderSchema } from '@/lib/validationSchemas';
-import type { Tables } from '@/integrations/supabase/types';
+import type { Folder as DbFolder, FolderQuery } from '@/lib/provider/types';
 import { getErrorMessage } from '@/utils/errors';
 
-type FolderRow = Tables<'folders'>;
-
-interface Query {
-  id: string;
-  title: string;
-  status: string;
-  description: string | null;
-  created_at: string;
-  created_by_email: string | null;
-  last_modified_by_email: string | null;
-}
-
-interface BreadcrumbFolder {
-  id: string;
-  name: string;
-}
+type BreadcrumbFolder = Pick<DbFolder, 'id' | 'name'>;
 
 const Folder = () => {
   const { id } = useParams<{ id: string }>();
@@ -41,11 +26,11 @@ const Folder = () => {
   const { activeTeam } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [folder, setFolder] = useState<FolderRow | null>(null);
+  const [folder, setFolder] = useState<DbFolder | null>(null);
   const [loadingFolder, setLoadingFolder] = useState(true);
-  const [queries, setQueries] = useState<Query[]>([]);
+  const [queries, setQueries] = useState<FolderQuery[]>([]);
   const [loadingQueries, setLoadingQueries] = useState(true);
-  const [childFolders, setChildFolders] = useState<FolderRow[]>([]);
+  const [childFolders, setChildFolders] = useState<DbFolder[]>([]);
   const [loadingChildFolders, setLoadingChildFolders] = useState(true);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbFolder[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -68,7 +53,7 @@ const Folder = () => {
         navigate('/dashboard');
         return;
       }
-      setFolder(f as FolderRow);
+      setFolder(f);
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -88,7 +73,7 @@ const Folder = () => {
         return;
       }
       const rows = await getDbAdapter().queries.listByFolder(id);
-      setQueries((rows || []) as Query[]);
+      setQueries(rows || []);
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -107,7 +92,7 @@ const Folder = () => {
         return;
       }
       const rows = await getDbAdapter().folders.listChildren(id);
-      setChildFolders((rows || []) as FolderRow[]);
+      setChildFolders(rows || []);
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -128,7 +113,7 @@ const Folder = () => {
       while (currentId) {
         const f = await adapter.folders.getById(currentId);
         if (!f) break;
-        crumbs.unshift({ id: f.id as string, name: f.name as string });
+        crumbs.unshift({ id: f.id, name: f.name });
         currentId = f.parent_folder_id ?? null;
       }
       setBreadcrumbs(crumbs);

@@ -40,22 +40,11 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { querySchema, changeReasonSchema, validateSqlSafety } from '@/lib/validationSchemas';
 import { getErrorMessage } from '@/utils/errors';
-import type { QueryStatus } from '@/lib/provider/types';
+import type { QueryStatus, SqlQuery } from '@/lib/provider/types';
 import { useDbProvider } from '@/hooks/useDbProvider';
 import { queryKeys } from '@/hooks/queryKeys';
 import { useQueryById, useQueryHistory } from '@/hooks/useQueries';
 import { useTeamFolderPaths } from '@/hooks/useTeamFolders';
-
-interface Query {
-  id: string;
-  title: string;
-  description: string | null;
-  sql_content: string;
-  status: string;
-  folder_id: string;
-  last_modified_by_email: string | null;
-  created_by_email: string | null;
-}
 
 const QueryEdit = () => {
   const { id } = useParams<{ id: string }>();
@@ -67,7 +56,7 @@ const QueryEdit = () => {
   const { theme } = useTheme();
   const { adapter } = useDbProvider();
   const queryClient = useQueryClient();
-  const [query, setQuery] = useState<Query | null>(null);
+  const [query, setQuery] = useState<SqlQuery | null>(null);
   const [hasInitializedQuery, setHasInitializedQuery] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
@@ -131,6 +120,7 @@ const QueryEdit = () => {
         description: '',
         sql_content: '',
         status: 'draft',
+        team_id: '',
         folder_id: folderId,
         last_modified_by_email: null,
         created_by_email: null,
@@ -140,7 +130,7 @@ const QueryEdit = () => {
     }
 
     if (queryByIdQuery.isSuccess && queryByIdQuery.data) {
-      setQuery(queryByIdQuery.data as unknown as Query);
+      setQuery(queryByIdQuery.data);
       setHasInitializedQuery(true);
     }
   }, [

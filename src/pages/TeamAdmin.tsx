@@ -19,29 +19,7 @@ import { getSettingsLabel } from '@/utils/terminology';
 import { useDbProvider } from '@/hooks/useDbProvider';
 import { queryKeys } from '@/hooks/queryKeys';
 import { useAdminTeams, useTeamDetails, useTeamInvitations, useTeamMembers } from '@/hooks/useTeamMembers';
-
-interface Team {
-  id: string;
-  name: string;
-  approval_quota: number;
-  admin_id: string;
-  is_personal?: boolean;
-}
-
-interface TeamMember {
-  id: string;
-  user_id: string;
-  role: string;
-  email?: string;
-}
-
-interface TeamInvitation {
-  id: string;
-  invited_email: string;
-  role: string;
-  status: string;
-  created_at: string;
-}
+import type { Role } from '@/lib/provider/types';
 
 const TeamAdmin = () => {
   const { user, loading: authLoading } = useAuth();
@@ -53,7 +31,7 @@ const TeamAdmin = () => {
   
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState<'admin' | 'member'>('member');
+  const [newUserRole, setNewUserRole] = useState<Role>('member');
   const [approvalQuota, setApprovalQuota] = useState(1);
   const [teamName, setTeamName] = useState('');
   const [renaming, setRenaming] = useState(false);
@@ -62,11 +40,11 @@ const TeamAdmin = () => {
   const adminTeamsQuery = useAdminTeams({ enabled: Boolean(user) });
   const adminTeams = useMemo(() => adminTeamsQuery.data ?? [], [adminTeamsQuery.data]);
   const teamDetailsQuery = useTeamDetails(selectedTeamId, { enabled: Boolean(selectedTeamId) });
-  const selectedTeam = (teamDetailsQuery.data as Team | null) ?? null;
+  const selectedTeam = teamDetailsQuery.data ?? null;
   const membersQuery = useTeamMembers(selectedTeamId, { enabled: Boolean(selectedTeamId) });
-  const members = (membersQuery.data as TeamMember[] | undefined) ?? [];
+  const members = membersQuery.data ?? [];
   const invitationsQuery = useTeamInvitations(selectedTeamId, { enabled: Boolean(selectedTeamId) });
-  const invitations = (invitationsQuery.data as TeamInvitation[] | undefined) ?? [];
+  const invitations = invitationsQuery.data ?? [];
   const resolvedTeamId = selectedTeamId || activeTeam?.id;
   const personalTeamFlag = selectedTeam?.is_personal ?? activeTeam?.isPersonal ?? false;
   const soloContext = useSoloUser({
@@ -256,7 +234,7 @@ const TeamAdmin = () => {
     }
   };
 
-  const handleRemoveMember = async (memberId: string, memberRole: string) => {
+  const handleRemoveMember = async (memberId: string, memberRole: Role) => {
     try {
       if (!selectedTeamId) {
         toast({ title: 'Error', description: 'Select a team first.', variant: 'destructive' });
@@ -299,7 +277,7 @@ const TeamAdmin = () => {
     }
   };
 
-  const handleToggleRole = async (memberId: string, currentRole: string) => {
+  const handleToggleRole = async (memberId: string, currentRole: Role) => {
     const newRole = currentRole === 'admin' ? 'member' : 'admin';
     
     try {
@@ -452,7 +430,7 @@ const TeamAdmin = () => {
           <Label htmlFor="role">Role</Label>
           <Select
             value={newUserRole}
-            onValueChange={(value) => setNewUserRole(value as 'admin' | 'member')}
+            onValueChange={(value) => setNewUserRole(value as Role)}
           >
             <SelectTrigger id="role">
               <SelectValue />
