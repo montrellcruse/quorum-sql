@@ -436,6 +436,14 @@ describe('Security Middleware', () => {
       expect(header).toHaveBeenCalledWith('X-XSS-Protection', '1; mode=block');
       expect(header).toHaveBeenCalledWith('Referrer-Policy', 'strict-origin-when-cross-origin');
       expect(header).toHaveBeenCalledWith('X-Request-Id', 'test-request-id');
+      const csp = header.mock.calls.find((call) => call[0] === 'Content-Security-Policy')?.[1];
+      expect(csp).toBeDefined();
+      expect(csp).toContain("default-src 'self'");
+      expect(csp).toContain("frame-ancestors 'none'");
+      expect(csp).toContain("script-src 'self' 'unsafe-eval'");
+      expect(csp).toContain("connect-src 'self' http://localhost:*");
+      expect(csp).toContain('ws://localhost:*');
+      expect(header).not.toHaveBeenCalledWith('Strict-Transport-Security', expect.any(String));
       expect(done).toHaveBeenCalled();
     });
 
@@ -466,7 +474,7 @@ describe('Security Middleware', () => {
       );
       expect(header).toHaveBeenCalledWith(
         'Content-Security-Policy',
-        "default-src 'self'; frame-ancestors 'none'"
+        "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
       );
     });
   });
