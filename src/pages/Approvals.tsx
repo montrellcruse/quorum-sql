@@ -1,40 +1,25 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
-import { useDbProvider } from '@/hooks/useDbProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, FileText, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { PendingApprovalQuery } from '@/lib/provider/types';
+import { usePendingApprovalQueries } from '@/hooks/usePendingApprovals';
 import { getErrorMessage } from '@/utils/errors';
 
 const Approvals = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const { activeTeam } = useTeam();
-  const { adapter } = useDbProvider();
-  const [pendingQueries, setPendingQueries] = useState<PendingApprovalQuery[]>([]);
-  const [loadingQueries, setLoadingQueries] = useState(true);
-
-  const fetchPendingQueries = useCallback(async () => {
-    if (!user?.email || !activeTeam) return;
-
-    setLoadingQueries(true);
-    try {
-      const queries = await adapter.queries.getPendingForApproval(activeTeam.id, user.email);
-      setPendingQueries(queries);
-    } catch (error: unknown) {
-      if (import.meta.env.DEV) {
-        console.error('Error fetching pending queries:', getErrorMessage(error, 'Unknown error'));
-      }
-    } finally {
-      setLoadingQueries(false);
-    }
-  }, [user?.email, activeTeam, adapter.queries]);
+  const pendingQueriesQuery = usePendingApprovalQueries(activeTeam?.id, user?.email, {
+    enabled: Boolean(user?.email && activeTeam),
+  });
+  const pendingQueries = pendingQueriesQuery.data ?? [];
+  const loadingQueries = pendingQueriesQuery.isLoading;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -43,10 +28,13 @@ const Approvals = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (user && activeTeam) {
-      fetchPendingQueries();
+    if (pendingQueriesQuery.isError && import.meta.env.DEV) {
+      console.error(
+        'Error fetching pending queries:',
+        getErrorMessage(pendingQueriesQuery.error, 'Unknown error')
+      );
     }
-  }, [user, activeTeam, fetchPendingQueries]);
+  }, [pendingQueriesQuery.isError, pendingQueriesQuery.error]);
 
   if (loading || loadingQueries) {
     return (

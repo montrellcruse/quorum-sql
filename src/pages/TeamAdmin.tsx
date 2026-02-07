@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,13 +13,15 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, Trash2, UserCog, Shield, ShieldOff, UserPlus } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { emailSchema } from '@/lib/validationSchemas';
-import { getDbAdapter } from '@/lib/provider';
 import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
 import { getCsrfToken } from '@/lib/auth/restAuthAdapter';
 import { FeatureGate } from '@/components/FeatureGate';
 import { useSoloUser } from '@/hooks/useSoloUser';
 import { getSettingsLabel } from '@/utils/terminology';
+import { useDbProvider } from '@/hooks/useDbProvider';
+import { queryKeys } from '@/hooks/queryKeys';
+import { useAdminTeams, useTeamDetails, useTeamInvitations, useTeamMembers } from '@/hooks/useTeamMembers';
 
 interface Team {
   id: string;
@@ -48,13 +51,10 @@ const TeamAdmin = () => {
   const { activeTeam, refreshTeams } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { adapter } = useDbProvider();
+  const queryClient = useQueryClient();
   
-  const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-  const [members, setMembers] = useState<TeamMember[]>([]);
-  const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
-  const [loading, setLoading] = useState(true);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<'admin' | 'member'>('member');
   const [approvalQuota, setApprovalQuota] = useState(1);
@@ -63,6 +63,14 @@ const TeamAdmin = () => {
   const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
   const provider = getDbProviderType();
+  const adminTeamsQuery = useAdminTeams({ enabled: Boolean(user) });
+  const adminTeams = useMemo(() => adminTeamsQuery.data ?? [], [adminTeamsQuery.data]);
+  const teamDetailsQuery = useTeamDetails(selectedTeamId, { enabled: Boolean(selectedTeamId) });
+  const selectedTeam = (teamDetailsQuery.data as Team | null) ?? null;
+  const membersQuery = useTeamMembers(selectedTeamId, { enabled: Boolean(selectedTeamId) });
+  const members = (membersQuery.data as TeamMember[] | undefined) ?? [];
+  const invitationsQuery = useTeamInvitations(selectedTeamId, { enabled: Boolean(selectedTeamId) });
+  const invitations = (invitationsQuery.data as TeamInvitation[] | undefined) ?? [];
   const resolvedTeamId = selectedTeamId || activeTeam?.id;
   const personalTeamFlag = selectedTeam?.is_personal ?? activeTeam?.isPersonal ?? false;
   const soloContext = useSoloUser({
@@ -77,140 +85,99 @@ const TeamAdmin = () => {
     return selectedTeam?.admin_id === userId;
   };
 
-  const checkAdminAccess = useCallback(async () => {
-    try {
-      const adapter = getDbAdapter();
-      const teamsForUser = await adapter.teams.listForUser();
-      const adminTeams = teamsForUser.filter(t => t.role === 'admin');
-
-      if (adminTeams.length === 0) {
-        toast({
-          title: 'Error',
-          description: 'You do not have admin access to any team.',
-          variant: 'destructive',
-        });
-        navigate('/dashboard');
-        return;
-      }
-
-      setTeams(adminTeams);
-
-      // Check if activeTeam is in the admin teams list
-      const activeTeamIsAdmin = activeTeam && adminTeams.some(t => t.id === activeTeam.id);
-
-      // Default to activeTeam if it's in admin list, otherwise first admin team
-      setSelectedTeamId(activeTeamIsAdmin ? activeTeam.id : adminTeams[0].id);
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to load teams'),
-        variant: 'destructive',
-      });
-      navigate('/dashboard');
-    } finally {
-      setLoading(false);
-    }
-  }, [toast, navigate, activeTeam]);
-
-  const fetchTeamDetails = useCallback(async () => {
-    try {
-      const team = await getDbAdapter().teams.getById(selectedTeamId);
-      if (!team) throw new Error('Team not found');
-      setSelectedTeam(team);
-      setApprovalQuota(team.approval_quota);
-      setTeamName(team.name);
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to load team details'),
-        variant: 'destructive',
-      });
-    }
-  }, [selectedTeamId, toast]);
-
-  const fetchTeamMembers = useCallback(async () => {
-    try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/members`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const rows = (await res.json()) as TeamMember[];
-        setMembers(rows || []);
-      } else {
-        const { data, error } = await supabase
-          .from('team_members')
-          .select('id, user_id, role')
-          .eq('team_id', selectedTeamId);
-        if (error) throw error;
-        const userIds = data.map(m => m.user_id);
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('user_id, email')
-          .in('user_id', userIds);
-        if (profilesError) throw profilesError;
-        const membersWithEmails = data.map(member => ({
-          ...member,
-          email: profiles?.find(p => p.user_id === member.user_id)?.email || 'Unknown',
-        }));
-        setMembers(membersWithEmails);
-      }
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to load team members'),
-        variant: 'destructive',
-      });
-    }
-  }, [selectedTeamId, toast, provider]);
-
-  const fetchPendingInvitations = useCallback(async () => {
-    try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/invites`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const rows = (await res.json()) as TeamInvitation[];
-        setInvitations(rows || []);
-      } else {
-        const { data, error } = await supabase
-          .from('team_invitations')
-          .select('*')
-          .eq('team_id', selectedTeamId)
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        setInvitations(data || []);
-      }
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to load invitations'),
-        variant: 'destructive',
-      });
-    }
-  }, [selectedTeamId, toast, provider]);
-
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/auth');
-    } else if (user) {
-      checkAdminAccess();
     }
-  }, [user, authLoading, navigate, checkAdminAccess]);
+  }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    if (selectedTeamId) {
-      fetchTeamDetails();
-      fetchTeamMembers();
-      fetchPendingInvitations();
+    if (!user || !adminTeamsQuery.isSuccess) return;
+
+    if (adminTeams.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'You do not have admin access to any team.',
+        variant: 'destructive',
+      });
+      navigate('/dashboard');
+      return;
     }
-  }, [selectedTeamId, fetchTeamDetails, fetchTeamMembers, fetchPendingInvitations]);
+
+    const selectedTeamIsAdmin = adminTeams.some((team) => team.id === selectedTeamId);
+    if (selectedTeamIsAdmin) return;
+
+    const activeTeamIsAdmin = activeTeam
+      ? adminTeams.some((team) => team.id === activeTeam.id)
+      : false;
+    const defaultTeamId = activeTeamIsAdmin ? activeTeam!.id : adminTeams[0].id;
+    setSelectedTeamId(defaultTeamId);
+  }, [
+    user,
+    adminTeamsQuery.isSuccess,
+    adminTeams,
+    selectedTeamId,
+    activeTeam,
+    navigate,
+    toast,
+  ]);
+
+  useEffect(() => {
+    if (adminTeamsQuery.isError) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(adminTeamsQuery.error, 'Failed to load teams'),
+        variant: 'destructive',
+      });
+      navigate('/dashboard');
+    }
+  }, [adminTeamsQuery.isError, adminTeamsQuery.error, navigate, toast]);
+
+  useEffect(() => {
+    if (selectedTeamId && teamDetailsQuery.isError) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(teamDetailsQuery.error, 'Failed to load team details'),
+        variant: 'destructive',
+      });
+    }
+  }, [selectedTeamId, teamDetailsQuery.isError, teamDetailsQuery.error, toast]);
+
+  useEffect(() => {
+    if (selectedTeamId && membersQuery.isError) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(membersQuery.error, 'Failed to load team members'),
+        variant: 'destructive',
+      });
+    }
+  }, [selectedTeamId, membersQuery.isError, membersQuery.error, toast]);
+
+  useEffect(() => {
+    if (selectedTeamId && invitationsQuery.isError) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(invitationsQuery.error, 'Failed to load invitations'),
+        variant: 'destructive',
+      });
+    }
+  }, [selectedTeamId, invitationsQuery.isError, invitationsQuery.error, toast]);
+
+  useEffect(() => {
+    if (!selectedTeam) return;
+    setApprovalQuota(selectedTeam.approval_quota);
+    setTeamName(selectedTeam.name);
+  }, [selectedTeam]);
 
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserEmail.trim()) return;
 
     try {
+      if (!selectedTeamId) {
+        toast({ title: 'Error', description: 'Select a team first.', variant: 'destructive' });
+        return;
+      }
       const email = newUserEmail.trim();
       if (!user?.id) {
         toast({ title: 'Error', description: 'Missing user context', variant: 'destructive' });
@@ -228,37 +195,7 @@ const TeamAdmin = () => {
         return;
       }
 
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const csrfToken = getCsrfToken();
-        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/invites`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-          },
-          body: JSON.stringify({ invited_email: email, role: newUserRole }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-      } else {
-        const { data: existingInvite, error: checkError } = await supabase
-          .from('team_invitations')
-          .select('id')
-          .eq('team_id', selectedTeamId)
-          .eq('invited_email', email)
-          .eq('status', 'pending')
-          .maybeSingle();
-        if (checkError && checkError.code !== 'PGRST116') throw checkError;
-        if (existingInvite) {
-          toast({ title: 'Error', description: 'This user has a pending invite.', variant: 'destructive' });
-          return;
-        }
-        const { error } = await supabase
-          .from('team_invitations')
-          .insert([{ team_id: selectedTeamId, invited_email: email, role: newUserRole, status: 'pending', invited_by_user_id: user.id }]);
-        if (error) throw error;
-      }
+      await adapter.invitations.create(selectedTeamId, email, newUserRole);
 
       if (isPersonalTeam) {
         try {
@@ -282,7 +219,12 @@ const TeamAdmin = () => {
             });
             if (error) throw error;
           }
-          await fetchTeamDetails();
+          await queryClient.invalidateQueries({
+            queryKey: queryKeys.teams.detail(selectedTeamId),
+          });
+          await queryClient.invalidateQueries({
+            queryKey: queryKeys.teams.admin,
+          });
           await refreshTeams();
         } catch (error: unknown) {
           if (import.meta.env.DEV) {
@@ -301,7 +243,9 @@ const TeamAdmin = () => {
       
       setNewUserEmail('');
       setNewUserRole('member');
-      fetchPendingInvitations();
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.invitations(selectedTeamId),
+      });
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -313,30 +257,19 @@ const TeamAdmin = () => {
 
   const handleRevokeInvitation = async (invitationId: string) => {
     try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const csrfToken = getCsrfToken();
-        const res = await fetch(`${apiBase}/invites/${invitationId}`, {
-          method: 'DELETE',
-          credentials: 'include',
-          headers: {
-            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-          },
-        });
-        if (!res.ok) throw new Error(await res.text());
-      } else {
-        const { error } = await supabase
-          .from('team_invitations')
-          .delete()
-          .eq('id', invitationId);
-        if (error) throw error;
+      if (!selectedTeamId) {
+        toast({ title: 'Error', description: 'Select a team first.', variant: 'destructive' });
+        return;
       }
+      await adapter.invitations.revoke(invitationId);
 
       toast({
         title: 'Success',
         description: 'Invitation revoked successfully.',
       });
-      fetchPendingInvitations();
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.invitations(selectedTeamId),
+      });
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -348,44 +281,23 @@ const TeamAdmin = () => {
 
   const handleRemoveMember = async (memberId: string, memberRole: string) => {
     try {
+      if (!selectedTeamId) {
+        toast({ title: 'Error', description: 'Select a team first.', variant: 'destructive' });
+        return;
+      }
       // If removing an admin, check if they're the last admin
       if (memberRole === 'admin') {
-        if (provider !== 'rest') {
-          const { count, error: countError } = await supabase
-            .from('team_members')
-            .select('id', { count: 'exact', head: true })
-            .eq('team_id', selectedTeamId)
-            .eq('role', 'admin');
-          if (countError) throw countError;
-          if (count === null || count <= 1) {
-            toast({
-              title: 'Cannot Remove',
-              description: 'Cannot remove the last admin. Please transfer ownership or promote another admin first.',
-              variant: 'destructive',
-            });
-            return;
-          }
+        const adminCount = members.filter((member) => member.role === 'admin').length;
+        if (adminCount <= 1) {
+          toast({
+            title: 'Cannot Remove',
+            description: 'Cannot remove the last admin. Please transfer ownership or promote another admin first.',
+            variant: 'destructive',
+          });
+          return;
         }
-        // In REST mode, rely on server/DB constraints or skip soft check
       }
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const csrfToken = getCsrfToken();
-        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/members/${memberId}`, {
-          method: 'DELETE',
-          credentials: 'include',
-          headers: {
-            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-          },
-        });
-        if (!res.ok) throw new Error(await res.text());
-      } else {
-        const { error } = await supabase
-          .from('team_members')
-          .delete()
-          .eq('id', memberId);
-        if (error) throw error;
-      }
+      await adapter.members.remove(selectedTeamId, memberId);
 
       toast({
         title: 'Success',
@@ -398,7 +310,9 @@ const TeamAdmin = () => {
           description: "You're now the only member. Queries will auto-approve.",
         });
       }
-      fetchTeamMembers();
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.members(selectedTeamId),
+      });
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -412,44 +326,28 @@ const TeamAdmin = () => {
     const newRole = currentRole === 'admin' ? 'member' : 'admin';
     
     try {
+      if (!selectedTeamId) {
+        toast({ title: 'Error', description: 'Select a team first.', variant: 'destructive' });
+        return;
+      }
       // If demoting from admin to member, check if they're the last admin
       if (currentRole === 'admin' && newRole === 'member') {
-        if (provider !== 'rest') {
-          const { count, error: countError } = await supabase
-            .from('team_members')
-            .select('id', { count: 'exact', head: true })
-            .eq('team_id', selectedTeamId)
-            .eq('role', 'admin');
-          if (countError) throw countError;
-          if (count === null || count <= 1) {
-            toast({ title: 'Cannot Demote', description: 'Cannot demote the last admin.', variant: 'destructive' });
-            return;
-          }
+        const adminCount = members.filter((member) => member.role === 'admin').length;
+        if (adminCount <= 1) {
+          toast({ title: 'Cannot Demote', description: 'Cannot demote the last admin.', variant: 'destructive' });
+          return;
         }
       }
 
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/members/${memberId}`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: newRole }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-      } else {
-        const { error } = await supabase
-          .from('team_members')
-          .update({ role: newRole })
-          .eq('id', memberId);
-        if (error) throw error;
-      }
+      await adapter.members.updateRole(selectedTeamId, memberId, newRole);
 
       toast({
         title: 'Success',
         description: `Member role updated to ${newRole}.`,
       });
-      fetchTeamMembers();
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.members(selectedTeamId),
+      });
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -462,28 +360,19 @@ const TeamAdmin = () => {
   const handleUpdateApprovalQuota = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/teams/${selectedTeamId}`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ approval_quota: approvalQuota }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-      } else {
-        const { error } = await supabase
-          .from('teams')
-          .update({ approval_quota: approvalQuota })
-          .eq('id', selectedTeamId);
-        if (error) throw error;
+      if (!selectedTeamId) {
+        toast({ title: 'Error', description: 'Select a team first.', variant: 'destructive' });
+        return;
       }
+      await adapter.teams.update(selectedTeamId, { approval_quota: approvalQuota });
 
       toast({
         title: 'Success',
         description: 'Approval quota updated successfully.',
       });
-      fetchTeamDetails();
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.detail(selectedTeamId),
+      });
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -503,28 +392,22 @@ const TeamAdmin = () => {
 
     setRenaming(true);
     try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/teams/${selectedTeamId}`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: trimmedName }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-      } else {
-        const { error } = await supabase
-          .from('teams')
-          .update({ name: trimmedName })
-          .eq('id', selectedTeamId);
-        if (error) throw error;
+      if (!selectedTeamId) {
+        toast({ title: 'Error', description: 'Select a team first.', variant: 'destructive' });
+        return;
       }
+      await adapter.teams.update(selectedTeamId, { name: trimmedName });
 
       toast({
         title: 'Success',
         description: 'Workspace name updated successfully.',
       });
-      await fetchTeamDetails();
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.detail(selectedTeamId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.admin,
+      });
       await refreshTeams();
     } catch (error: unknown) {
       toast({
@@ -541,22 +424,11 @@ const TeamAdmin = () => {
     if (!selectedNewOwner) return;
 
     try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const csrfToken = getCsrfToken();
-        const res = await fetch(`${apiBase}/teams/${selectedTeamId}/transfer-ownership`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-          },
-          body: JSON.stringify({ new_owner_user_id: selectedNewOwner }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-      } else {
-        await getDbAdapter().teams.transferOwnership(selectedTeamId, selectedNewOwner);
+      if (!selectedTeamId) {
+        toast({ title: 'Error', description: 'Select a team first.', variant: 'destructive' });
+        return;
       }
+      await adapter.teams.transferOwnership(selectedTeamId, selectedNewOwner);
 
       toast({
         title: 'Success',
@@ -564,9 +436,17 @@ const TeamAdmin = () => {
       });
       
       setTransferOwnershipDialogOpen(false);
-      fetchTeamDetails();
-      fetchTeamMembers();
-      checkAdminAccess();
+      setSelectedNewOwner('');
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.detail(selectedTeamId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.members(selectedTeamId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.admin,
+      });
+      await refreshTeams();
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -649,7 +529,12 @@ const TeamAdmin = () => {
     );
   };
 
-  if (authLoading || loading) {
+  const loadingPage =
+    authLoading ||
+    adminTeamsQuery.isLoading ||
+    (Boolean(selectedTeamId) && teamDetailsQuery.isLoading && !selectedTeam);
+
+  if (loadingPage) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -683,7 +568,7 @@ const TeamAdmin = () => {
               <SelectValue placeholder="Select a team" />
             </SelectTrigger>
             <SelectContent>
-              {teams.map(team => (
+              {adminTeams.map(team => (
                 <SelectItem key={team.id} value={team.id}>
                   {team.name}
                 </SelectItem>
