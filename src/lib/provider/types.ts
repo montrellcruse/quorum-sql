@@ -31,11 +31,6 @@ export interface Folder {
   created_by_email?: string | null;
 }
 
-export interface FolderPath {
-  id: UUID;
-  full_path: string;
-}
-
 export type QueryStatus = 'draft' | 'pending_approval' | 'approved' | 'rejected';
 
 export interface SqlQuery {
@@ -58,14 +53,23 @@ export interface TeamsRepo {
   create(name: string, approvalQuota?: number): Promise<Team>;
   update(id: UUID, data: { approval_quota?: number; name?: string }): Promise<void>;
   remove(id: UUID): Promise<void>;
+  convertPersonal(id: UUID, name?: string | null): Promise<void>;
   transferOwnership(id: UUID, newOwnerUserId: UUID): Promise<void>;
+}
+
+export interface FolderPath {
+  id: UUID;
+  full_path: string;
 }
 
 export interface FoldersRepo {
   listByTeam(teamId: UUID): Promise<Folder[]>;
-  listPaths(teamId: UUID): Promise<FolderPath[]>;
   getById(id: UUID): Promise<Folder | null>;
+  listChildren(parentId: UUID): Promise<Folder[]>;
+  listPaths(teamId: UUID): Promise<FolderPath[]>;
   create(input: { team_id: UUID; name: string; parent_folder_id?: UUID | null; description?: string | null; created_by_email?: string | null; user_id?: UUID }): Promise<Folder>;
+  update(id: UUID, patch: { name?: string; description?: string | null }): Promise<void>;
+  remove(id: UUID): Promise<void>;
 }
 
 export interface QueryHistory {
@@ -83,6 +87,17 @@ export interface QueryApproval {
   query_history_id: UUID;
   user_id: UUID;
   created_at: string;
+}
+
+export interface FolderQuery {
+  id: UUID;
+  title: string;
+  status: QueryStatus;
+  description?: string | null;
+  created_at?: string;
+  created_by_email?: string | null;
+  last_modified_by_email?: string | null;
+  updated_at?: string | null;
 }
 
 export interface TeamMember {
@@ -109,6 +124,7 @@ export interface TeamInvitation {
 export interface QueriesRepo {
   getById(id: UUID): Promise<SqlQuery | null>;
   search(params: { teamId: UUID; q?: string }): Promise<SqlQuery[]>;
+  listByFolder(folderId: UUID): Promise<FolderQuery[]>;
   create(input: Partial<SqlQuery> & { title: string; sql_content: string; team_id: UUID }): Promise<SqlQuery>;
   update(id: UUID, patch: Partial<SqlQuery>): Promise<void>;
   remove(id: UUID): Promise<void>;
@@ -138,6 +154,7 @@ export interface PendingApprovalQuery {
 
 export interface TeamMembersRepo {
   list(teamId: UUID): Promise<TeamMember[]>;
+  countByRole(teamId: UUID, role: Role): Promise<number>;
   remove(teamId: UUID, memberId: UUID): Promise<void>;
   updateRole(teamId: UUID, memberId: UUID, role: Role): Promise<void>;
 }

@@ -100,12 +100,14 @@ async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
 }
 
 export const restAuthAdapter: AuthAdapter = {
+  requiresManualPostAuthRedirect: true,
   async getSessionUser(): Promise<UserIdentity | null> {
     return http<UserIdentity | null>(baseUrl('/auth/me'));
   },
   async signInWithPassword(email: string, password: string) {
     const result = await http<{ ok: boolean; csrfToken?: string }>(baseUrl('/auth/login'), { method: 'POST', body: JSON.stringify({ email, password }) });
     if (result?.csrfToken) setCsrfToken(result.csrfToken);
+    return { hasSession: true };
   },
   async signUp(email: string, password: string, fullName?: string) {
     const result = await http<{ ok: boolean; csrfToken?: string }>(baseUrl('/auth/register'), {
@@ -113,6 +115,7 @@ export const restAuthAdapter: AuthAdapter = {
       body: JSON.stringify({ email, password, fullName })
     });
     if (result?.csrfToken) setCsrfToken(result.csrfToken);
+    return { hasSession: true };
   },
   async signOut() {
     await http<void>(baseUrl('/auth/logout'), { method: 'POST' });

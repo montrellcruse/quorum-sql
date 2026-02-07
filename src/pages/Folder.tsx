@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { getDbAdapter } from '@/lib/provider';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
@@ -16,8 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { folderSchema } from '@/lib/validationSchemas';
-import type { Tables, TablesInsert } from '@/integrations/supabase/types';
-import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
+import type { Tables } from '@/integrations/supabase/types';
 import { getErrorMessage } from '@/utils/errors';
 
 type FolderRow = Tables<'folders'>;
@@ -57,7 +55,6 @@ const Folder = () => {
   const [editDescription, setEditDescription] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderDescription, setNewFolderDescription] = useState('');
-  const provider = getDbProviderType();
 
   const fetchFolder = useCallback(async () => {
     try {
@@ -65,28 +62,13 @@ const Folder = () => {
         setLoadingFolder(false);
         return;
       }
-      if (provider === 'rest') {
-        const f = await getDbAdapter().folders.getById(id);
-        if (!f) {
-          toast({ title: 'Error', description: 'Folder not found', variant: 'destructive' });
-          navigate('/dashboard');
-          return;
-        }
-        setFolder(f as FolderRow);
-      } else {
-        const { data, error } = await supabase
-          .from('folders')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
-        if (error) throw error;
-        if (!data) {
-          toast({ title: 'Error', description: 'Folder not found', variant: 'destructive' });
-          navigate('/dashboard');
-          return;
-        }
-        setFolder(data);
+      const f = await getDbAdapter().folders.getById(id);
+      if (!f) {
+        toast({ title: 'Error', description: 'Folder not found', variant: 'destructive' });
+        navigate('/dashboard');
+        return;
       }
+      setFolder(f as FolderRow);
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -97,7 +79,7 @@ const Folder = () => {
     } finally {
       setLoadingFolder(false);
     }
-  }, [id, toast, navigate, provider]);
+  }, [id, toast, navigate]);
 
   const fetchQueries = useCallback(async () => {
     try {
@@ -105,21 +87,8 @@ const Folder = () => {
         setLoadingQueries(false);
         return;
       }
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/folders/${id}/queries`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const rows = (await res.json()) as Query[];
-        setQueries(rows || []);
-      } else {
-        const { data, error } = await supabase
-          .from('sql_queries')
-          .select('id, title, status, description, created_at, created_by_email, last_modified_by_email, updated_at')
-          .eq('folder_id', id)
-          .order('updated_at', { ascending: false });
-        if (error) throw error;
-        setQueries(data || []);
-      }
+      const rows = await getDbAdapter().queries.listByFolder(id);
+      setQueries((rows || []) as Query[]);
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -129,7 +98,7 @@ const Folder = () => {
     } finally {
       setLoadingQueries(false);
     }
-  }, [id, toast, provider]);
+  }, [id, toast]);
 
   const fetchChildFolders = useCallback(async () => {
     try {
@@ -137,21 +106,8 @@ const Folder = () => {
         setLoadingChildFolders(false);
         return;
       }
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/folders/${id}/children`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const rows = (await res.json()) as FolderRow[];
-        setChildFolders(rows || []);
-      } else {
-        const { data, error } = await supabase
-          .from('folders')
-          .select('*')
-          .eq('parent_folder_id', id)
-          .order('name', { ascending: true });
-        if (error) throw error;
-        setChildFolders(data || []);
-      }
+      const rows = await getDbAdapter().folders.listChildren(id);
+      setChildFolders((rows || []) as FolderRow[]);
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -161,7 +117,7 @@ const Folder = () => {
     } finally {
       setLoadingChildFolders(false);
     }
-  }, [id, toast, provider]);
+  }, [id, toast]);
 
   const fetchBreadcrumbs = useCallback(async () => {
     if (!id) return;
@@ -236,22 +192,10 @@ const Folder = () => {
     }
 
     try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/folders/${folder.id}`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: validation.data.name, description: validation.data.description }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-      } else {
-        const { error } = await supabase
-          .from('folders')
-          .update({ name: validation.data.name, description: validation.data.description })
-          .eq('id', folder.id);
-        if (error) throw error;
-      }
+      await getDbAdapter().folders.update(folder.id, {
+        name: validation.data.name,
+        description: validation.data.description,
+      });
 
       toast({
         title: 'Success',
@@ -300,20 +244,7 @@ const Folder = () => {
     if (!folder) return;
 
     try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/folders/${folder.id}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        });
-        if (!res.ok) throw new Error(await res.text());
-      } else {
-        const { error } = await supabase
-          .from('folders')
-          .delete()
-          .eq('id', folder.id);
-        if (error) throw error;
-      }
+      await getDbAdapter().folders.remove(folder.id);
 
       toast({
         title: 'Success',
@@ -363,50 +294,21 @@ const Folder = () => {
         return;
       }
 
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        // Duplicate check via children list
-        const res = await fetch(`${apiBase}/folders/${folderId}/children`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const children = (await res.json()) as FolderRow[];
-        const dup = (children || []).find((child) => child.name?.toLowerCase() === validation.data.name.toLowerCase());
-        if (dup) {
-          toast({ title: 'Error', description: 'A folder with this name already exists in this folder.', variant: 'destructive' });
-          return;
-        }
-        await getDbAdapter().folders.create({
-          name: validation.data.name,
-          description: validation.data.description,
-          parent_folder_id: folderId,
-          user_id: user?.id ?? '',
-          created_by_email: user?.email || '',
-          team_id: teamId,
-        });
-      } else {
-        // Supabase path
-        const { data: existingFolder, error: checkError } = await supabase
-          .from('folders')
-          .select('id')
-          .eq('name', validation.data.name)
-          .eq('parent_folder_id', folderId)
-          .maybeSingle();
-        if (checkError) throw checkError;
-        if (existingFolder) {
-          toast({ title: 'Error', description: 'A folder with this name already exists in this folder.', variant: 'destructive' });
-          return;
-        }
-        const { error } = await supabase
-          .from('folders')
-          .insert({
-            name: validation.data.name,
-            description: validation.data.description,
-            parent_folder_id: folderId,
-            user_id: user?.id ?? '',
-            created_by_email: user?.email || '',
-            team_id: teamId,
-          } satisfies TablesInsert<'folders'>);
-        if (error) throw error;
+      const children = await getDbAdapter().folders.listChildren(folderId);
+      const dup = (children || []).find((child) => child.name?.toLowerCase() === validation.data.name.toLowerCase());
+      if (dup) {
+        toast({ title: 'Error', description: 'A folder with this name already exists in this folder.', variant: 'destructive' });
+        return;
       }
+
+      await getDbAdapter().folders.create({
+        name: validation.data.name,
+        description: validation.data.description,
+        parent_folder_id: folderId,
+        user_id: user?.id ?? '',
+        created_by_email: user?.email || '',
+        team_id: teamId,
+      });
 
       toast({
         title: 'Success',
