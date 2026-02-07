@@ -75,9 +75,9 @@ await fastify.register(cors, {
   credentials: true,
 });
 
-// Rate limiting
+// Rate limiting — relaxed in development to avoid test flakiness
 await fastify.register(rateLimit, {
-  max: securityConfig.rateLimitMax,
+  max: isProd ? securityConfig.rateLimitMax : 10000,
   timeWindow: securityConfig.rateLimitWindow,
 });
 

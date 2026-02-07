@@ -665,7 +665,7 @@ describe('Security Middleware', () => {
 
       const mockReply = {
         statusCode: 200,
-        getResponseTime: vi.fn().mockReturnValue(123.456),
+        elapsedTime: 123.456,
       } as unknown as FastifyReply;
 
       onResponseHook(mockReq, mockReply, done);

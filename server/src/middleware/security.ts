@@ -139,7 +139,7 @@ export function errorHandler(fastify: FastifyInstance) {
 
 export function requestLogger(fastify: FastifyInstance) {
   fastify.addHook('onResponse', (req, reply, done) => {
-    const duration = reply.getResponseTime();
+    const duration = reply.elapsedTime;
     req.log.info({
       requestId: req.requestId,
       method: req.method,
