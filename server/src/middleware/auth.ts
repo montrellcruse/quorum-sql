@@ -136,6 +136,17 @@ export async function getSessionUser(req: FastifyRequest): Promise<AuthUser | nu
   return null;
 }
 
+export async function requireAuthenticatedUser(req: FastifyRequest, reply: FastifyReply): Promise<boolean> {
+  const user = await getSessionUser(req);
+  if (!user) {
+    req.log.info({ path: req.url, method: req.method }, 'AUTH FAILURE: No valid session');
+    reply.code(401).send({ error: 'Unauthorized' });
+    return false;
+  }
+  req.user = user;
+  return true;
+}
+
 function getTeamRoleCache(req: FastifyRequest | null) {
   if (!req) return null;
   if (!req.teamRoleCache) {
@@ -163,12 +174,10 @@ export function requireAuth(
   handler: (req: FastifyRequest, reply: FastifyReply) => Promise<unknown> | unknown,
 ) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
-    const user = await getSessionUser(req);
-    if (!user) {
-      req.log.info({ path: req.url, method: req.method }, 'AUTH FAILURE: No valid session');
-      return reply.code(401).send({ error: 'Unauthorized' });
+    const authenticated = await requireAuthenticatedUser(req, reply);
+    if (!authenticated) {
+      return;
     }
-    req.user = user;
     return handler(req, reply);
   };
 }
