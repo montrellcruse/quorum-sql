@@ -242,7 +242,10 @@ fastify.get('/health/ready', {
     return result;
   } catch (err) {
     req.log.error({ err }, 'Health check failed');
-    return reply.code(503).send({ ok: false, database: 'disconnected' });
+    return reply.code(503).send({
+      error: 'Service unavailable',
+      details: { database: 'disconnected' },
+    });
   }
 });
 
@@ -273,7 +276,7 @@ fastify.post<{ Body: SetupSupabaseBody }>('/setup/test-supabase', {
 }, async (req, reply) => {
   const parsed = SetupSupabaseBodySchema.safeParse(req.body);
   if (!parsed.success) {
-    return reply.code(400).send({ ok: false, error: 'Missing URL or anon key' });
+    return reply.code(400).send({ error: 'Missing URL or anon key' });
   }
   const { url, anonKey } = parsed.data;
 
@@ -282,19 +285,19 @@ fastify.post<{ Body: SetupSupabaseBody }>('/setup/test-supabase', {
   try {
     parsedUrl = new URL(url);
   } catch {
-    return reply.code(400).send({ ok: false, error: 'Invalid URL format' });
+    return reply.code(400).send({ error: 'Invalid URL format' });
   }
 
   // Only allow Supabase domains
   const allowedDomains = ['.supabase.co', '.supabase.com'];
   const isAllowed = allowedDomains.some(domain => parsedUrl.hostname.endsWith(domain));
   if (!isAllowed) {
-    return reply.code(400).send({ ok: false, error: 'URL must be a Supabase project URL (*.supabase.co)' });
+    return reply.code(400).send({ error: 'URL must be a Supabase project URL (*.supabase.co)' });
   }
 
   // Ensure HTTPS
   if (parsedUrl.protocol !== 'https:') {
-    return reply.code(400).send({ ok: false, error: 'URL must use HTTPS' });
+    return reply.code(400).send({ error: 'URL must use HTTPS' });
   }
 
   try {
@@ -1671,7 +1674,11 @@ fastify.post<{ Params: IdParams; Body: SubmitQueryBody }>('/queries/:id/submit',
         sess.id,
       ]);
       return { ok: true };
-    } catch {
+    } catch (error) {
+      req.log.warn(
+        { err: error, queryId: id, userId: sess.id },
+        'submit_query_for_approval v2 failed, falling back to legacy signature',
+      );
       // Fallback for older function signature
       await client.query('select public.submit_query_for_approval($1, $2)', [id, sql || null]);
       return { ok: true };

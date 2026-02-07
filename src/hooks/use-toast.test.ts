@@ -1,10 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { reducer } from './use-toast';
+
+type ReducerState = Parameters<typeof reducer>[0];
 
 describe('Toast Reducer', () => {
   describe('ADD_TOAST', () => {
     it('adds a new toast to the beginning of the list', () => {
-      const initialState = { toasts: [] };
+      const initialState: ReducerState = { toasts: [] };
       const newToast = { id: '1', title: 'Test Toast', open: true };
 
       const result = reducer(initialState, {
@@ -18,7 +20,7 @@ describe('Toast Reducer', () => {
 
     it('prepends new toast to existing toasts', () => {
       const existingToast = { id: '1', title: 'Existing', open: true };
-      const initialState = { toasts: [existingToast] };
+      const initialState: ReducerState = { toasts: [existingToast] };
       const newToast = { id: '2', title: 'New Toast', open: true };
 
       const result = reducer(initialState, {
@@ -31,7 +33,7 @@ describe('Toast Reducer', () => {
     });
 
     it('limits toasts to TOAST_LIMIT', () => {
-      const initialState = { toasts: [] };
+      const initialState: ReducerState = { toasts: [] };
 
       let state = initialState;
       for (let i = 0; i < 5; i++) {
@@ -50,7 +52,7 @@ describe('Toast Reducer', () => {
   describe('UPDATE_TOAST', () => {
     it('updates an existing toast', () => {
       const existingToast = { id: '1', title: 'Original', open: true };
-      const initialState = { toasts: [existingToast] };
+      const initialState: ReducerState = { toasts: [existingToast] };
 
       const result = reducer(initialState, {
         type: 'UPDATE_TOAST',
@@ -64,7 +66,7 @@ describe('Toast Reducer', () => {
     it('does not modify other toasts', () => {
       const toast1 = { id: '1', title: 'Toast 1', open: true };
       const toast2 = { id: '2', title: 'Toast 2', open: true };
-      const initialState = { toasts: [toast1, toast2] };
+      const initialState: ReducerState = { toasts: [toast1, toast2] };
 
       const result = reducer(initialState, {
         type: 'UPDATE_TOAST',
@@ -76,7 +78,7 @@ describe('Toast Reducer', () => {
 
     it('handles updating non-existent toast', () => {
       const existingToast = { id: '1', title: 'Existing', open: true };
-      const initialState = { toasts: [existingToast] };
+      const initialState: ReducerState = { toasts: [existingToast] };
 
       const result = reducer(initialState, {
         type: 'UPDATE_TOAST',
@@ -91,7 +93,7 @@ describe('Toast Reducer', () => {
   describe('DISMISS_TOAST', () => {
     it('sets open to false for specific toast', () => {
       const toast = { id: '1', title: 'Toast', open: true };
-      const initialState = { toasts: [toast] };
+      const initialState: ReducerState = { toasts: [toast] };
 
       const result = reducer(initialState, {
         type: 'DISMISS_TOAST',
@@ -104,7 +106,7 @@ describe('Toast Reducer', () => {
     it('dismisses all toasts when no toastId provided', () => {
       const toast1 = { id: '1', title: 'Toast 1', open: true };
       const toast2 = { id: '2', title: 'Toast 2', open: true };
-      const initialState = { toasts: [toast1, toast2] };
+      const initialState: ReducerState = { toasts: [toast1, toast2] };
 
       const result = reducer(initialState, {
         type: 'DISMISS_TOAST',
@@ -121,7 +123,7 @@ describe('Toast Reducer', () => {
         description: 'Description',
         open: true,
       };
-      const initialState = { toasts: [toast] };
+      const initialState: ReducerState = { toasts: [toast] };
 
       const result = reducer(initialState, {
         type: 'DISMISS_TOAST',
@@ -137,7 +139,7 @@ describe('Toast Reducer', () => {
     it('removes specific toast', () => {
       const toast1 = { id: '1', title: 'Toast 1', open: true };
       const toast2 = { id: '2', title: 'Toast 2', open: true };
-      const initialState = { toasts: [toast1, toast2] };
+      const initialState: ReducerState = { toasts: [toast1, toast2] };
 
       const result = reducer(initialState, {
         type: 'REMOVE_TOAST',
@@ -151,7 +153,7 @@ describe('Toast Reducer', () => {
     it('removes all toasts when no toastId provided', () => {
       const toast1 = { id: '1', title: 'Toast 1', open: true };
       const toast2 = { id: '2', title: 'Toast 2', open: true };
-      const initialState = { toasts: [toast1, toast2] };
+      const initialState: ReducerState = { toasts: [toast1, toast2] };
 
       const result = reducer(initialState, {
         type: 'REMOVE_TOAST',
@@ -163,7 +165,7 @@ describe('Toast Reducer', () => {
 
     it('handles removing non-existent toast', () => {
       const toast = { id: '1', title: 'Toast', open: true };
-      const initialState = { toasts: [toast] };
+      const initialState: ReducerState = { toasts: [toast] };
 
       const result = reducer(initialState, {
         type: 'REMOVE_TOAST',
@@ -177,7 +179,7 @@ describe('Toast Reducer', () => {
 
   describe('state immutability', () => {
     it('does not mutate original state on ADD_TOAST', () => {
-      const initialState = { toasts: [] };
+      const initialState: ReducerState = { toasts: [] };
       const originalToasts = initialState.toasts;
 
       reducer(initialState, {
@@ -191,7 +193,7 @@ describe('Toast Reducer', () => {
 
     it('does not mutate original state on UPDATE_TOAST', () => {
       const toast = { id: '1', title: 'Original', open: true };
-      const initialState = { toasts: [toast] };
+      const initialState: ReducerState = { toasts: [toast] };
 
       reducer(initialState, {
         type: 'UPDATE_TOAST',
@@ -203,7 +205,7 @@ describe('Toast Reducer', () => {
 
     it('does not mutate original state on DISMISS_TOAST', () => {
       const toast = { id: '1', title: 'Toast', open: true };
-      const initialState = { toasts: [toast] };
+      const initialState: ReducerState = { toasts: [toast] };
 
       reducer(initialState, {
         type: 'DISMISS_TOAST',
@@ -215,7 +217,7 @@ describe('Toast Reducer', () => {
 
     it('does not mutate original state on REMOVE_TOAST', () => {
       const toast = { id: '1', title: 'Toast', open: true };
-      const initialState = { toasts: [toast] };
+      const initialState: ReducerState = { toasts: [toast] };
       const originalToasts = initialState.toasts;
 
       reducer(initialState, {

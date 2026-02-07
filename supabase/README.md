@@ -195,7 +195,7 @@ query_history (
   sql_content TEXT NOT NULL,
   modified_by_email TEXT NOT NULL,
   change_reason TEXT,
-  status TEXT DEFAULT 'approved',
+  status TEXT DEFAULT 'pending_approval',
   created_at TIMESTAMP
 )
 ```
