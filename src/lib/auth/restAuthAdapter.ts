@@ -1,7 +1,7 @@
 import type { AuthAdapter } from './types';
 import type { UserIdentity } from '../provider/types';
 import { getApiBaseUrl } from '@/lib/provider/env';
-import { getCsrfToken, http, setCsrfToken } from '@/lib/http';
+import { http, setCsrfToken } from '@/lib/http';
 
 function baseUrl(path: string) {
   return `${getApiBaseUrl()}${path}`;
