@@ -356,13 +356,10 @@ fastify.get('/auth/me', {
 
 fastify.post<{ Body: LoginBody }>('/auth/login', {
   config: {
-    // Stricter rate limit in production, relaxed for development/testing
-    rateLimit: isProd ? {
+    // Strict rate limit: 5 attempts per 15 minutes per IP to mitigate brute-force
+    rateLimit: {
       max: 5,
-      timeWindow: '1 minute',
-    } : {
-      max: 1000,
-      timeWindow: '1 minute',
+      timeWindow: '15 minutes',
     },
   },
 }, async (req, reply) => {
@@ -398,7 +395,7 @@ fastify.post<{ Body: LoginBody }>('/auth/login', {
   
   req.log.info({ email: normalizedEmail, userId: row.id }, 'AUTH SUCCESS: Login successful');
   
-  // Issue session token
+  // Issue session token (1h expiry to limit exposure window)
   const secretKey = new TextEncoder().encode(securityConfig.sessionSecret);
   const token = await new SignJWT({ email: row.email })
     .setProtectedHeader({ alg: 'HS256' })
@@ -406,15 +403,15 @@ fastify.post<{ Body: LoginBody }>('/auth/login', {
     .setIssuer('quorum-sql')
     .setAudience('quorum-sql')
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime('1h')
     .sign(secretKey);
-  
+
   reply.setCookie('session', token, {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
     secure: isProd,
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 60 * 60, // 1 hour
   });
 
   // Set CSRF token cookie (readable by JavaScript for double-submit pattern)
@@ -424,7 +421,7 @@ fastify.post<{ Body: LoginBody }>('/auth/login', {
     sameSite: 'lax',
     path: '/',
     secure: isProd,
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 60 * 60, // 1 hour
   });
 
   // Return CSRF token in body for cross-origin setups where JS can't read cookie
@@ -484,7 +481,7 @@ fastify.post<{ Body: RegisterBody }>('/auth/register', {
 
   req.log.info({ email: normalizedEmail, userId: newUser.id }, 'Registration successful');
 
-  // Issue session token (same as login)
+  // Issue session token (1h expiry to limit exposure window)
   const secretKey = new TextEncoder().encode(securityConfig.sessionSecret);
   const token = await new SignJWT({ email: newUser.email })
     .setProtectedHeader({ alg: 'HS256' })
@@ -492,7 +489,7 @@ fastify.post<{ Body: RegisterBody }>('/auth/register', {
     .setIssuer('quorum-sql')
     .setAudience('quorum-sql')
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime('1h')
     .sign(secretKey);
 
   reply.setCookie('session', token, {
@@ -500,7 +497,7 @@ fastify.post<{ Body: RegisterBody }>('/auth/register', {
     sameSite: 'lax',
     path: '/',
     secure: isProd,
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 60 * 60, // 1 hour
   });
 
   const csrfToken = generateCsrfToken();
@@ -509,7 +506,7 @@ fastify.post<{ Body: RegisterBody }>('/auth/register', {
     sameSite: 'lax',
     path: '/',
     secure: isProd,
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 60 * 60, // 1 hour
   });
 
   // Return CSRF token in body for cross-origin setups where JS can't read cookie
