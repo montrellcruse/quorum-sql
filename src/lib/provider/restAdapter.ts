@@ -7,6 +7,7 @@ import type {
   InvitationsRepo,
   Team, 
   Folder, 
+  FolderPath,
   SqlQuery, 
   UUID,
   QueryHistory,
@@ -125,7 +126,7 @@ const teams: TeamsRepo = {
       body: JSON.stringify({ name, approval_quota: approvalQuota }),
     });
   },
-  async update(id: UUID, data: { approval_quota?: number }) {
+  async update(id: UUID, data: { approval_quota?: number; name?: string }) {
     await http<void>(baseUrl(`/teams/${id}`), {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -145,6 +146,10 @@ const teams: TeamsRepo = {
 const folders: FoldersRepo = {
   async listByTeam(teamId: UUID) {
     return http<Folder[]>(baseUrl(`/teams/${teamId}/folders`));
+  },
+  async listPaths(teamId: UUID) {
+    const qs = new URLSearchParams({ team_id: teamId }).toString();
+    return http<FolderPath[]>(baseUrl(`/folders/paths?${qs}`));
   },
   async getById(id: UUID) {
     return http<Folder | null>(baseUrl(`/folders/${id}`));

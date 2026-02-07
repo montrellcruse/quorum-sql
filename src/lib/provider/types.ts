@@ -31,6 +31,11 @@ export interface Folder {
   created_by_email?: string | null;
 }
 
+export interface FolderPath {
+  id: UUID;
+  full_path: string;
+}
+
 export type QueryStatus = 'draft' | 'pending_approval' | 'approved' | 'rejected';
 
 export interface SqlQuery {
@@ -51,13 +56,14 @@ export interface TeamsRepo {
   listForUser(): Promise<(Team & { role?: Role })[]>;
   getById(id: UUID): Promise<Team | null>;
   create(name: string, approvalQuota?: number): Promise<Team>;
-  update(id: UUID, data: { approval_quota?: number }): Promise<void>;
+  update(id: UUID, data: { approval_quota?: number; name?: string }): Promise<void>;
   remove(id: UUID): Promise<void>;
   transferOwnership(id: UUID, newOwnerUserId: UUID): Promise<void>;
 }
 
 export interface FoldersRepo {
   listByTeam(teamId: UUID): Promise<Folder[]>;
+  listPaths(teamId: UUID): Promise<FolderPath[]>;
   getById(id: UUID): Promise<Folder | null>;
   create(input: { team_id: UUID; name: string; parent_folder_id?: UUID | null; description?: string | null; created_by_email?: string | null; user_id?: UUID }): Promise<Folder>;
 }

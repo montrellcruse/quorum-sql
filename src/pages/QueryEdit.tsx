@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { useTheme } from 'next-themes';
@@ -39,11 +39,12 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { querySchema, changeReasonSchema, validateSqlSafety } from '@/lib/validationSchemas';
-import { getDbAdapter } from '@/lib/provider';
-import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
-import type { QueryHistory, QueryStatus } from '@/lib/provider/types';
-import type { TablesInsert } from '@/integrations/supabase/types';
+import type { QueryStatus } from '@/lib/provider/types';
+import { useDbProvider } from '@/hooks/useDbProvider';
+import { queryKeys } from '@/hooks/queryKeys';
+import { useQueryById, useQueryHistory } from '@/hooks/useQueries';
+import { useTeamFolderPaths } from '@/hooks/useTeamFolders';
 
 interface Query {
   id: string;
@@ -56,11 +57,6 @@ interface Query {
   created_by_email: string | null;
 }
 
-interface Folder {
-  id: string;
-  full_path: string;
-}
-
 const QueryEdit = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
@@ -69,20 +65,31 @@ const QueryEdit = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { theme } = useTheme();
+  const { adapter } = useDbProvider();
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState<Query | null>(null);
-  const [loadingQuery, setLoadingQuery] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [hasInitializedQuery, setHasInitializedQuery] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
-  const [folders, setFolders] = useState<Folder[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [changeReason, setChangeReason] = useState('');
   const [sqlWarnings, setSqlWarnings] = useState<string[]>([]);
-  const provider = getDbProviderType();
   
   const isNewQuery = id === 'new';
   const folderId = location.state?.folderId;
+  const queryId = isNewQuery ? undefined : id;
+
+  const queryByIdQuery = useQueryById(queryId, {
+    enabled: Boolean(user && queryId),
+  });
+  const queryHistoryQuery = useQueryHistory(queryId, {
+    enabled: Boolean(user && queryId),
+  });
+  const folderPathsQuery = useTeamFolderPaths(activeTeam?.id, {
+    enabled: Boolean(activeTeam?.id && moveDialogOpen),
+  });
+  const folders = (folderPathsQuery.data ?? []).filter((folder) => folder.id !== query?.folder_id);
 
   // Check SQL content for dangerous patterns
   useEffect(() => {
@@ -94,39 +101,6 @@ const QueryEdit = () => {
     }
   }, [query?.sql_content]);
 
-  // Define fetchQuery callback BEFORE useEffect that uses it
-  const fetchQuery = useCallback(async () => {
-    try {
-      if (!id) {
-        setLoadingQuery(false);
-        return;
-      }
-      if (provider === 'rest') {
-        const q = await getDbAdapter().queries.getById(id);
-        if (!q) throw new Error('Query not found');
-        setQuery(q as unknown as Query);
-      } else {
-        const { data, error } = await supabase
-          .from('sql_queries')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
-        if (error) throw error;
-        if (!data) throw new Error('Query not found');
-        setQuery(data as unknown as Query);
-      }
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to fetch query'),
-        variant: 'destructive',
-      });
-      navigate('/dashboard');
-    } finally {
-      setLoadingQuery(false);
-    }
-  }, [id, toast, navigate, provider]);
-
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
@@ -134,36 +108,197 @@ const QueryEdit = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (user) {
-      if (isNewQuery) {
-        if (!folderId) {
-          toast({
-            title: 'Error',
-            description: 'Folder ID is required',
-            variant: 'destructive',
-          });
-          navigate('/dashboard');
-          return;
-        }
-        setQuery({
-          id: '',
-          title: '',
-          description: '',
-          sql_content: '',
-          status: 'draft',
-          folder_id: folderId,
-          last_modified_by_email: null,
-          created_by_email: null,
-        });
-        setLoadingQuery(false);
-      } else if (id) {
-        fetchQuery();
-      }
-    }
-  }, [user, id, isNewQuery, folderId, navigate, toast, fetchQuery]);
+    setHasInitializedQuery(false);
+    setQuery(null);
+  }, [id, isNewQuery]);
 
-  const handleSave = async (newStatus: string) => {
-    // Validate query data using zod schema
+  useEffect(() => {
+    if (!user || hasInitializedQuery) return;
+
+    if (isNewQuery) {
+      if (!folderId) {
+        toast({
+          title: 'Error',
+          description: 'Folder ID is required',
+          variant: 'destructive',
+        });
+        navigate('/dashboard');
+        return;
+      }
+      setQuery({
+        id: '',
+        title: '',
+        description: '',
+        sql_content: '',
+        status: 'draft',
+        folder_id: folderId,
+        last_modified_by_email: null,
+        created_by_email: null,
+      });
+      setHasInitializedQuery(true);
+      return;
+    }
+
+    if (queryByIdQuery.isSuccess && queryByIdQuery.data) {
+      setQuery(queryByIdQuery.data as unknown as Query);
+      setHasInitializedQuery(true);
+    }
+  }, [
+    user,
+    hasInitializedQuery,
+    isNewQuery,
+    folderId,
+    queryByIdQuery.isSuccess,
+    queryByIdQuery.data,
+    navigate,
+    toast,
+  ]);
+
+  useEffect(() => {
+    if (!isNewQuery && queryByIdQuery.isError) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(queryByIdQuery.error, 'Failed to fetch query'),
+        variant: 'destructive',
+      });
+      navigate('/dashboard');
+    }
+  }, [isNewQuery, queryByIdQuery.isError, queryByIdQuery.error, navigate, toast]);
+
+  useEffect(() => {
+    if (!isNewQuery && queryByIdQuery.isSuccess && !queryByIdQuery.data) {
+      toast({
+        title: 'Error',
+        description: 'Query not found',
+        variant: 'destructive',
+      });
+      navigate('/dashboard');
+    }
+  }, [isNewQuery, queryByIdQuery.isSuccess, queryByIdQuery.data, navigate, toast]);
+
+  useEffect(() => {
+    if (moveDialogOpen && folderPathsQuery.isError) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(folderPathsQuery.error, 'Failed to load folders'),
+        variant: 'destructive',
+      });
+    }
+  }, [moveDialogOpen, folderPathsQuery.isError, folderPathsQuery.error, toast]);
+
+  const saveQueryMutation = useMutation({
+    mutationFn: async (newStatus: QueryStatus) => {
+      if (!query) {
+        throw new Error('Query is not loaded');
+      }
+      if (!user?.id) {
+        throw new Error('User is not authenticated');
+      }
+
+      const userId = user.id;
+      const userEmail = user.email || '';
+      const teamId = activeTeam?.id;
+      let resolvedTeamId = teamId;
+      let resolvedQueryId = isNewQuery ? '' : (id ?? '');
+
+      if (isNewQuery) {
+        if (!resolvedTeamId) {
+          const folder = await adapter.folders.getById(query.folder_id);
+          resolvedTeamId = folder?.team_id;
+        }
+        if (!resolvedTeamId) {
+          throw new Error('Active team is required to create a query');
+        }
+        const created = await adapter.queries.create({
+          title: query.title,
+          description: query.description,
+          sql_content: query.sql_content,
+          status: newStatus,
+          folder_id: query.folder_id,
+          team_id: resolvedTeamId,
+          created_by_email: userEmail,
+          last_modified_by_email: userEmail,
+        });
+        resolvedQueryId = created.id;
+      } else {
+        if (!resolvedQueryId) {
+          throw new Error('Missing query ID');
+        }
+        await adapter.queries.update(resolvedQueryId, {
+          title: query.title,
+          description: query.description,
+          sql_content: query.sql_content,
+          status: newStatus,
+          last_modified_by_email: userEmail,
+        });
+      }
+
+      if (!resolvedQueryId) {
+        throw new Error('Failed to resolve query ID');
+      }
+
+      if (newStatus === 'pending_approval') {
+        await adapter.queries.submitForApproval(resolvedQueryId, query.sql_content, {
+          modified_by_email: userEmail,
+          change_reason: changeReason.trim() || null,
+          team_id: resolvedTeamId,
+          user_id: userId,
+        });
+      }
+
+      return { queryId: resolvedQueryId, folderId: query.folder_id, status: newStatus };
+    },
+  });
+
+  const createNewDraftMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) {
+        throw new Error('Missing query ID');
+      }
+      await adapter.queries.update(id, { status: 'draft' });
+    },
+  });
+
+  const discardDraftMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) {
+        throw new Error('Missing query ID');
+      }
+
+      const history =
+        queryHistoryQuery.data ?? (await queryHistoryQuery.refetch()).data ?? [];
+      const approvedHistory = history.find((entry) => entry.status === 'approved');
+
+      if (approvedHistory) {
+        await adapter.queries.update(id, {
+          sql_content: approvedHistory.sql_content,
+          status: 'approved',
+          last_modified_by_email: approvedHistory.modified_by_email,
+        });
+        return { revertedToApproved: true };
+      }
+
+      await adapter.queries.remove(id);
+      return { revertedToApproved: false };
+    },
+  });
+
+  const moveQueryMutation = useMutation({
+    mutationFn: async (nextFolderId: string) => {
+      if (!id) {
+        throw new Error('Missing query ID');
+      }
+      await adapter.queries.update(id, { folder_id: nextFolderId });
+    },
+  });
+
+  const saving =
+    saveQueryMutation.isPending ||
+    createNewDraftMutation.isPending ||
+    discardDraftMutation.isPending ||
+    moveQueryMutation.isPending;
+
+  const handleSave = async (newStatus: QueryStatus) => {
     const validation = querySchema.safeParse({
       title: query?.title,
       description: query?.description,
@@ -179,7 +314,6 @@ const QueryEdit = () => {
       return;
     }
 
-    // Validate change reason if requesting approval
     if (newStatus === 'pending_approval') {
       const reasonValidation = changeReasonSchema.safeParse(changeReason);
       if (!reasonValidation.success) {
@@ -192,171 +326,41 @@ const QueryEdit = () => {
       }
     }
 
-    setSaving(true);
     try {
-      if (!query) {
-        throw new Error('Query is not loaded');
-      }
-      if (!user?.id) {
-        throw new Error('User is not authenticated');
-      }
-      const userId = user.id;
-      const userEmail = user.email || '';
-      if (!isNewQuery && !id) {
-        throw new Error('Missing query ID');
-      }
-
-      const teamId = activeTeam?.id;
-      if (provider !== 'rest' && isNewQuery && !teamId) {
-        throw new Error('Active team is required to create a query');
-      }
-      if (provider !== 'rest' && newStatus === 'pending_approval' && !teamId) {
-        throw new Error('Active team is required to request approval');
-      }
-
-      let queryId = isNewQuery ? '' : (id ?? '');
-      if (isNewQuery) {
-        if (provider === 'rest') {
-          const folder = await getDbAdapter().folders.getById(query.folder_id);
-          if (!folder?.team_id) throw new Error('Folder does not have a team_id');
-          const created = await getDbAdapter().queries.create({
-            title: query.title,
-            description: query.description,
-            sql_content: query.sql_content,
-            status: newStatus as QueryStatus,
-            folder_id: query.folder_id,
-            team_id: folder.team_id,
-            created_by_email: userEmail,
-            last_modified_by_email: userEmail,
-          });
-          queryId = created.id;
-        } else {
-          const insertTeamId = teamId;
-          if (!insertTeamId) {
-            throw new Error('Active team is required to create a query');
-          }
-          const { data, error } = await supabase
-            .from('sql_queries')
-            .insert({
-              title: query.title,
-              description: query.description,
-              sql_content: query.sql_content,
-              status: newStatus,
-              folder_id: query.folder_id,
-              team_id: insertTeamId,
-              user_id: userId,
-              created_by_email: userEmail,
-              last_modified_by_email: userEmail,
-            } satisfies TablesInsert<'sql_queries'>)
-            .select()
-            .single();
-          if (error) throw error;
-          queryId = data.id;
-        }
-      } else {
-        if (provider === 'rest') {
-          await getDbAdapter().queries.update(queryId, {
-            title: query.title,
-            description: query.description,
-            sql_content: query.sql_content,
-            status: newStatus as QueryStatus,
-            last_modified_by_email: userEmail,
-          });
-        } else {
-          const { error } = await supabase
-            .from('sql_queries')
-            .update({
-              title: query.title,
-              description: query.description,
-              sql_content: query.sql_content,
-              status: newStatus,
-              last_modified_by_email: userEmail,
-            })
-            .eq('id', queryId);
-          if (error) throw error;
-        }
-      }
-
-      // Step 1: If requesting approval, use atomic function to handle single-person team auto-approval
-      if (!queryId) {
-        throw new Error('Failed to resolve query ID');
-      }
-
+      const result = await saveQueryMutation.mutateAsync(newStatus);
       if (newStatus === 'pending_approval') {
-        if (provider === 'rest') {
-          await getDbAdapter().queries.submitForApproval(queryId, query.sql_content, {
-            modified_by_email: userEmail,
-            change_reason: changeReason.trim() || null,
-            team_id: teamId,
-            user_id: userId,
-          });
-          setChangeReason('');
-          toast({ title: 'Success', description: 'Query submitted for approval' });
-        } else {
-          const approvalTeamId = teamId;
-          if (!approvalTeamId) {
-            throw new Error('Active team is required to request approval');
-          }
-          const { data, error: rpcError } = await supabase.rpc('submit_query_for_approval', {
-            _query_id: queryId,
-            _sql_content: query.sql_content,
-            _modified_by_email: userEmail,
-            _change_reason: changeReason.trim() || '',
-            _team_id: approvalTeamId,
-            _user_id: userId,
-          });
-          if (rpcError) throw rpcError;
-          setChangeReason('');
-          const result = data as { success: boolean; status: string; auto_approved: boolean; history_id: string };
-          if (result.auto_approved) {
-            toast({ title: 'Success', description: 'Query auto-approved (single-person team)' });
-          } else {
-            toast({ title: 'Success', description: 'Query submitted for approval' });
-          }
-        }
+        setChangeReason('');
+        toast({ title: 'Success', description: 'Query submitted for approval' });
       } else {
         toast({
           title: 'Success',
-          description: newStatus === 'approved' 
-            ? 'Query approved' 
-            : newStatus === 'draft' 
-            ? 'Query saved as draft' 
-            : 'Query updated',
+          description:
+            newStatus === 'approved'
+              ? 'Query approved'
+              : newStatus === 'draft'
+                ? 'Query saved as draft'
+                : 'Query updated',
         });
       }
-
-      // Redirect back to folder page
-      navigate(`/folder/${query!.folder_id}`);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.queries.detail(result.queryId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.queries.history(result.queryId) });
+      navigate(`/folder/${result.folderId}`);
     } catch (error: unknown) {
       toast({
         title: 'Error',
         description: getErrorMessage(error, 'Failed to save query'),
         variant: 'destructive',
       });
-    } finally {
-      setSaving(false);
     }
   };
 
   const handleCreateNewDraft = async () => {
-    setSaving(true);
     try {
-      if (!id) {
-        throw new Error('Missing query ID');
+      await createNewDraftMutation.mutateAsync();
+      setQuery((previous) => (previous ? { ...previous, status: 'draft' } : previous));
+      if (id) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.queries.detail(id) });
       }
-      if (provider === 'rest') {
-        await getDbAdapter().queries.update(id, { status: 'draft' });
-      } else {
-        const { error } = await supabase
-            .from('sql_queries')
-            .update({ status: 'draft' })
-            .eq('id', id);
-        if (error) throw error;
-      }
-
-      // Refresh local state before showing success
-      await fetchQuery();
-
       toast({
         title: 'Success',
         description: 'Query converted to draft',
@@ -367,68 +371,21 @@ const QueryEdit = () => {
         description: getErrorMessage(error, 'Failed to create draft'),
         variant: 'destructive',
       });
-    } finally {
-      setSaving(false);
     }
   };
 
   const handleDiscardDraft = async () => {
-    setSaving(true);
     try {
-      if (!id) {
-        throw new Error('Missing query ID');
-      }
-      if (provider === 'rest') {
-        // fetch last approved history via REST
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/queries/${id}/history`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const all = (await res.json()) as QueryHistory[];
-        const approvedHistory = (all || []).find((h) => h.status === 'approved');
-        if (approvedHistory) {
-          await getDbAdapter().queries.update(id, {
-            sql_content: approvedHistory.sql_content,
-            status: 'approved',
-            last_modified_by_email: approvedHistory.modified_by_email,
-          });
-          toast({ title: 'Success', description: 'Draft discarded and reverted to last approved version' });
-          navigate(`/query/view/${id}`);
-        } else {
-          await getDbAdapter().queries.remove(id);
-          toast({ title: 'Success', description: 'Draft discarded successfully' });
-          navigate(`/folder/${query?.folder_id}`);
-        }
+      const result = await discardDraftMutation.mutateAsync();
+      if (result.revertedToApproved && id) {
+        toast({
+          title: 'Success',
+          description: 'Draft discarded and reverted to last approved version',
+        });
+        navigate(`/query/view/${id}`);
       } else {
-        const { data: approvedHistory, error: historyError } = await supabase
-          .from('query_history')
-          .select('*')
-          .eq('query_id', id)
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (historyError) throw historyError;
-        if (approvedHistory) {
-          const { error: updateError } = await supabase
-            .from('sql_queries')
-            .update({
-              sql_content: approvedHistory.sql_content,
-              status: 'approved',
-              last_modified_by_email: approvedHistory.modified_by_email,
-            })
-            .eq('id', id);
-          if (updateError) throw updateError;
-          toast({ title: 'Success', description: 'Draft discarded and reverted to last approved version' });
-          navigate(`/query/view/${id}`);
-        } else {
-          const { error: deleteError } = await supabase
-            .from('sql_queries')
-            .delete()
-            .eq('id', id);
-          if (deleteError) throw deleteError;
-          toast({ title: 'Success', description: 'Draft discarded successfully' });
-          navigate(`/folder/${query?.folder_id}`);
-        }
+        toast({ title: 'Success', description: 'Draft discarded successfully' });
+        navigate(`/folder/${query?.folder_id}`);
       }
     } catch (error: unknown) {
       toast({
@@ -437,41 +394,11 @@ const QueryEdit = () => {
         variant: 'destructive',
       });
     } finally {
-      setSaving(false);
       setDeleteDialogOpen(false);
     }
   };
 
-  const fetchFolders = async () => {
-    if (!activeTeam) return;
-    
-    try {
-      if (provider === 'rest') {
-        const apiBase = getApiBaseUrl();
-        const res = await fetch(`${apiBase}/folders/paths?team_id=${activeTeam.id}`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const data = (await res.json()) as Folder[];
-        const filtered = (data || []).filter((f: Folder) => f.id !== query?.folder_id);
-        setFolders(filtered);
-      } else {
-        const { data, error } = await supabase.rpc('get_team_folder_paths', {
-          _team_id: activeTeam.id
-        });
-        if (error) throw error;
-        const filteredFolders = (data || []).filter((folder: Folder) => folder.id !== query?.folder_id);
-        setFolders(filteredFolders);
-      }
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to load folders'),
-        variant: 'destructive',
-      });
-    }
-  };
-
   const handleOpenMoveDialog = () => {
-    fetchFolders();
     setSelectedFolderId(query?.folder_id || '');
     setMoveDialogOpen(true);
   };
@@ -495,26 +422,15 @@ const QueryEdit = () => {
       return;
     }
 
-    setSaving(true);
     try {
-      if (!id) {
-        throw new Error('Missing query ID');
+      await moveQueryMutation.mutateAsync(selectedFolderId);
+      if (id) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.queries.detail(id) });
       }
-      if (provider === 'rest') {
-        await getDbAdapter().queries.update(id, { folder_id: selectedFolderId });
-      } else {
-        const { error } = await supabase
-          .from('sql_queries')
-          .update({ folder_id: selectedFolderId })
-          .eq('id', id);
-        if (error) throw error;
-      }
-
       toast({
         title: 'Success',
         description: 'Query moved successfully',
       });
-
       navigate(`/folder/${selectedFolderId}`);
     } catch (error: unknown) {
       toast({
@@ -523,10 +439,14 @@ const QueryEdit = () => {
         variant: 'destructive',
       });
     } finally {
-      setSaving(false);
       setMoveDialogOpen(false);
     }
   };
+
+  const loadingQuery =
+    isNewQuery
+      ? !query
+      : queryByIdQuery.isLoading || (queryByIdQuery.isSuccess && Boolean(queryByIdQuery.data) && !query);
 
   // Only draft queries are editable
   const isEditable = (query?.status === 'draft') || isNewQuery;
@@ -759,6 +679,11 @@ const QueryEdit = () => {
                 <SelectValue placeholder="Select a folder" />
               </SelectTrigger>
               <SelectContent className="bg-background z-50">
+                {folderPathsQuery.isLoading && (
+                  <SelectItem value="__loading" disabled>
+                    Loading folders...
+                  </SelectItem>
+                )}
                 {folders.map((folder) => (
                   <SelectItem key={folder.id} value={folder.id}>
                     {folder.full_path}
