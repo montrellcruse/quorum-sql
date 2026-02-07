@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
-import { restAuthAdapter } from '@/lib/auth/restAuthAdapter';
+import { getAuthAdapter } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -16,7 +15,6 @@ import { Plus, Search, FileText, Settings, Mail, ClipboardCheck, Loader2, Users 
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
 import { useSoloUser } from '@/hooks/useSoloUser';
 import { FeatureGate } from '@/components/FeatureGate';
@@ -42,7 +40,7 @@ const Dashboard = () => {
     description: ''
   });
   const [searchTerm, setSearchTerm] = useState('');
-  const provider = getDbProviderType();
+  const authAdapter = getAuthAdapter();
   const activeTeamId = activeTeam?.id;
   const soloContext = useSoloUser();
   const { isSoloUser } = soloContext;
@@ -186,12 +184,7 @@ const Dashboard = () => {
 
   const handleSignOut = async () => {
     try {
-      if (provider === 'rest') {
-        await restAuthAdapter.signOut();
-      } else {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-      }
+      await authAdapter.signOut();
       toast({ title: 'Signed out', description: 'Successfully signed out.' });
       navigate('/auth?signout=1');
     } catch (error: unknown) {

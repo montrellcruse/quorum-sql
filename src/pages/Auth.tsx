@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { restAuthAdapter } from '@/lib/auth/restAuthAdapter';
+import { getAuthAdapter } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,12 +9,10 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { checkUserTeamMembership, checkPendingInvitations } from '@/utils/teamUtils';
-import { getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
 import { isEmailAllowed, normalizeAllowedDomain } from '@/utils/email';
 
 const ALLOWED_DOMAIN = normalizeAllowedDomain(import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '');
-const GOOGLE_WORKSPACE_DOMAIN = import.meta.env.VITE_GOOGLE_WORKSPACE_DOMAIN || '';
 const APP_NAME = import.meta.env.VITE_APP_NAME || 'Quorum';
 
 // Parse auth providers from env
@@ -61,7 +58,7 @@ const Auth = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
-  const provider = getDbProviderType();
+  const authAdapter = getAuthAdapter();
 
   // Track if user just signed out to prevent redirect race condition
   const justSignedOutRef = useRef(false);
@@ -90,11 +87,7 @@ const Auth = () => {
       if (user && user.email) {
         // Validate domain if restriction is set
         if (ALLOWED_DOMAIN && !isEmailAllowed(user.email, ALLOWED_DOMAIN)) {
-          if (provider === 'rest') {
-            await restAuthAdapter.signOut();
-          } else {
-            await supabase.auth.signOut();
-          }
+          await authAdapter.signOut();
           if (!mounted) return;
           toast({
             title: 'Access Denied',
@@ -129,7 +122,7 @@ const Auth = () => {
     return () => {
       mounted = false;
     };
-  }, [user, navigate, toast, provider, searchParams, setSearchParams]);
+  }, [user, navigate, toast, authAdapter, searchParams, setSearchParams]);
 
   const validateEmailDomain = (emailToCheck: string): boolean => {
     return isEmailAllowed(emailToCheck, ALLOWED_DOMAIN);
@@ -137,28 +130,18 @@ const Auth = () => {
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
-    if (provider === 'rest') {
+    const signInWithOAuth = authAdapter.signInWithOAuth;
+    if (!signInWithOAuth) {
       toast({ title: 'Not available', description: 'Google sign-in requires Supabase.', variant: 'destructive' });
       setLoading(false);
       return;
     }
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth`,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-          ...(GOOGLE_WORKSPACE_DOMAIN && { hd: GOOGLE_WORKSPACE_DOMAIN })
-        }
-      }
-    });
-
-    if (error) {
+    try {
+      await signInWithOAuth('google');
+    } catch (error: unknown) {
       toast({
         title: 'Sign In Failed',
-        description: error.message,
+        description: getErrorMessage(error, 'Failed to sign in with Google'),
         variant: 'destructive',
       });
       setLoading(false);
@@ -182,22 +165,17 @@ const Auth = () => {
 
     setLoading(true);
     try {
-      if (provider === 'rest') {
-        await restAuthAdapter.signInWithPassword!(trimmedEmail, password);
-        // Check for pending invites before redirecting
+      const signInWithPassword = authAdapter.signInWithPassword;
+      if (!signInWithPassword) {
+        throw new Error('Email sign-in is not available');
+      }
+
+      const authResult = await signInWithPassword(trimmedEmail, password);
+      if (authAdapter.requiresManualPostAuthRedirect && authResult.hasSession) {
+        // REST auth doesn't emit Supabase auth state changes, so redirect explicitly.
         const hasPendingInvites = await checkPendingInvitations(trimmedEmail);
-        if (hasPendingInvites) {
-          window.location.href = '/accept-invites';
-        } else {
-          window.location.href = '/dashboard';
-        }
+        window.location.href = hasPendingInvites ? '/accept-invites' : '/dashboard';
         return;
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: trimmedEmail,
-          password,
-        });
-        if (error) throw error;
       }
     } catch (error: unknown) {
       toast({ title: 'Sign In Failed', description: getErrorMessage(error, 'Failed to sign in'), variant: 'destructive' });
@@ -232,34 +210,21 @@ const Auth = () => {
 
     setLoading(true);
     try {
-      if (provider === 'rest') {
-        await restAuthAdapter.signUp!(trimmedEmail, password, fullName.trim() || undefined);
-        // Check for pending invites before redirecting
+      const signUp = authAdapter.signUp;
+      if (!signUp) {
+        throw new Error('Email sign-up is not available');
+      }
+
+      const authResult = await signUp(trimmedEmail, password, fullName.trim() || undefined);
+      if (authAdapter.requiresManualPostAuthRedirect && authResult.hasSession) {
+        // REST auth doesn't emit Supabase auth state changes, so redirect explicitly.
         const hasPendingInvites = await checkPendingInvitations(trimmedEmail);
-        if (hasPendingInvites) {
-          window.location.href = '/accept-invites';
-        } else {
-          window.location.href = '/dashboard';
-        }
+        window.location.href = hasPendingInvites ? '/accept-invites' : '/dashboard';
         return;
       }
 
-      const { data, error } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password,
-        options: {
-          data: {
-            full_name: fullName.trim() || undefined,
-          },
-          emailRedirectTo: `${window.location.origin}/auth`,
-        },
-      });
-
-      if (error) throw error;
-
-      // If we got a session, user is logged in (email confirmation disabled)
-      // The useEffect will handle redirect. If no session, show confirmation message.
-      if (!data.session) {
+      // If we got no session, user likely needs email confirmation.
+      if (!authResult.hasSession) {
         toast({
           title: 'Check Your Email',
           description: 'We sent you a confirmation link. Please check your email to complete sign up.',
@@ -272,7 +237,11 @@ const Auth = () => {
     }
   };
 
-  const showBothMethods = hasGoogleAuth && hasEmailAuth && provider !== 'rest';
+  const supportsGoogleAuth = Boolean(authAdapter.signInWithOAuth);
+  const supportsPasswordAuth = Boolean(authAdapter.signInWithPassword);
+  const showGoogleSignIn = hasGoogleAuth && supportsGoogleAuth;
+  const showEmailSignIn = hasEmailAuth || supportsPasswordAuth;
+  const showBothMethods = showGoogleSignIn && showEmailSignIn;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -288,7 +257,7 @@ const Auth = () => {
         <CardContent>
           <div className="space-y-4">
             {/* Google OAuth Button */}
-            {hasGoogleAuth && provider !== 'rest' && (
+            {showGoogleSignIn && (
               <Button
                 onClick={handleGoogleSignIn}
                 className="w-full"
@@ -317,7 +286,7 @@ const Auth = () => {
             )}
 
             {/* Email/Password Form */}
-            {(hasEmailAuth || provider === 'rest') && (
+            {showEmailSignIn && (
               <div className="space-y-4">
                 <form onSubmit={isSignUp ? handleEmailSignUp : handleEmailSignIn} className="space-y-3">
                   {isSignUp && (
@@ -396,7 +365,7 @@ const Auth = () => {
             )}
 
             {/* No auth methods configured */}
-            {!hasGoogleAuth && !hasEmailAuth && provider !== 'rest' && (
+            {!showGoogleSignIn && !showEmailSignIn && (
               <p className="text-sm text-center text-muted-foreground">
                 No authentication methods configured. Please check your environment settings.
               </p>

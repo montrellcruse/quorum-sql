@@ -9,7 +9,6 @@ import type {
   InvitationsRepo,
   Team,
   Folder,
-  FolderPath,
   SqlQuery,
   UUID,
   QueryHistory,
@@ -18,6 +17,8 @@ import type {
   TeamInvitation,
   Role,
   PendingApprovalQuery,
+  FolderPath,
+  FolderQuery,
 } from './types';
 
 type MemberRow = {
@@ -132,6 +133,13 @@ const teams: TeamsRepo = {
       .eq('id', id);
     if (error) throw error;
   },
+  async convertPersonal(id: UUID, name?: string | null) {
+    const { error } = await supabase.rpc('convert_personal_to_team', {
+      _team_id: id,
+      _new_name: name ?? null,
+    });
+    if (error) throw error;
+  },
   async transferOwnership(id: UUID, newOwnerUserId: UUID) {
     const { error } = await supabase.rpc('transfer_team_ownership', {
       _team_id: id,
@@ -151,13 +159,6 @@ const folders: FoldersRepo = {
     if (error) throw error;
     return (data || []) as Folder[];
   },
-  async listPaths(teamId: UUID) {
-    const { data, error } = await supabase.rpc('get_team_folder_paths', {
-      _team_id: teamId,
-    });
-    if (error) throw error;
-    return (data || []) as FolderPath[];
-  },
   async getById(id: UUID) {
     const { data, error } = await supabase
       .from('folders')
@@ -167,6 +168,22 @@ const folders: FoldersRepo = {
     if (error) return null;
     return data as Folder;
   },
+  async listChildren(parentId: UUID) {
+    const { data, error } = await supabase
+      .from('folders')
+      .select('*')
+      .eq('parent_folder_id', parentId)
+      .order('name', { ascending: true });
+    if (error) throw error;
+    return (data || []) as Folder[];
+  },
+  async listPaths(teamId: UUID) {
+    const { data, error } = await supabase.rpc('get_team_folder_paths', {
+      _team_id: teamId,
+    });
+    if (error) throw error;
+    return (data || []) as FolderPath[];
+  },
   async create(input) {
     const { data, error } = await supabase
       .from('folders')
@@ -175,6 +192,20 @@ const folders: FoldersRepo = {
       .single();
     if (error) throw error;
     return data as Folder;
+  },
+  async update(id: UUID, patch: { name?: string; description?: string | null }) {
+    const { error } = await supabase
+      .from('folders')
+      .update(patch)
+      .eq('id', id);
+    if (error) throw error;
+  },
+  async remove(id: UUID) {
+    const { error } = await supabase
+      .from('folders')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
   },
 };
 
@@ -201,6 +232,15 @@ const queries: QueriesRepo = {
     const { data, error } = await req;
     if (error) throw error;
     return (data || []) as SqlQuery[];
+  },
+  async listByFolder(folderId: UUID) {
+    const { data, error } = await supabase
+      .from('sql_queries')
+      .select('id, title, status, description, created_at, created_by_email, last_modified_by_email, updated_at')
+      .eq('folder_id', folderId)
+      .order('updated_at', { ascending: false });
+    if (error) throw error;
+    return (data || []) as FolderQuery[];
   },
   async create(input) {
     const { data, error } = await supabase
@@ -344,6 +384,15 @@ const members: TeamMembersRepo = {
       email: row.profiles?.email ?? undefined,
     })) as TeamMember[];
   },
+  async countByRole(teamId: UUID, role: Role) {
+    const { count, error } = await supabase
+      .from('team_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('team_id', teamId)
+      .eq('role', role);
+    if (error) throw error;
+    return count || 0;
+  },
   async remove(teamId: UUID, memberId: UUID) {
     const { error } = await supabase
       .from('team_members')
@@ -406,12 +455,25 @@ const invitations: InvitationsRepo = {
   async create(teamId: UUID, email: string, role: Role) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
+
+    const invitedEmail = email.trim().toLowerCase();
+    const { data: existingInvite, error: checkError } = await supabase
+      .from('team_invitations')
+      .select('id')
+      .eq('team_id', teamId)
+      .eq('invited_email', invitedEmail)
+      .eq('status', 'pending')
+      .maybeSingle();
+    if (checkError && checkError.code !== 'PGRST116') throw checkError;
+    if (existingInvite) {
+      throw new Error('This user has a pending invite.');
+    }
     
     const { error } = await supabase
       .from('team_invitations')
       .insert({
         team_id: teamId,
-        invited_email: email.toLowerCase(),
+        invited_email: invitedEmail,
         role,
         status: 'pending',
         invited_by_user_id: user.id,

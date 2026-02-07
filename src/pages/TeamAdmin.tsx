@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,9 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, Trash2, UserCog, Shield, ShieldOff, UserPlus } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { emailSchema } from '@/lib/validationSchemas';
-import { getApiBaseUrl, getDbProviderType } from '@/lib/provider/env';
 import { getErrorMessage } from '@/utils/errors';
-import { getCsrfToken } from '@/lib/auth/restAuthAdapter';
 import { FeatureGate } from '@/components/FeatureGate';
 import { useSoloUser } from '@/hooks/useSoloUser';
 import { getSettingsLabel } from '@/utils/terminology';
@@ -62,7 +59,6 @@ const TeamAdmin = () => {
   const [renaming, setRenaming] = useState(false);
   const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
-  const provider = getDbProviderType();
   const adminTeamsQuery = useAdminTeams({ enabled: Boolean(user) });
   const adminTeams = useMemo(() => adminTeamsQuery.data ?? [], [adminTeamsQuery.data]);
   const teamDetailsQuery = useTeamDetails(selectedTeamId, { enabled: Boolean(selectedTeamId) });
@@ -199,26 +195,7 @@ const TeamAdmin = () => {
 
       if (isPersonalTeam) {
         try {
-          if (provider === 'rest') {
-            const apiBase = getApiBaseUrl();
-            const csrfToken2 = getCsrfToken();
-            const res = await fetch(`${apiBase}/teams/${selectedTeamId}/convert-personal`, {
-              method: 'POST',
-              credentials: 'include',
-              headers: {
-                'Content-Type': 'application/json',
-                ...(csrfToken2 ? { 'X-CSRF-Token': csrfToken2 } : {}),
-              },
-              body: JSON.stringify({}),
-            });
-            if (!res.ok) throw new Error(await res.text());
-          } else {
-            const { error } = await supabase.rpc('convert_personal_to_team', {
-              _team_id: selectedTeamId,
-              _new_name: null,
-            });
-            if (error) throw error;
-          }
+          await adapter.teams.convertPersonal(selectedTeamId);
           await queryClient.invalidateQueries({
             queryKey: queryKeys.teams.detail(selectedTeamId),
           });
