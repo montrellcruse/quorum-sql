@@ -20,38 +20,10 @@ import type {
 } from './types';
 import { supabase } from '@/integrations/supabase/client';
 import { getApiBaseUrl } from './env';
-import { getErrorMessage } from '@/utils/errors';
-import { getCsrfToken } from '@/lib/auth/restAuthAdapter';
+import { http as sharedHttp } from '@/lib/http';
 
 function baseUrl(path: string) {
   return `${getApiBaseUrl()}${path}`;
-}
-
-const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-
-function resolveMethod(init?: RequestInit) {
-  return init?.method?.toUpperCase() || 'GET';
-}
-
-function resolveHeaders(init?: RequestInit): Record<string, string> {
-  const initHeaders = init?.headers;
-  const headersFromInit: Record<string, string> =
-    initHeaders instanceof Headers
-      ? Object.fromEntries(initHeaders.entries())
-      : (initHeaders as Record<string, string> | undefined) ?? {};
-  const headers: Record<string, string> = { ...headersFromInit };
-  if (init?.body) {
-    headers['Content-Type'] = 'application/json';
-  }
-  return headers;
-}
-
-function applyCsrfHeader(headers: Record<string, string>, method: string) {
-  if (!STATE_CHANGING_METHODS.has(method)) return;
-  const csrfToken = getCsrfToken();
-  if (csrfToken) {
-    headers['X-CSRF-Token'] = csrfToken;
-  }
 }
 
 async function applySupabaseAuthHeader(headers: Record<string, string>) {
@@ -66,52 +38,10 @@ async function applySupabaseAuthHeader(headers: Record<string, string>) {
   }
 }
 
-function resolveUrl(input: RequestInfo) {
-  if (typeof input === 'string') return input;
-  if (input instanceof Request) return input.url;
-  return String(input);
-}
-
-async function performFetch(
-  input: RequestInfo,
-  init: RequestInit | undefined,
-  headers: Record<string, string>,
-  method: string,
-  url: string
-) {
-  try {
-    return await fetch(input, {
-      credentials: 'include',
-      ...init,
-      headers,
-    });
-  } catch (error: unknown) {
-    throw new Error(`Network error during ${method} ${url}: ${getErrorMessage(error, 'request failed')}`);
-  }
-}
-
-async function assertOk(res: Response, method: string, url: string) {
-  if (res.ok) return;
-  const text = await res.text();
-  const detail = text || res.statusText;
-  throw new Error(`HTTP ${res.status} ${res.statusText} for ${method} ${url}${detail ? `: ${detail}` : ''}`);
-}
-
-async function parseJson<T>(res: Response): Promise<T> {
-  if (res.status === 204) return undefined as unknown as T;
-  return res.json() as Promise<T>;
-}
-
 async function http<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const method = resolveMethod(init);
-  const headers = resolveHeaders(init);
-  applyCsrfHeader(headers, method);
-  await applySupabaseAuthHeader(headers);
-
-  const url = resolveUrl(input);
-  const res = await performFetch(input, init, headers, method, url);
-  await assertOk(res, method, url);
-  return parseJson<T>(res);
+  return sharedHttp<T>(input, init, {
+    prepareHeaders: applySupabaseAuthHeader,
+  });
 }
 
 const teams: TeamsRepo = {
