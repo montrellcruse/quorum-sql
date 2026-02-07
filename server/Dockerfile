@@ -14,12 +14,13 @@ RUN cd server && npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-COPY server/package.json server/package-lock.json ./server/
-RUN cd server && npm ci --omit=dev
+COPY --chown=node:node server/package.json server/package-lock.json ./server/
+RUN cd server && npm ci --omit=dev && chown -R node:node /app
+USER node
 
-COPY --from=build /app/server/dist ./server/dist
-COPY --from=build /app/server/seed.sql ./server/seed.sql
-COPY --from=build /app/supabase ./supabase
+COPY --from=build --chown=node:node /app/server/dist ./server/dist
+COPY --from=build --chown=node:node /app/server/seed.sql ./server/seed.sql
+COPY --from=build --chown=node:node /app/supabase ./supabase
 
 ENV PORT=8787
 EXPOSE 8787
