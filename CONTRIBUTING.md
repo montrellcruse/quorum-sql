@@ -21,7 +21,7 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 ## Development Setup
 
-### Running the Full Stack
+### Docker Setup
 
 ```bash
 # Start database and API server
@@ -31,9 +31,19 @@ docker compose up -d db server
 pnpm dev
 ```
 
+After services are running, open the setup wizard at:
+
+- http://localhost:8080/setup
+
 ### Database Migrations
 
 When making database changes:
+
+- Historical migrations have been squashed into a single baseline:
+  `supabase/migrations/00000000000000_squashed_baseline.sql`
+- New migrations must be created after this baseline migration
+- Never modify the squashed baseline file directly
+- See `supabase/README.md` for full database workflow and migration guidance
 
 ```bash
 # Create a new migration
@@ -44,6 +54,26 @@ supabase db reset
 
 # Lint for security issues
 supabase db lint
+```
+
+## Testing
+
+Run tests and checks before opening a pull request:
+
+```bash
+# Playwright E2E tests
+pnpm test:e2e
+
+# Vitest unit tests
+pnpm test:unit
+
+# TypeScript checks
+pnpm typecheck
+pnpm typecheck:server
+
+# Linting
+pnpm lint
+pnpm lint:server
 ```
 
 ## Submitting Changes
@@ -65,7 +95,7 @@ supabase db lint
 
 4. **Commit with a clear message**:
    ```bash
-   git commit -m "Add feature: description of what you added"
+   git commit -m "feat: add your change summary"
    ```
 
 5. **Push to your fork**:
@@ -77,13 +107,18 @@ supabase db lint
 
 ### Commit Message Format
 
-Use clear, descriptive commit messages:
+Use [Conventional Commits](https://www.conventionalcommits.org/) with one of these types:
 
 ```
-Add feature: user profile editing
-Fix: team invitation email validation
-Update: improve query editor performance
-Docs: add API documentation
+feat: add user profile editing
+fix: correct team invitation email validation
+chore: update tooling config
+docs: add API documentation
+test: add coverage for auth middleware
+refactor: split query editor state logic
+perf: optimize list query pagination
+ci: cache pnpm store in workflow
+style: format settings panel component
 ```
 
 ## Coding Standards
