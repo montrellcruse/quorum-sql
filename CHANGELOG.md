@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.6.1...quorum-sql-v1.6.2) (2026-02-08)
+
+
+### Bug Fixes
+
+* correct security badge workflow reference ([6ec5ef9](https://github.com/montrellcruse/quorum-sql/commit/6ec5ef98ec713c4cdb7553033618994bf9b6d4c3))
+
 ## [1.6.1](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.6.0...quorum-sql-v1.6.1) (2026-02-07)
 
 
