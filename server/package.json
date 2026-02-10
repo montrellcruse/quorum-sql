@@ -42,7 +42,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@types/bcrypt": "^6.0.0",
-    "@types/node": "^25.2.1",
+    "@types/node": "^25.2.2",
     "@types/opossum": "^8.1.9",
     "@types/pg": "^8.15.5",
     "@vitest/coverage-v8": "^4.0.18",
@@ -50,7 +50,7 @@
     "globals": "^17.3.0",
     "tsx": "^4.20.5",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.54.0",
+    "typescript-eslint": "^8.55.0",
     "vitest": "^4.0.18"
   }
 }
