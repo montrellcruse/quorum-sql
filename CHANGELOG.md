@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.0](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.6.1...quorum-sql-v1.7.0) (2026-02-11)
+
+
+### Features
+
+* migrate to React 19 ([#144](https://github.com/montrellcruse/quorum-sql/issues/144)) ([3eb4146](https://github.com/montrellcruse/quorum-sql/commit/3eb4146eca93cd69a6d8bd8878b8120cc0321543)), closes [#143](https://github.com/montrellcruse/quorum-sql/issues/143)
+
+
+### Bug Fixes
+
+* correct security badge workflow reference ([6ec5ef9](https://github.com/montrellcruse/quorum-sql/commit/6ec5ef98ec713c4cdb7553033618994bf9b6d4c3))
+
 ## [1.6.1](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.6.0...quorum-sql-v1.6.1) (2026-02-07)
 
 

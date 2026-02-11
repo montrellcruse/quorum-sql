@@ -1,7 +1,7 @@
 {
   "name": "quorum-sql",
   "private": true,
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "Team-based SQL query management with version control and approval workflows",
   "type": "module",
   "scripts": {
