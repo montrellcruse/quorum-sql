@@ -22,6 +22,10 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # Tailwind v4 is a breaking rewrite requiring manual migration
+      - dependency-name: "tailwindcss"
+        versions: [">=4.0.0"]
     commit-message:
       prefix: "deps"
     labels:
