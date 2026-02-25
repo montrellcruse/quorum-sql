@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.0...quorum-sql-v1.7.1) (2026-02-25)
+
+
+### Bug Fixes
+
+* **deps:** override vulnerable transitive deps ([25194cf](https://github.com/montrellcruse/quorum-sql/commit/25194cfb90fe9ed49aec3c365735e9cf36d12d8e))
+
 ## [1.7.0](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.6.1...quorum-sql-v1.7.0) (2026-02-11)
 
 
