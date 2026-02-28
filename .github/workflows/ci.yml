@@ -124,14 +124,14 @@ jobs:
 
       - name: Upload server log
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: server-log
           path: server.log
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports
           path: |
@@ -242,7 +242,7 @@ jobs:
 
       - name: Upload E2E artifacts
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-artifacts
           path: |
