@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.1...quorum-sql-v1.7.2) (2026-03-06)
+
+
+### Bug Fixes
+
+* **deps:** add overrides for dompurify and rollup security alerts ([#174](https://github.com/montrellcruse/quorum-sql/issues/174)) ([f0cb853](https://github.com/montrellcruse/quorum-sql/commit/f0cb8537fb503feaf24ba8a99aa5181045784182))
+
 ## [1.7.1](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.0...quorum-sql-v1.7.1) (2026-02-25)
 
 
