@@ -45,11 +45,11 @@ importers:
         specifier: ^1.2.7
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@sentry/react':
-        specifier: ^10.41.0
-        version: 10.41.0(react@19.2.4)
+        specifier: ^10.43.0
+        version: 10.43.0(react@19.2.4)
       '@supabase/supabase-js':
-        specifier: ^2.99.0
-        version: 2.99.0
+        specifier: ^2.99.2
+        version: 2.99.2
       '@tanstack/react-query':
         specifier: ^5.90.21
         version: 5.90.21(react@19.2.4)
@@ -72,8 +72,8 @@ importers:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       posthog-js:
-        specifier: ^1.360.0
-        version: 1.360.0
+        specifier: ^1.360.2
+        version: 1.360.2
       react:
         specifier: ^19.2.4
         version: 19.2.4
@@ -110,7 +110,7 @@ importers:
         version: 1.58.2
       '@redocly/cli':
         specifier: ^2.20.2
-        version: 2.20.2(@opentelemetry/api@1.9.0)(core-js@3.48.0)
+        version: 2.20.2(@opentelemetry/api@1.9.0)(core-js@3.49.0)
       '@types/node':
         specifier: ^25.4.0
         version: 25.4.0
@@ -919,11 +919,11 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@posthog/core@1.23.2':
-    resolution: {integrity: sha512-zTDdda9NuSHrnwSOfFMxX/pyXiycF4jtU1kTr8DL61dHhV+7LF6XF1ndRZZTuaGGbfbb/GJYkEsjEX9SXfNZeQ==}
+  '@posthog/core@1.23.4':
+    resolution: {integrity: sha512-gSM1gnIuw5UOBUOTz0IhCTH8jOHoFr5rzSDb5m7fn9ofLHvz3boZT1L1f+bcuk+mvzNJfrJ3ByVQGKmUQnKQ8g==}
 
-  '@posthog/types@1.360.0':
-    resolution: {integrity: sha512-roypbiJ49V3jWlV/lzhXGf0cKLLRj69L4H4ZHW6YsITHlnjQ12cgdPhPS88Bb9nW9xZTVSGWWDjfNGsdgAxsNg==}
+  '@posthog/types@1.360.2':
+    resolution: {integrity: sha512-U48CbtmX5kETZvWjaJVlublSA1aLV99m71TQtgxWksBMXINS/3C7j+KqlMO6wH7SuaEZQnjaxh1KYGH4nRCaaA==}
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -1477,32 +1477,32 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@sentry-internal/browser-utils@10.41.0':
-    resolution: {integrity: sha512-Nsy7wqdWWqqNaoB/t5iqwAwTkHB73+UmyOU9k4OAmKuizSwj98h0fgPzoil3RgGzR7bjMxvaxXWKZyi//zEr0g==}
+  '@sentry-internal/browser-utils@10.43.0':
+    resolution: {integrity: sha512-8zYTnzhAPvNkVH1Irs62wl0J/c+0QcJ62TonKnzpSFUUD3V5qz8YDZbjIDGfxy+1EB9fO0sxtddKCzwTHF/MbQ==}
     engines: {node: '>=18'}
 
-  '@sentry-internal/feedback@10.41.0':
-    resolution: {integrity: sha512-fRWntZkEPVG7aBMjL7+NPpCTW9FW8RRmx7KZy8AzK51yCXhLwmM1aTR8RKJnz7zZC6XZozvhEXvtI9ud3b0LYA==}
+  '@sentry-internal/feedback@10.43.0':
+    resolution: {integrity: sha512-YoXuwluP6eOcQxTeTtaWb090++MrLyWOVsUTejzUQQ6LFL13Jwt+bDPF1kvBugMq4a7OHw/UNKQfd6//rZMn2g==}
     engines: {node: '>=18'}
 
-  '@sentry-internal/replay-canvas@10.41.0':
-    resolution: {integrity: sha512-fVirArw97oTm851JwJ3R1fC5rL+E8G3qx2XMmwU890UzovBcPo//DMDCGG2kkS62VVlZJ01HWF96a0Trer245g==}
+  '@sentry-internal/replay-canvas@10.43.0':
+    resolution: {integrity: sha512-ZIw1UNKOFXo1LbPCJPMAx9xv7D8TMZQusLDUgb6BsPQJj0igAuwd7KRGTkjjgnrwBp2O/sxcQFRhQhknWk7QPg==}
     engines: {node: '>=18'}
 
-  '@sentry-internal/replay@10.41.0':
-    resolution: {integrity: sha512-2CstiGYsE15nZ0K2HJB9SH2+/XcAvPf4erT3Y4/NNWogaz+g0RpRMpYM2ybHFX2x0sXggLXYrddHAUPFltiTjg==}
+  '@sentry-internal/replay@10.43.0':
+    resolution: {integrity: sha512-khCXlGrlH1IU7P5zCEAJFestMeH97zDVCekj8OsNNDtN/1BmCJ46k6Xi0EqAUzdJgrOLJeLdoYdgtiIjovZ8Sg==}
     engines: {node: '>=18'}
 
-  '@sentry/browser@10.41.0':
-    resolution: {integrity: sha512-7hwcgpl/RSCRAlSCDSq2U93MRa43W1E3z9pArmlSqraQ4pRIVhVRMhHwSyZZ8yPRlcRa16nIh7d04oZE3Zqniw==}
+  '@sentry/browser@10.43.0':
+    resolution: {integrity: sha512-2V3I3sXi3SMeiZpKixd9ztokSgK27cmvsD9J5oyOyjhGLTW/6QKCwHbKnluMgQMXq20nixQk5zN4wRjRUma3sg==}
     engines: {node: '>=18'}
 
-  '@sentry/core@10.41.0':
-    resolution: {integrity: sha512-TlYMUzyXdx2mICmEKFiCDPDw7fHB/3bIn5lJOOENPmF8SogLTTRiu+HhjIhWkZ9zM/fR3w7WT8qtE/ak7nr24Q==}
+  '@sentry/core@10.43.0':
+    resolution: {integrity: sha512-l0SszQAPiQGWl/ferw8GP3ALyHXiGiRKJaOvNmhGO+PrTQyZTZ6OYyPnGijAFRg58dE1V3RCH/zw5d2xSUIiNg==}
     engines: {node: '>=18'}
 
-  '@sentry/react@10.41.0':
-    resolution: {integrity: sha512-8GIDEtAh3cA16jIv9ETIHyqcwpVOXjPv5K0plCmMILze+7kz+jBW1KXHIMfCCuMj1w0FiYweZbHyz6Ak2tv5+w==}
+  '@sentry/react@10.43.0':
+    resolution: {integrity: sha512-shvErEpJ41i0Q3lIZl0CDWYQ7m8yHLi7ECG0gFvN8zf8pEdl5grQIOoe3t/GIUzcpCcor16F148ATmKJJypc/Q==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^16.14.0 || 17.x || 18.x || 19.x
@@ -1510,28 +1510,28 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@supabase/auth-js@2.99.0':
-    resolution: {integrity: sha512-tHiIST/OEoLmWBE+3X69xRY5srJM/lL86KltmMlIfDo9ePJLo14vQQV9T4NF+P+MoGhCwQL1GTmk51zuAFMXKw==}
+  '@supabase/auth-js@2.99.2':
+    resolution: {integrity: sha512-uRGNXMKEw4VhwouNW7N0XDAGqJP9redHNDmWi17dTrcO1lvFfyRiXsqqfgnVC8aqtRn8kLkLPEzHjiRWsni+oQ==}
     engines: {node: '>=20.0.0'}
 
-  '@supabase/functions-js@2.99.0':
-    resolution: {integrity: sha512-zA9oad6EqGwMLLu2LfP1bXbqKcJGiotAdbdTfZG7YS7619YZQAEgejj9mp+E5vglKE1yMWbKK+S1J3PbuUtgLg==}
+  '@supabase/functions-js@2.99.2':
+    resolution: {integrity: sha512-xuXQARvjdfB1UPK1yUceZ5EGjOLkVz4rBAaloS9foXiAuseWEdgWBCxkIAFRxGBLGX8Uzo8kseq90jhPb+07Vg==}
     engines: {node: '>=20.0.0'}
 
-  '@supabase/postgrest-js@2.99.0':
-    resolution: {integrity: sha512-8qfOMi2pu9y0IQhUAeFqjrvR49G4ELGevXCWV9qAHXFQ/h2FFh0I8PYjFQj4rHcHSq6hrpozDnS1vbQU8NAQ/A==}
+  '@supabase/postgrest-js@2.99.2':
+    resolution: {integrity: sha512-ueiOVkbkTQ7RskwVmjR8zxWYw3VKOMxo1+qep+Dx/SgApqyhWBGd92waQb45tbLc7ydB5x8El8utXOLQTuTojQ==}
     engines: {node: '>=20.0.0'}
 
-  '@supabase/realtime-js@2.99.0':
-    resolution: {integrity: sha512-7nFTZhNeANR7FvEY6PfWLCfE8dHqcaJd9SuR7IPEZvBPG9K4uEHMivpjZx4NWRSU7Eji7ZbKy2LG+cJ48DhwHg==}
+  '@supabase/realtime-js@2.99.2':
+    resolution: {integrity: sha512-J6Jm9601dkpZf3+EJ48ki2pM4sFtCNm/BI0l8iEnrczgg+JSEQkMoOW5VSpM54t0pNs69bsz5PTmYJahDZKiIQ==}
     engines: {node: '>=20.0.0'}
 
-  '@supabase/storage-js@2.99.0':
-    resolution: {integrity: sha512-mAEEbfsght5EEALejYrwAP9k8sFBGjfMZT8n4SyMXk2iYuWVeRMs1kA/uKg0uDMctWdZ0bL+L4jZzksUJpCjMA==}
+  '@supabase/storage-js@2.99.2':
+    resolution: {integrity: sha512-V/FF8kX8JGSefsVCG1spCLSrHdNR/JFeUMn1jS9KG/Eizjx+evtdKQKLJXFgIylY/bKTXKhc2SYDPIGrIhzsug==}
     engines: {node: '>=20.0.0'}
 
-  '@supabase/supabase-js@2.99.0':
-    resolution: {integrity: sha512-SP9Sn9tsHDB7N4u2gT13rdeZJewE4xibAxasG7vOz+fYi92+XkMMbWNx0uGK53zKTnAnvTs16isRooyBy4sn5w==}
+  '@supabase/supabase-js@2.99.2':
+    resolution: {integrity: sha512-179rn5wq0wBAqqGwAwR7TUGg2NOaP+fkd5FCVbYJXby85fsRNPFoNJN8YRBepqX2tN7JJcnTjqaAMXuNjiyisA==}
     engines: {node: '>=20.0.0'}
 
   '@swc/core-darwin-arm64@1.15.11':
@@ -2038,8 +2038,8 @@ packages:
     resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
     engines: {node: '>=18'}
 
-  core-js@3.48.0:
-    resolution: {integrity: sha512-zpEHTy1fjTMZCKLHUZoVeylt9XrzaIN2rbPXEt0k+q7JE5CkCZdo6bNq55bn24a69CH7ErAVLKijxJja4fw+UQ==}
+  core-js@3.49.0:
+    resolution: {integrity: sha512-es1U2+YTtzpwkxVLwAFdSpaIMyQaq0PBgm3YD1W3Qpsn1NAmO3KSgZfu+oGSWVu6NvLHoHCV/aYcsE5wiB7ALg==}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -2124,6 +2124,9 @@ packages:
   dompurify@3.3.2:
     resolution: {integrity: sha512-6obghkliLdmKa56xdbLOpUZ43pAR6xFy1uOrxBaIDjT+yaRuuybLjGS9eVBoSR/UPU5fq3OXClEHLJNGvbxKpQ==}
     engines: {node: '>=20'}
+
+  dompurify@3.3.3:
+    resolution: {integrity: sha512-Oj6pzI2+RqBfFG+qOaOLbFXLQ90ARpcGG6UePL82bJLtdsa6CYJD7nmiU8MW9nQNOtCHV3lZ/Bzq1X0QYbBZCA==}
 
   dotenv@16.4.7:
     resolution: {integrity: sha512-47qPchRCykZC03FhkYAhrvwU4xDBFIj1QPqaarj6mdM/hgUzfPHcpkHJOn3mJAufFeeAxAzeGsr5X0M4k6fLZQ==}
@@ -3130,15 +3133,15 @@ packages:
     resolution: {integrity: sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.360.0:
-    resolution: {integrity: sha512-jkyO+T97yi6RuiexOaXC7AnEGiC+yIfGU5DIUzI5rqBH6MltmtJw/ve2Oxc4jeua2WDr5sXMzo+SS+acbpueAA==}
+  posthog-js@1.360.2:
+    resolution: {integrity: sha512-/Wed0mOuRUfyEGT/BRQaokCqBlxrEceE7MDT9A00lU5tXo443/2Pg9ZiqN5sucUluZF47hwGORpYPoVUt32UFw==}
 
   powershell-utils@0.1.0:
     resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
     engines: {node: '>=20'}
 
-  preact@10.28.4:
-    resolution: {integrity: sha512-uKFfOHWuSNpRFVTnljsCluEFq57OKT+0QdOiQo8XWnQ/pSvg7OpX5eNOejELXJMWy+BwM2nobz0FkvzmnpCNsQ==}
+  preact@10.29.0:
+    resolution: {integrity: sha512-wSAGyk2bYR1c7t3SZ3jHcM6xy0lcBcDel6lODcs9ME6Th++Dx2KU+6D3HD8wMMKGA8Wpw7OMd3/4RGzYRpzwRg==}
 
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
@@ -4784,11 +4787,11 @@ snapshots:
     dependencies:
       playwright: 1.58.2
 
-  '@posthog/core@1.23.2':
+  '@posthog/core@1.23.4':
     dependencies:
       cross-spawn: 7.0.6
 
-  '@posthog/types@1.360.0': {}
+  '@posthog/types@1.360.2': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -5165,7 +5168,7 @@ snapshots:
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
-  '@redocly/cli@2.20.2(@opentelemetry/api@1.9.0)(core-js@3.48.0)':
+  '@redocly/cli@2.20.2(@opentelemetry/api@1.9.0)(core-js@3.49.0)':
     dependencies:
       '@opentelemetry/exporter-trace-otlp-http': 0.202.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 2.0.1(@opentelemetry/api@1.9.0)
@@ -5187,7 +5190,7 @@ snapshots:
       pluralize: 8.0.0
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-      redoc: 2.5.1(core-js@3.48.0)(mobx@6.15.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(styled-components@6.3.9(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
+      redoc: 2.5.1(core-js@3.49.0)(mobx@6.15.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(styled-components@6.3.9(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
       semver: 7.7.4
       set-cookie-parser: 2.7.2
       simple-websocket: 9.1.0
@@ -5329,55 +5332,55 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.59.0':
     optional: true
 
-  '@sentry-internal/browser-utils@10.41.0':
+  '@sentry-internal/browser-utils@10.43.0':
     dependencies:
-      '@sentry/core': 10.41.0
+      '@sentry/core': 10.43.0
 
-  '@sentry-internal/feedback@10.41.0':
+  '@sentry-internal/feedback@10.43.0':
     dependencies:
-      '@sentry/core': 10.41.0
+      '@sentry/core': 10.43.0
 
-  '@sentry-internal/replay-canvas@10.41.0':
+  '@sentry-internal/replay-canvas@10.43.0':
     dependencies:
-      '@sentry-internal/replay': 10.41.0
-      '@sentry/core': 10.41.0
+      '@sentry-internal/replay': 10.43.0
+      '@sentry/core': 10.43.0
 
-  '@sentry-internal/replay@10.41.0':
+  '@sentry-internal/replay@10.43.0':
     dependencies:
-      '@sentry-internal/browser-utils': 10.41.0
-      '@sentry/core': 10.41.0
+      '@sentry-internal/browser-utils': 10.43.0
+      '@sentry/core': 10.43.0
 
-  '@sentry/browser@10.41.0':
+  '@sentry/browser@10.43.0':
     dependencies:
-      '@sentry-internal/browser-utils': 10.41.0
-      '@sentry-internal/feedback': 10.41.0
-      '@sentry-internal/replay': 10.41.0
-      '@sentry-internal/replay-canvas': 10.41.0
-      '@sentry/core': 10.41.0
+      '@sentry-internal/browser-utils': 10.43.0
+      '@sentry-internal/feedback': 10.43.0
+      '@sentry-internal/replay': 10.43.0
+      '@sentry-internal/replay-canvas': 10.43.0
+      '@sentry/core': 10.43.0
 
-  '@sentry/core@10.41.0': {}
+  '@sentry/core@10.43.0': {}
 
-  '@sentry/react@10.41.0(react@19.2.4)':
+  '@sentry/react@10.43.0(react@19.2.4)':
     dependencies:
-      '@sentry/browser': 10.41.0
-      '@sentry/core': 10.41.0
+      '@sentry/browser': 10.43.0
+      '@sentry/core': 10.43.0
       react: 19.2.4
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@supabase/auth-js@2.99.0':
+  '@supabase/auth-js@2.99.2':
     dependencies:
       tslib: 2.8.1
 
-  '@supabase/functions-js@2.99.0':
+  '@supabase/functions-js@2.99.2':
     dependencies:
       tslib: 2.8.1
 
-  '@supabase/postgrest-js@2.99.0':
+  '@supabase/postgrest-js@2.99.2':
     dependencies:
       tslib: 2.8.1
 
-  '@supabase/realtime-js@2.99.0':
+  '@supabase/realtime-js@2.99.2':
     dependencies:
       '@types/phoenix': 1.6.7
       '@types/ws': 8.18.1
@@ -5387,18 +5390,18 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@supabase/storage-js@2.99.0':
+  '@supabase/storage-js@2.99.2':
     dependencies:
       iceberg-js: 0.8.1
       tslib: 2.8.1
 
-  '@supabase/supabase-js@2.99.0':
+  '@supabase/supabase-js@2.99.2':
     dependencies:
-      '@supabase/auth-js': 2.99.0
-      '@supabase/functions-js': 2.99.0
-      '@supabase/postgrest-js': 2.99.0
-      '@supabase/realtime-js': 2.99.0
-      '@supabase/storage-js': 2.99.0
+      '@supabase/auth-js': 2.99.2
+      '@supabase/functions-js': 2.99.2
+      '@supabase/postgrest-js': 2.99.2
+      '@supabase/realtime-js': 2.99.2
+      '@supabase/storage-js': 2.99.2
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -5902,7 +5905,7 @@ snapshots:
 
   cookie@1.1.1: {}
 
-  core-js@3.48.0: {}
+  core-js@3.49.0: {}
 
   cross-spawn@7.0.6:
     dependencies:
@@ -5962,6 +5965,10 @@ snapshots:
   doctypes@1.1.0: {}
 
   dompurify@3.3.2:
+    optionalDependencies:
+      '@types/trusted-types': 2.0.7
+
+  dompurify@3.3.3:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -6956,25 +6963,25 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  posthog-js@1.360.0:
+  posthog-js@1.360.2:
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/api-logs': 0.208.0
       '@opentelemetry/exporter-logs-otlp-http': 0.208.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 2.6.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-logs': 0.208.0(@opentelemetry/api@1.9.0)
-      '@posthog/core': 1.23.2
-      '@posthog/types': 1.360.0
-      core-js: 3.48.0
-      dompurify: 3.3.2
+      '@posthog/core': 1.23.4
+      '@posthog/types': 1.360.2
+      core-js: 3.49.0
+      dompurify: 3.3.3
       fflate: 0.4.8
-      preact: 10.28.4
+      preact: 10.29.0
       query-selector-shadow-dom: 1.0.1
       web-vitals: 5.1.0
 
   powershell-utils@0.1.0: {}
 
-  preact@10.28.4: {}
+  preact@10.29.0: {}
 
   prelude-ls@1.2.1: {}
 
@@ -7170,13 +7177,13 @@ snapshots:
     dependencies:
       picomatch: 2.3.1
 
-  redoc@2.5.1(core-js@3.48.0)(mobx@6.15.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(styled-components@6.3.9(react-dom@19.2.4(react@19.2.4))(react@19.2.4)):
+  redoc@2.5.1(core-js@3.49.0)(mobx@6.15.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(styled-components@6.3.9(react-dom@19.2.4(react@19.2.4))(react@19.2.4)):
     dependencies:
       '@redocly/openapi-core': 1.34.10
       classnames: 2.5.1
-      core-js: 3.48.0
+      core-js: 3.49.0
       decko: 1.2.0
-      dompurify: 3.3.2
+      dompurify: 3.3.3
       eventemitter3: 5.0.4
       json-pointer: 0.6.2
       lunr: 2.3.9
