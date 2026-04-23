@@ -117,12 +117,12 @@
       "minimatch@>=5.0.0 <5.1.7": ">=5.1.7",
       "minimatch@10.2.0": "10.2.3",
       "js-yaml@>=4.0.0 <4.1.1": ">=4.1.1",
-      "dompurify": ">=3.3.2",
+      "dompurify": "3.4.0",
       "rollup": ">=4.59.0"
     }
   },
   "overrides": {
-    "dompurify": ">=3.3.2",
+    "dompurify": "3.4.0",
     "rollup": ">=4.59.0"
   }
 }
