@@ -44,6 +44,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const fetchSeq = useRef(0);
   const retryRef = useRef(0);
   const retryTimeoutRef = useRef<number | null>(null);
+  const fetchUserTeamsRef = useRef<(() => Promise<void>) | null>(null);
 
   const fetchUserTeams = useCallback(async () => {
     const seq = ++fetchSeq.current;
@@ -92,7 +93,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             window.clearTimeout(retryTimeoutRef.current);
           }
           retryTimeoutRef.current = window.setTimeout(() => {
-            fetchUserTeams();
+            void fetchUserTeamsRef.current?.();
           }, 800);
         }
       }
@@ -109,6 +110,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       }
     }
   }, [user]);
+
+  useEffect(() => {
+    fetchUserTeamsRef.current = fetchUserTeams;
+  }, [fetchUserTeams]);
 
   useEffect(() => {
     if (user) {
