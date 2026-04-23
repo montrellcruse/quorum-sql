@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.3](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.2...quorum-sql-v1.7.3) (2026-04-23)
+
+
+### Bug Fixes
+
+* pin dompurify patched version ([#232](https://github.com/montrellcruse/quorum-sql/issues/232)) ([1e99482](https://github.com/montrellcruse/quorum-sql/commit/1e99482716d5f2fdaad9c1cf6573f46f948e0d0c))
+
 ## [1.7.2](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.1...quorum-sql-v1.7.2) (2026-03-06)
 
 
