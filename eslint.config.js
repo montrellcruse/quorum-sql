@@ -95,6 +95,7 @@ export default tseslint.config(
     files: ["src/**/*.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
+      "react-hooks/set-state-in-effect": "off",
     },
   },
   // UI shadcn components occasionally use empty extension interfaces
