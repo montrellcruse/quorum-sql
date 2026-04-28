@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.4](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.3...quorum-sql-v1.7.4) (2026-04-28)
+
+
+### Bug Fixes
+
+* force patched postcss resolution ([#238](https://github.com/montrellcruse/quorum-sql/issues/238)) ([ded3fca](https://github.com/montrellcruse/quorum-sql/commit/ded3fcaf15db268c9d0428adde4ce10c75276685))
+
 ## [1.7.3](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.2...quorum-sql-v1.7.3) (2026-04-23)
 
 
