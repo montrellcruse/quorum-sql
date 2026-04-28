@@ -33,7 +33,7 @@
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
     "fastify": "^5.8.5",
-    "jose": "^6.2.2",
+    "jose": "^6.2.3",
     "opossum": "^9.0.0",
     "pg": "^8.20.0",
     "prom-client": "^15.1.0",
@@ -50,7 +50,7 @@
     "globals": "^17.5.0",
     "tsx": "^4.20.5",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.0",
+    "typescript-eslint": "^8.59.1",
     "vitest": "^4.0.18"
   }
 }
