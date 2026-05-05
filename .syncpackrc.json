@@ -1,5 +1,11 @@
 {
   "indent": "  ",
+  "customTypes": {
+    "pnpmOverridesLegacy": {
+      "strategy": "versionsByName",
+      "path": "pnpm.overrides"
+    }
+  },
   "semverGroups": [
     {
       "range": "^",
