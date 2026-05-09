@@ -28,8 +28,6 @@ updates:
         versions: [">=4.0.0"]
     commit-message:
       prefix: "deps"
-    labels:
-      - "dependencies"
 
   # Backend/server dependencies
   - package-ecosystem: "npm"
@@ -46,7 +44,6 @@ updates:
     commit-message:
       prefix: "deps(server)"
     labels:
-      - "dependencies"
       - "backend"
 
   # GitHub Actions
