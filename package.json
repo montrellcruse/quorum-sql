@@ -32,7 +32,7 @@
     "report:flaky-tests": "node scripts/report-flaky-tests.js",
     "report:test-timing": "node scripts/report-test-timing.js",
     "check:unused-deps": "knip",
-    "check:dup-code": "jscpd --config .jscpd.json --exitCode 0",
+    "check:dup-code": "jscpd --config .jscpd.json . --no-tips",
     "check:version-drift": "syncpack lint",
     "check:feature-flags": "node scripts/check-feature-flags.js",
     "check:test-isolation": "node scripts/check-test-isolation.js",
