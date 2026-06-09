@@ -1,9 +1,10 @@
 {
   "minLines": 20,
   "minTokens": 70,
-  "threshold": 0,
+  "threshold": 100,
+  "maxSize": "100kb",
   "reporters": ["console"],
-  "ignore": [
+  "ignorePattern": [
     "dist/**",
     "node_modules/**",
     "server/node_modules/**",
