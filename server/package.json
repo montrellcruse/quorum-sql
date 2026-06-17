@@ -54,6 +54,6 @@
     "vitest": "^4.0.18"
   },
   "overrides": {
-    "protobufjs": "8.2.0"
+    "protobufjs": "8.6.0"
   }
 }
