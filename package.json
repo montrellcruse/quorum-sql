@@ -44,10 +44,6 @@
     "turbo:lint": "turbo run lint",
     "turbo:test": "turbo run test",
     "turbo:typecheck": "turbo run typecheck",
-    "changeset": "changeset",
-    "changeset:version": "changeset version",
-    "changeset:publish": "changeset publish",
-    "release": "changeset version && git add . && git commit -m 'chore: version packages' && git push",
     "prepare": "husky install"
   },
   "dependencies": {
@@ -79,11 +75,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^0.7.0",
-    "@changesets/cli": "^2.31.0",
     "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.61.0",
-    "@redocly/cli": "^2.32.2",
+    "@redocly/cli": "^2.34.0",
     "@types/node": "^25.9.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
@@ -117,13 +111,14 @@
       "minimatch@>=5.0.0 <5.1.7": ">=5.1.7",
       "minimatch@10.2.0": "10.2.3",
       "js-yaml@>=4.0.0 <4.1.1": ">=4.1.1",
-      "dompurify": "3.4.0",
+      "dompurify": "3.4.11",
       "postcss": "8.5.14",
       "rollup": ">=4.59.0"
     }
   },
   "overrides": {
-    "dompurify": "3.4.0",
+    "dompurify": "3.4.11",
+    "js-yaml": "4.2.0",
     "postcss": "$postcss",
     "rollup": ">=4.59.0"
   }
