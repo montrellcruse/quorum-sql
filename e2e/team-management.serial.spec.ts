@@ -202,8 +202,12 @@ test.describe('Team Management Flows', () => {
         for (let i = 0; i < optionCount; i++) {
           await teamSelector.click();
           await options.nth(i).click();
-          await page.waitForTimeout(1000);
-          if (await memberRow.isVisible().catch(() => false)) break;
+          try {
+            await expect(memberRow).toBeVisible({ timeout: 5000 });
+            break;
+          } catch {
+            // Keep searching; member rows reload asynchronously after team changes.
+          }
         }
       }
     }
