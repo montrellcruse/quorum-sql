@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.5](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.4...quorum-sql-v1.7.5) (2026-07-21)
+
+
+### Bug Fixes
+
+* **server:** bump protobufjs override to 8.7.1 ([#304](https://github.com/montrellcruse/quorum-sql/issues/304)) ([35b43d4](https://github.com/montrellcruse/quorum-sql/commit/35b43d493d5829bb1c6b618bf536fb8fe8094a6c))
+
 ## [1.7.4](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.3...quorum-sql-v1.7.4) (2026-05-05)
 
 
