@@ -8,7 +8,7 @@ const analyze = process.env.ANALYZE === "true";
 const plugins = [react()];
 const manualChunkGroups = [
   // React core - rarely changes
-  ["vendor-react", /node_modules\/(?:react|react-dom|react-router-dom)\//],
+  ["vendor-react", /node_modules\/(?:react|react-dom|react-router)\//],
   // Monaco editor - large, only needed for query editing
   ["vendor-monaco", /node_modules\/(?:@monaco-editor\/react|monaco-editor)\//],
   // Radix UI components
