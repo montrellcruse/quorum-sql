@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
