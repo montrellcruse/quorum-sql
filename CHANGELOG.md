@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.6](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.5...quorum-sql-v1.7.6) (2026-07-31)
+
+
+### Bug Fixes
+
+* **server:** update fast-uri transitive locks ([3c4cb87](https://github.com/montrellcruse/quorum-sql/commit/3c4cb871d7a8f96c0b51cbc7c3518128bdaade15))
+* update brace-expansion transitive lock ([0e5017e](https://github.com/montrellcruse/quorum-sql/commit/0e5017e623cdde3649cc34032e997ea5181aacac))
+* update DOMPurify override ([903bde8](https://github.com/montrellcruse/quorum-sql/commit/903bde84cb58726c236b69800a8b44d177d1d87b))
+* upgrade React Router security floor ([d0ec7ac](https://github.com/montrellcruse/quorum-sql/commit/d0ec7aca955b7bac3f86208a5f821d0ad0ef25f3))
+
 ## [1.7.5](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.4...quorum-sql-v1.7.5) (2026-07-21)
 
 
