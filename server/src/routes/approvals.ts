@@ -61,7 +61,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
            where q.id = $1`,
           [id],
         );
-        const approval_quota = quotaRes.rows[0]?.approval_quota || 1;
+        const approvalQuota = quotaRes.rows[0]?.approval_quota || 1;
 
         const histRes = await client.query(
           'select id from public.query_history where query_id = $1 order by created_at desc limit 1',
@@ -69,13 +69,13 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
         );
         const latestId = histRes.rows[0]?.id;
 
-        if (!latestId) return { approvals: [], approval_quota };
+        if (!latestId) return { approvals: [], approval_quota: approvalQuota };
 
         const apprRes = await client.query(
           'select * from public.query_approvals where query_history_id = $1',
           [latestId],
         );
-        return { approvals: apprRes.rows, approval_quota, latest_history_id: latestId };
+        return { approvals: apprRes.rows, approval_quota: approvalQuota, latest_history_id: latestId };
       });
     } catch (err) {
       if (isMissingTable(err)) return { approvals: [], approval_quota: 1 };
@@ -140,9 +140,14 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
     }
 
-    const { sql, modified_by_email: rawModifiedByEmail = null, change_reason = null, team_id = null } = parsed.data;
+    const {
+      sql,
+      modified_by_email: rawModifiedByEmail = null,
+      change_reason: changeReason = null,
+      team_id: teamId = null,
+    } = parsed.data;
     // Issue #78: Normalize email to lowercase
-    const modified_by_email = rawModifiedByEmail?.trim().toLowerCase() ?? null;
+    const modifiedByEmail = rawModifiedByEmail?.trim().toLowerCase() ?? null;
     // Issue #79: Always use authenticated user ID from session, never trust client-supplied user_id
 
     return fastify.withClient(sess.id, async (client) => {
@@ -150,9 +155,9 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
         await client.query('select public.submit_query_for_approval($1, $2, $3, $4, $5, $6)', [
           id,
           sql || null,
-          modified_by_email,
-          change_reason,
-          team_id,
+          modifiedByEmail,
+          changeReason,
+          teamId,
           sess.id,
         ]);
         return { ok: true };

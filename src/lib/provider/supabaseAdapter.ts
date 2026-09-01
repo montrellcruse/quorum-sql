@@ -209,6 +209,27 @@ const folders: FoldersRepo = {
   },
 };
 
+type SubmitApprovalOptions = Parameters<QueriesRepo['submitForApproval']>[2];
+
+async function resolveApprovalIdentity(options: SubmitApprovalOptions) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = options?.user_id ?? user?.id;
+  const email = options?.modified_by_email ?? user?.email;
+  if (!userId || !email) throw new Error('Not authenticated');
+  return { userId, email };
+}
+
+async function resolveApprovalTeamId(queryId: UUID, teamId?: UUID) {
+  if (teamId) return teamId;
+  const { data: query, error } = await supabase
+    .from('sql_queries')
+    .select('team_id')
+    .eq('id', queryId)
+    .single();
+  if (error || !query) throw new Error('Query not found');
+  return query.team_id;
+}
+
 const queries: QueriesRepo = {
   async getById(id: UUID) {
     const { data, error } = await supabase
@@ -266,29 +287,16 @@ const queries: QueriesRepo = {
     if (error) throw error;
   },
   async submitForApproval(id, sql, opts) {
-    const { data: { user } } = await supabase.auth.getUser();
-    const resolvedUserId = opts?.user_id ?? user?.id;
-    const resolvedEmail = opts?.modified_by_email ?? user?.email;
-    if (!resolvedUserId || !resolvedEmail) throw new Error('Not authenticated');
-
-    let resolvedTeamId = opts?.team_id;
-    if (!resolvedTeamId) {
-      const { data: query, error: queryError } = await supabase
-        .from('sql_queries')
-        .select('team_id')
-        .eq('id', id)
-        .single();
-      if (queryError || !query) throw new Error('Query not found');
-      resolvedTeamId = query.team_id;
-    }
+    const { userId, email } = await resolveApprovalIdentity(opts);
+    const teamId = await resolveApprovalTeamId(id, opts?.team_id);
 
     const { error } = await supabase.rpc('submit_query_for_approval', {
       _query_id: id,
       _sql_content: sql,
-      _modified_by_email: resolvedEmail,
+      _modified_by_email: email,
       _change_reason: opts?.change_reason || '',
-      _team_id: resolvedTeamId,
-      _user_id: resolvedUserId,
+      _team_id: teamId,
+      _user_id: userId,
     });
     if (error) throw error;
   },
