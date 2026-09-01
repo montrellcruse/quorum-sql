@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { Pool, PoolClient } from 'pg';
 import { createPool } from './db.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 type SqlFile = { name: string; fullPath: string; sql: string };
 
@@ -132,12 +132,12 @@ async function main() {
   const pool = createPool();
   try {
     await ensureAuthShim(pool);
-    const migrationsDir = path.join(__dirname, '../../supabase/migrations');
+    const migrationsDir = path.join(currentDir, '../../supabase/migrations');
     console.log('Applying migrations from: supabase/migrations');
     const migrations = readSqlFiles(migrationsDir);
     await applyMigrations(pool, migrations);
     if (seed) {
-      const seedPath = path.join(__dirname, '../seed.sql');
+      const seedPath = path.join(currentDir, '../seed.sql');
       await applySeed(pool, seedPath);
     }
     console.log('Migrations complete');

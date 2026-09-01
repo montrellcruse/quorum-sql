@@ -164,28 +164,28 @@ export default async function folderRoutes(fastify: FastifyInstance) {
       name,
       description = null,
       created_by_email: rawCreatedByEmail = null,
-      parent_folder_id = null,
-      team_id,
+      parent_folder_id: parentFolderId = null,
+      team_id: teamId,
     } = parsed.data;
     // Issue #79: Always use authenticated user ID, never trust client-supplied user_id
-    const user_id = sess.id;
+    const userId = sess.id;
     // Issue #78: Normalize email to lowercase
-    const created_by_email = rawCreatedByEmail?.trim().toLowerCase() ?? null;
+    const createdByEmail = rawCreatedByEmail?.trim().toLowerCase() ?? null;
 
     return fastify.withClient(sess.id, async (client) => {
       // Validate team membership
-      const isMember = await requireTeamMember(client, sess.id, team_id, req);
+      const isMember = await requireTeamMember(client, sess.id, teamId, req);
       if (!isMember) {
         return reply.code(403).send({ error: 'Access denied' });
       }
 
       // If parent_folder_id is provided, verify it belongs to the same team
-      if (parent_folder_id) {
+      if (parentFolderId) {
         const { rows: parentRows } = await client.query(
           'select team_id from public.folders where id = $1',
-          [parent_folder_id],
+          [parentFolderId],
         );
-        if (!parentRows[0] || parentRows[0].team_id !== team_id) {
+        if (!parentRows[0] || parentRows[0].team_id !== teamId) {
           return reply.code(400).send({ error: 'Parent folder must belong to the same team' });
         }
       }
@@ -193,7 +193,7 @@ export default async function folderRoutes(fastify: FastifyInstance) {
       const { rows } = await client.query(
         `insert into public.folders(name, description, user_id, created_by_email, parent_folder_id, team_id)
          values($1,$2,$3,$4,$5,$6) returning *`,
-        [name, description, user_id, created_by_email, parent_folder_id, team_id],
+        [name, description, userId, createdByEmail, parentFolderId, teamId],
       );
       return rows[0];
     });

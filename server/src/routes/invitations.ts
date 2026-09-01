@@ -68,7 +68,7 @@ export default async function invitationRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
     }
 
-    const { invited_email, role } = parsed.data;
+    const { invited_email: invitedEmail, role } = parsed.data;
 
     return fastify.withClient(sess.id, async (client) => {
       // Verify admin status
@@ -83,10 +83,10 @@ export default async function invitationRoutes(fastify: FastifyInstance) {
          where not exists (
            select 1 from public.team_invitations where team_id = $1 and lower(invited_email) = lower($2) and status = 'pending'
          )`,
-        [id, invited_email.trim().toLowerCase(), role],
+        [id, invitedEmail.trim().toLowerCase(), role],
       );
 
-      req.log.info({ teamId: id, invitedEmail: invited_email, role, invitedBy: sess.id }, 'ADMIN: Invitation sent');
+      req.log.info({ teamId: id, invitedEmail, role, invitedBy: sess.id }, 'ADMIN: Invitation sent');
       return { ok: true };
     });
   });

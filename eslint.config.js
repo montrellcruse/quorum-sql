@@ -63,17 +63,39 @@ export default tseslint.config(
         { selector: "typeLike", format: ["PascalCase"] },
         { selector: "enumMember", format: ["PascalCase", "UPPER_CASE"] },
       ],
-      "boundaries/element-types": [
+      "boundaries/dependencies": [
         "warn",
         {
           default: "allow",
-          rules: [
-            { from: "pages", allow: ["components", "contexts", "hooks", "lib", "utils"] },
-            { from: "components", allow: ["components", "hooks", "lib", "utils"] },
-            { from: "contexts", allow: ["lib", "utils"] },
-            { from: "hooks", allow: ["hooks", "lib", "utils"] },
-            { from: "lib", allow: ["lib", "utils"] },
-            { from: "utils", allow: ["utils"] },
+          policies: [
+            {
+              from: { element: { type: "pages" } },
+              allow: {
+                to: { element: { types: { anyOf: ["components", "contexts", "hooks", "lib", "utils"] } } },
+              },
+            },
+            {
+              from: { element: { type: "components" } },
+              allow: {
+                to: { element: { types: { anyOf: ["components", "hooks", "lib", "utils"] } } },
+              },
+            },
+            {
+              from: { element: { type: "contexts" } },
+              allow: { to: { element: { types: { anyOf: ["lib", "utils"] } } } },
+            },
+            {
+              from: { element: { type: "hooks" } },
+              allow: { to: { element: { types: { anyOf: ["hooks", "lib", "utils"] } } } },
+            },
+            {
+              from: { element: { type: "lib" } },
+              allow: { to: { element: { types: { anyOf: ["lib", "utils"] } } } },
+            },
+            {
+              from: { element: { type: "utils" } },
+              allow: { to: { element: { type: "utils" } } },
+            },
           ],
         },
       ],

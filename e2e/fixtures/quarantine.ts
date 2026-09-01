@@ -14,8 +14,8 @@ type QuarantineFile = {
   tests?: QuarantineEntry[];
 };
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const quarantinePath = path.resolve(__dirname, '..', 'quarantine.json');
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const quarantinePath = path.resolve(currentDir, '..', 'quarantine.json');
 
 function loadQuarantine(): QuarantineEntry[] {
   try {

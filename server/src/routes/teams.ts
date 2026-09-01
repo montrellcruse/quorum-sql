@@ -61,13 +61,13 @@ export default async function teamRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
     }
 
-    const { name, approval_quota = 1 } = parsed.data;
+    const { name, approval_quota: approvalQuota = 1 } = parsed.data;
 
     return fastify.withClient(sess.id, async (client) => {
       const tRes = await client.query(
         `insert into public.teams(name, approval_quota, admin_id)
          values ($1, $2, auth.uid()) returning id, name, approval_quota, admin_id, is_personal, created_at`,
-        [name, approval_quota],
+        [name, approvalQuota],
       );
       const team = tRes.rows[0];
       await client.query(
@@ -95,8 +95,8 @@ export default async function teamRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
     }
 
-    const { approval_quota, name } = parsed.data;
-    if (approval_quota === undefined && name === undefined) {
+    const { approval_quota: approvalQuota, name } = parsed.data;
+    if (approvalQuota === undefined && name === undefined) {
       return reply.code(400).send({ error: 'No updates provided' });
     }
 
@@ -109,8 +109,8 @@ export default async function teamRoutes(fastify: FastifyInstance) {
 
       const updates = [];
       const values = [];
-      if (approval_quota !== undefined) {
-        values.push(approval_quota);
+      if (approvalQuota !== undefined) {
+        values.push(approvalQuota);
         updates.push(`approval_quota = $${values.length}`);
       }
       if (name !== undefined) {
@@ -123,7 +123,7 @@ export default async function teamRoutes(fastify: FastifyInstance) {
         values,
       );
 
-      req.log.info({ teamId: id, userId: sess.id, approval_quota, name }, 'ADMIN: Team settings updated');
+      req.log.info({ teamId: id, userId: sess.id, approvalQuota, name }, 'ADMIN: Team settings updated');
       return { ok: true };
     });
   });
@@ -213,7 +213,7 @@ export default async function teamRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
     }
 
-    const { new_owner_user_id } = parsed.data;
+    const { new_owner_user_id: newOwnerUserId } = parsed.data;
 
     return fastify.withClient(sess.id, async (client) => {
       // Verify current user is the team owner
@@ -228,7 +228,7 @@ export default async function teamRoutes(fastify: FastifyInstance) {
       }
 
       // Ensure new owner is a team member
-      const isMember = await requireTeamMember(client, new_owner_user_id, id, req);
+      const isMember = await requireTeamMember(client, newOwnerUserId, id, req);
       if (!isMember) {
         return reply.code(400).send({ error: 'New owner must be a team member' });
       }
@@ -236,14 +236,14 @@ export default async function teamRoutes(fastify: FastifyInstance) {
       // Make new owner admin and transfer ownership
       await client.query(
         `update public.team_members set role = 'admin' where team_id = $1 and user_id = $2`,
-        [id, new_owner_user_id],
+        [id, newOwnerUserId],
       );
       await client.query(
         'update public.teams set admin_id = $1 where id = $2',
-        [new_owner_user_id, id],
+        [newOwnerUserId, id],
       );
 
-      req.log.info({ teamId: id, oldOwner: sess.id, newOwner: new_owner_user_id }, 'ADMIN: Team ownership transferred');
+      req.log.info({ teamId: id, oldOwner: sess.id, newOwner: newOwnerUserId }, 'ADMIN: Team ownership transferred');
       return { ok: true };
     });
   });
