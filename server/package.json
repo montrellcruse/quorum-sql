@@ -45,7 +45,7 @@
     "@types/node": "^26.4.1",
     "@types/opossum": "^8.1.9",
     "@types/pg": "^8.23.1",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "eslint": "^10.10.0",
     "globals": "^17.12.0",
     "tsx": "^4.23.13",
