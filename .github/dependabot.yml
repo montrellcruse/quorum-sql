@@ -11,6 +11,11 @@ updates:
       day: "monday"
     open-pull-requests-limit: 10
     groups:
+      # Keep the test runner and its exact-peer coverage provider together.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
       # Group minor/patch updates to reduce PR noise
       production-dependencies:
         dependency-type: "production"
@@ -37,6 +42,11 @@ updates:
       day: "monday"
     open-pull-requests-limit: 5
     groups:
+      # Keep the test runner and its exact-peer coverage provider together.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
       server-dependencies:
         update-types:
           - "minor"
