@@ -180,6 +180,9 @@ test.describe('Team Management Flows', () => {
     await page.getByRole('button', { name: /team admin|settings/i }).click();
     await expect(page).toHaveURL(/\/team-admin/);
 
+    // Wait for the selected team's data before opening its selector.
+    await expect(page.getByLabel(/workspace name/i)).toHaveValue(/\S/);
+
     // Admin may have multiple teams (personal + created teams).
     // The member was invited to the personal workspace. Try each team
     // in the selector until we find the one with the member row.
@@ -195,6 +198,7 @@ test.describe('Team Management Flows', () => {
       if (await teamSelector.isVisible().catch(() => false)) {
         await teamSelector.click();
         const options = page.getByRole('option');
+        await expect(options.first()).toBeVisible();
         const optionCount = await options.count();
         // Close the dropdown first, then try each option
         await page.keyboard.press('Escape');
