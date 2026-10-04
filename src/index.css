@@ -1,6 +1,23 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.ts";
+
+/* Tailwind v3 spaced following siblings; v4 spaces preceding siblings instead.
+   The latter loses spacing after inline labels. Preserve existing form/layout rhythm. */
+@layer utilities {
+  .space-y-0\.5 { --quorum-space-y: .125rem; }
+  .space-y-1 { --quorum-space-y: .25rem; }
+  .space-y-1\.5 { --quorum-space-y: .375rem; }
+  .space-y-2 { --quorum-space-y: .5rem; }
+  .space-y-3 { --quorum-space-y: .75rem; }
+  .space-y-4 { --quorum-space-y: 1rem; }
+  .space-y-6 { --quorum-space-y: 1.5rem; }
+  :is(.space-y-0\.5, .space-y-1, .space-y-1\.5, .space-y-2, .space-y-3, .space-y-4, .space-y-6) > :not([hidden]) { margin-block-end: 0; }
+  :is(.space-y-0\.5, .space-y-1, .space-y-1\.5, .space-y-2, .space-y-3, .space-y-4, .space-y-6) > :not([hidden]) ~ :not([hidden]) { margin-block-start: var(--quorum-space-y); }
+  .space-x-2 { --quorum-space-x: .5rem; }
+  .space-x-4 { --quorum-space-x: 1rem; }
+  :is(.space-x-2, .space-x-4) > :not([hidden]) { margin-inline-end: 0; }
+  :is(.space-x-2, .space-x-4) > :not([hidden]) ~ :not([hidden]) { margin-inline-start: var(--quorum-space-x); }
+}
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.

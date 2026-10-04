@@ -54,6 +54,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Boundary policy tests
+        run: npm run test:boundaries
+
       - name: Check feature flags
         run: npm run check:feature-flags
 

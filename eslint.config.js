@@ -4,7 +4,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
-import boundaries from "eslint-plugin-boundaries";
+import { boundaryRule } from "./scripts/eslint-boundaries.mjs";
 import tseslint from "typescript-eslint";
 
 const configDir = dirname(fileURLToPath(import.meta.url));
@@ -24,17 +24,7 @@ export default tseslint.config(
     plugins: {
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
-      boundaries,
-    },
-    settings: {
-      "boundaries/elements": [
-        { type: "pages", pattern: "src/pages/*" },
-        { type: "components", pattern: "src/components/*" },
-        { type: "contexts", pattern: "src/contexts/*" },
-        { type: "hooks", pattern: "src/hooks/*" },
-        { type: "lib", pattern: "src/lib/*" },
-        { type: "utils", pattern: "src/utils/*" },
-      ],
+      "quorum-boundaries": { rules: { dependencies: boundaryRule } },
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
@@ -63,42 +53,7 @@ export default tseslint.config(
         { selector: "typeLike", format: ["PascalCase"] },
         { selector: "enumMember", format: ["PascalCase", "UPPER_CASE"] },
       ],
-      "boundaries/dependencies": [
-        "warn",
-        {
-          default: "allow",
-          policies: [
-            {
-              from: { element: { type: "pages" } },
-              allow: {
-                to: { element: { types: { anyOf: ["components", "contexts", "hooks", "lib", "utils"] } } },
-              },
-            },
-            {
-              from: { element: { type: "components" } },
-              allow: {
-                to: { element: { types: { anyOf: ["components", "hooks", "lib", "utils"] } } },
-              },
-            },
-            {
-              from: { element: { type: "contexts" } },
-              allow: { to: { element: { types: { anyOf: ["lib", "utils"] } } } },
-            },
-            {
-              from: { element: { type: "hooks" } },
-              allow: { to: { element: { types: { anyOf: ["hooks", "lib", "utils"] } } } },
-            },
-            {
-              from: { element: { type: "lib" } },
-              allow: { to: { element: { types: { anyOf: ["lib", "utils"] } } } },
-            },
-            {
-              from: { element: { type: "utils" } },
-              allow: { to: { element: { type: "utils" } } },
-            },
-          ],
-        },
-      ],
+      "quorum-boundaries/dependencies": "warn",
       complexity: ["warn", 12],
       // Allow empty catch blocks (use sparingly)
       "no-empty": ["error", { allowEmptyCatch: true }],
