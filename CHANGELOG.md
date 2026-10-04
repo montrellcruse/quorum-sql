@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.7](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.6...quorum-sql-v1.7.7) (2026-10-04)
+
+
+### Bug Fixes
+
+* clear dependency advisories and migrate Tailwind tooling ([#367](https://github.com/montrellcruse/quorum-sql/issues/367)) ([4cbac59](https://github.com/montrellcruse/quorum-sql/commit/4cbac596961b7c38246c9955a125d9081ee10c37))
+
 ## [1.7.6](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.5...quorum-sql-v1.7.6) (2026-07-31)
 
 
