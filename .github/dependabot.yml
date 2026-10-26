@@ -51,6 +51,15 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # These series require a coordinated SDK 3/API 1.10/Node >=22 migration.
+      # Keep Node 20 Docker support and compatible telemetry patch updates here.
+      - dependency-name: "@opentelemetry/auto-instrumentations-node"
+        versions: ["0.82.x"]
+      - dependency-name: "@opentelemetry/exporter-trace-otlp-http"
+        versions: ["0.300.x"]
+      - dependency-name: "@opentelemetry/sdk-node"
+        versions: ["0.300.x"]
     commit-message:
       prefix: "deps(server)"
     labels:
