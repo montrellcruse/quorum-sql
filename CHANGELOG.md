@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.9](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.8...quorum-sql-v1.7.9) (2026-10-26)
+
+
+### Bug Fixes
+
+* **deps:** finish compatible maintenance updates ([#388](https://github.com/montrellcruse/quorum-sql/issues/388)) ([bc749f2](https://github.com/montrellcruse/quorum-sql/commit/bc749f200d981e0a6dc1fc61df75ec2c11a40294))
+
 ## [1.7.8](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.7...quorum-sql-v1.7.8) (2026-10-26)
 
 
