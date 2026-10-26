@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.8](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.7...quorum-sql-v1.7.8) (2026-10-26)
+
+
+### Bug Fixes
+
+* **deps:** complete dependency queue and current security patches ([#383](https://github.com/montrellcruse/quorum-sql/issues/383)) ([74afd51](https://github.com/montrellcruse/quorum-sql/commit/74afd51dda8755be9fb65946f002afb339c477a6))
+
 ## [1.7.7](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.6...quorum-sql-v1.7.7) (2026-10-04)
 
 
