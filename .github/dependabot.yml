@@ -60,6 +60,8 @@ updates:
         versions: ["0.300.x"]
       - dependency-name: "@opentelemetry/sdk-node"
         versions: ["0.300.x"]
+      - dependency-name: "@opentelemetry/resources"
+        versions: ["3.x"]
     commit-message:
       prefix: "deps(server)"
     labels:
