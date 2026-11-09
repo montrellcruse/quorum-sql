@@ -62,7 +62,7 @@
     "@radix-ui/react-tooltip": "^1.4.1",
     "@sentry/react": "^11.11.0",
     "@supabase/supabase-js": "^2.119.0",
-    "@tanstack/react-query": "^5.106.1",
+    "@tanstack/react-query": "^5.107.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
