@@ -87,7 +87,7 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react-swc": "^4.3.2",
     "@vitest/coverage-v8": "^5.1.0",
-    "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/postcss": "^4.3.5",
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
