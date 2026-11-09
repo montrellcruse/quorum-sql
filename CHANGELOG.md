@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.10](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.9...quorum-sql-v1.7.10) (2026-11-09)
+
+
+### Bug Fixes
+
+* **deps:** repair glob and minimatch security alerts ([#397](https://github.com/montrellcruse/quorum-sql/issues/397)) ([1239e49](https://github.com/montrellcruse/quorum-sql/commit/1239e49f76faeb563708fef8667ee91c6e88cb44))
+* **deps:** repair grouped server dependency updates ([#402](https://github.com/montrellcruse/quorum-sql/issues/402)) ([ef7ad56](https://github.com/montrellcruse/quorum-sql/commit/ef7ad56d7f2d4926c39a9fbef9b17e3ff1d5e0e1))
+
 ## [1.7.9](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.8...quorum-sql-v1.7.9) (2026-10-26)
 
 
