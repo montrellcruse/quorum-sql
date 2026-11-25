@@ -426,6 +426,7 @@ export function QueryViewDialogs({
               onChange={(event) => onChangeReason(event.target.value)}
               className="mt-2"
               rows={3}
+              maxLength={1000}
             />
           </div>
           <AlertDialogFooter>

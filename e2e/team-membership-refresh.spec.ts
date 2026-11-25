@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { generateTestUser, signOut, signUp, waitForDashboard } from './fixtures/auth';
 
 import { createFolder, openFolder } from './fixtures/queries';
@@ -8,15 +8,17 @@ const isRosterRequest = (url: URL) =>
   /\/teams\/[^/]+\/members$/.test(url.pathname) ||
   (url.pathname.endsWith('/rest/v1/team_members') && url.searchParams.has('team_id'));
 
-async function holdNextRoster(page: Page) {
-  const requested = Promise.withResolvers<string>();
+async function holdNextRoster(page: Page, { captureResponse = false } = {}) {
+  const requested = Promise.withResolvers<{ url: string; response: APIResponse | undefined }>();
   const release = Promise.withResolvers<void>();
   await page.route(
     isRosterRequest,
     async (route) => {
-      requested.resolve(route.request().url());
+      const response = captureResponse ? await route.fetch() : undefined;
+      requested.resolve({ url: route.request().url(), response });
       await release.promise;
-      await route.continue().catch(() => {});
+      const deliver = response ? route.fulfill({ response }) : route.continue();
+      await deliver.catch(() => {});
     },
     { times: 1 },
   );
@@ -72,7 +74,7 @@ test('invitation acceptance and member removal refresh the current team views', 
     const delayed = await holdNextRoster(member);
     try {
       await invitedTeam.click();
-      const lateUrl = await delayed.requested;
+      const { url: lateUrl } = await delayed.requested;
       await expect(member.getByText('Loading team members…')).toBeVisible();
       await selected.click();
       await member.getByRole('option', { name: new RegExp(invitee.fullName) }).click();
@@ -87,15 +89,28 @@ test('invitation acceptance and member removal refresh the current team views', 
       delayed.release();
     }
 
-    const oldSessionRoster = await holdNextRoster(member);
+    const oldSessionRoster = await holdNextRoster(member, { captureResponse: true });
     const nextUser = generateTestUser('rosterthird');
+    const priorDocument = await member.evaluate(() => performance.timeOrigin);
     try {
       await selected.click();
       await member.getByRole('option', { name: new RegExp(owner.fullName) }).click();
-      await oldSessionRoster.requested;
+      const { url, response } = await oldSessionRoster.requested;
+      expect(response?.ok()).toBe(true);
       await signOut(member);
-      await signUp(member, nextUser);
+      await signUp(member, nextUser, { alreadyOnAuthPage: true });
       await waitForDashboard(member);
+
+      const sameDocument = (await member.evaluate(() => performance.timeOrigin)) === priorDocument;
+      const isSupabase = new URL(url).pathname.endsWith('/rest/v1/team_members');
+      expect(sameDocument).toBe(isSupabase);
+      if (sameDocument) {
+        const lateRoster = member.waitForResponse((response) => response.url() === url);
+        oldSessionRoster.release();
+        const delivered = await lateRoster;
+        expect(delivered.ok()).toBe(true);
+        expect(await delivered.finished()).toBeNull();
+      }
     } finally {
       oldSessionRoster.release();
     }

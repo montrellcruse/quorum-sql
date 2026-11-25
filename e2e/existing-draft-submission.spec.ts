@@ -60,12 +60,15 @@ function isDraftRead(response: Response, id: string, data: 'query' | 'history') 
   if (data === 'query') {
     return (
       url.pathname.endsWith(`/queries/${id}`) ||
-      (url.pathname.endsWith('/rest/v1/sql_queries') && url.searchParams.get('id') === `eq.${id}`)
+      (url.pathname.endsWith('/rest/v1/sql_queries') &&
+        url.searchParams.get('select') === '*' &&
+        url.searchParams.get('id') === `eq.${id}`)
     );
   }
   return (
     url.pathname.endsWith(`/queries/${id}/history`) ||
     (url.pathname.endsWith('/rest/v1/query_history') &&
+      url.searchParams.get('select') === '*' &&
       url.searchParams.get('query_id') === `eq.${id}`)
   );
 }
@@ -116,7 +119,8 @@ test('submits edits to an existing draft from the editor', async ({ page }) => {
   const draft = await createExistingDraft(page);
   await page.goto(draft.edit);
   await fillDraft(page, edits);
-  await submit(page, 'editor', 'Update the draft before submission');
+  const reason = 'Update the draft before submission. '.repeat(20).trim();
+  await submit(page, 'editor', reason);
   await expect(page).toHaveURL(/\/folder\//);
   const stored = await readStoredDraft(page, draft);
   expect(stored.query).toMatchObject({ ...edits, status: 'approved' });
@@ -124,7 +128,7 @@ test('submits edits to an existing draft from the editor', async ({ page }) => {
     {
       sql_content: edits.sql_content,
       status: 'approved',
-      change_reason: 'Update the draft before submission',
+      change_reason: reason,
     },
   ]);
 });
@@ -252,7 +256,8 @@ test('an author can create and auto-approve a new query directly from the editor
   await openFolder(page, 'Solo submissions');
   await page.getByRole('button', { name: 'New Query', exact: true }).click();
   await fillDraft(page, edits);
-  await submit(page, 'editor', 'Ready for the workspace');
+  const reason = `Ready for the workspace ${'✓📋'.repeat(300)}`;
+  await submit(page, 'editor', reason);
   const card = page.getByTestId('query-card').filter({ hasText: edits.title });
   await expect(card).toHaveCount(1);
   await expect(card.getByText('Approved', { exact: true })).toBeVisible();
@@ -264,7 +269,7 @@ test('an author can create and auto-approve a new query directly from the editor
   expect(stored.history).toMatchObject([
     {
       sql_content: edits.sql_content,
-      change_reason: 'Ready for the workspace',
+      change_reason: reason,
       status: 'approved',
     },
   ]);

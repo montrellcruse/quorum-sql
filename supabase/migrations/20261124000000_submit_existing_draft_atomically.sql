@@ -1,4 +1,4 @@
-CREATE FUNCTION public.submit_query_draft_for_approval(
+CREATE OR REPLACE FUNCTION public.submit_query_draft_for_approval(
   _query_id uuid,
   _change_reason text DEFAULT NULL,
   _title text DEFAULT NULL,
@@ -20,8 +20,8 @@ BEGIN
     RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501';
   END IF;
 
-  IF char_length(_change_reason) > 500 THEN
-    RAISE EXCEPTION 'Change reason must be at most 500 characters' USING ERRCODE = '22023';
+  IF char_length(_change_reason) > 1000 THEN
+    RAISE EXCEPTION 'Change reason must be at most 1000 characters' USING ERRCODE = '22023';
   END IF;
 
   IF _title IS NULL THEN

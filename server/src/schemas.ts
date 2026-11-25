@@ -222,7 +222,10 @@ export type UpdateQueryBody = z.infer<typeof UpdateQueryBodySchema>;
 
 export const SubmitDraftBodySchema = z.object({
   edits: CreateQueryBodySchema.pick({ title: true, description: true, sql_content: true }).optional(),
-  change_reason: z.string().max(500).nullable().optional(),
+  change_reason: z.string().refine(
+    (reason) => Array.from(reason).length <= 1000,
+    'Change reason must be at most 1000 characters',
+  ).nullable().optional(),
 });
 export type SubmitDraftBody = z.infer<typeof SubmitDraftBodySchema>;
 
