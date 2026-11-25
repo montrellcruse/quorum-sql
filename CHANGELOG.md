@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.10...quorum-sql-v1.8.0) (2026-11-25)
+
+
+### Features
+
+* make query submission atomic and sync workspace views ([#419](https://github.com/montrellcruse/quorum-sql/issues/419)) ([19d0464](https://github.com/montrellcruse/quorum-sql/commit/19d0464ab6d92aed43758763b4c17e7062941755))
+
+
+### Bug Fixes
+
+* **security:** harden Supabase setup and server logs ([#422](https://github.com/montrellcruse/quorum-sql/issues/422)) ([2643a1f](https://github.com/montrellcruse/quorum-sql/commit/2643a1fd35bd0f66b776bec8bfac0f030671a36e))
+
 ## [1.7.10](https://github.com/montrellcruse/quorum-sql/compare/quorum-sql-v1.7.9...quorum-sql-v1.7.10) (2026-11-09)
 
 
