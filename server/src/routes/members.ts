@@ -85,7 +85,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
 
       await client.query('delete from public.team_members where id = $1', [memberId]);
 
-      req.log.info({ teamId: id, memberId, removedBy: sess.id }, 'ADMIN: Team member removed');
+      req.log.info({ teamId: id, memberId, removedBy: sess.auditUserId }, 'ADMIN: Team member removed');
       return { ok: true };
     });
   });
@@ -140,7 +140,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
           [role, memberId],
         );
 
-        req.log.info({ teamId: id, memberId, role, updatedBy: sess.id }, 'ADMIN: Team member role updated');
+        req.log.info({ teamId: id, memberId, role, updatedBy: sess.auditUserId }, 'ADMIN: Team member role updated');
         return { ok: true };
       });
     },

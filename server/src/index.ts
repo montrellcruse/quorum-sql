@@ -4,7 +4,7 @@ import { initSentry, setupSentryFastify } from './observability/sentry.js';
 initTracing();
 initSentry();
 
-import Fastify from 'fastify';
+import Fastify, { LogController } from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
@@ -31,6 +31,8 @@ function isLocalDevOrigin(origin: string): boolean {
 
 // Initialize Fastify with body size limit
 const fastify = Fastify({
+  // The requestLogger hook records the route template instead of the raw request URL.
+  logController: new LogController({ disableRequestLogging: true }),
   logger: {
     redact: {
       paths: [
@@ -88,7 +90,7 @@ fastify.addHook('onResponse', (req, reply, done) => {
   const queryCount = getQueryCount();
   if (queryCount > observabilityConfig.queryCountWarnThreshold) {
     req.log.warn(
-      { queryCount, threshold: observabilityConfig.queryCountWarnThreshold, path: req.url },
+      { queryCount, path: req.routeOptions.url, requestId: req.requestId },
       'High query count detected (possible N+1)',
     );
   }

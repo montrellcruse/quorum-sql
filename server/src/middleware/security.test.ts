@@ -593,9 +593,9 @@ describe('Security Middleware', () => {
 
       const mockReq = {
         requestId: 'req-789',
-        url: '/test',
+        routeOptions: { url: '/test/:id' },
         method: 'POST',
-        user: { id: 'user-123' },
+        user: { id: 'user-123', auditUserId: 'user-123' },
         log: { error: vi.fn() },
       } as unknown as FastifyRequest;
 
@@ -606,7 +606,13 @@ describe('Security Middleware', () => {
 
       errorHandlerFn(error, mockReq, mockReply);
 
-      expect(mockReq.log.error).toHaveBeenCalled();
+      expect(mockReq.log.error).toHaveBeenCalledWith({
+        requestId: 'req-789',
+        path: '/test/:id',
+        method: 'POST',
+        statusCode: 400,
+        userId: 'user-123',
+      }, 'Request error');
       expect(mockReply.code).toHaveBeenCalledWith(400);
       expect(mockReply.send).toHaveBeenCalled();
     });
@@ -646,7 +652,7 @@ describe('Security Middleware', () => {
   });
 
   describe('requestLogger', () => {
-    it('logs request completion', async () => {
+    it('logs request completion without raw URLs or development actor IDs', async () => {
       vi.doMock('../config.js', () => ({
         isProd: false,
       }));
@@ -666,8 +672,9 @@ describe('Security Middleware', () => {
       const mockReq = {
         requestId: 'req-log-test',
         method: 'GET',
-        url: '/api/test',
-        user: { id: 'user-456' },
+        url: '/api/test/123?search=private-text',
+        routeOptions: { url: '/api/test/:id' },
+        user: { id: 'user-456', source: 'dev-fake' },
         log: { info: vi.fn() },
       } as unknown as FastifyRequest;
 
@@ -682,10 +689,10 @@ describe('Security Middleware', () => {
         expect.objectContaining({
           requestId: 'req-log-test',
           method: 'GET',
-          url: '/api/test',
+          url: '/api/test/:id',
           statusCode: 200,
           duration: 123,
-          userId: 'user-456',
+          userId: undefined,
         }),
         'Request completed'
       );

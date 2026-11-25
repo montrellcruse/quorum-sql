@@ -56,7 +56,7 @@ export function csrfProtection(fastify: FastifyInstance) {
       if (sessionCookie) {
         // Session exists but CSRF cookie is missing — reject to prevent bypass
         req.log.warn({
-          path: req.url,
+          path: req.routeOptions?.url,
           method: req.method,
         }, 'CSRF bypass attempt: session cookie present but CSRF cookie missing');
         return reply.code(403).send({ error: 'CSRF token required' });
@@ -67,7 +67,7 @@ export function csrfProtection(fastify: FastifyInstance) {
     // Validate CSRF token
     if (!csrfHeader || csrfHeader !== csrfCookie) {
       req.log.warn({
-        path: req.url,
+        path: req.routeOptions?.url,
         method: req.method,
         hasCookie: !!csrfCookie,
         hasHeader: !!csrfHeader
@@ -141,16 +141,16 @@ export function errorHandler(fastify: FastifyInstance) {
     const error = err as ErrorWithContext;
     error.requestId = req.requestId;
     
-    // Log the full error server-side
-    req.log.error({
-      err: error,
-      requestId: req.requestId,
-      path: req.url,
-      method: req.method,
-      userId: req.user?.id,
-    }, 'Request error');
-    
     const statusCode = error.statusCode || 500;
+    // Error details can contain SQL data; keep only request and status metadata in logs.
+    req.log.error({
+      requestId: req.requestId,
+      path: req.routeOptions?.url,
+      method: req.method,
+      statusCode,
+      userId: req.user?.auditUserId,
+    }, 'Request error');
+
     const sanitized = sanitizeError(error);
     
     reply.code(statusCode).send(sanitized);
@@ -163,10 +163,10 @@ export function requestLogger(fastify: FastifyInstance) {
     req.log.info({
       requestId: req.requestId,
       method: req.method,
-      url: req.url,
+      url: req.routeOptions?.url,
       statusCode: reply.statusCode,
       duration: Math.round(duration),
-      userId: req.user?.id,
+      userId: req.user?.auditUserId,
     }, 'Request completed');
     done();
   });

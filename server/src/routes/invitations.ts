@@ -86,7 +86,7 @@ export default async function invitationRoutes(fastify: FastifyInstance) {
         [id, invitedEmail.trim().toLowerCase(), role],
       );
 
-      req.log.info({ teamId: id, invitedEmail, role, invitedBy: sess.id }, 'ADMIN: Invitation sent');
+      req.log.info({ teamId: id, role, invitedBy: sess.auditUserId }, 'ADMIN: Invitation sent');
       return { ok: true };
     });
   });
@@ -111,7 +111,7 @@ export default async function invitationRoutes(fastify: FastifyInstance) {
       // Confirm invited email matches current user
       const me = await client.query('select email from auth.users where id = auth.uid()');
       if (!me.rows[0] || me.rows[0].email.toLowerCase() !== inv.invited_email.toLowerCase()) {
-        req.log.warn({ inviteId: id, userId: sess.id }, 'AUTH FAILURE: Attempted to accept invite for another user');
+        req.log.warn({ inviteId: id, userId: sess.auditUserId }, 'AUTH FAILURE: Attempted to accept invite for another user');
         return reply.code(403).send({ error: 'Forbidden' });
       }
 
@@ -128,7 +128,7 @@ export default async function invitationRoutes(fastify: FastifyInstance) {
       // Delete invitation
       await client.query('delete from public.team_invitations where id = $1', [id]);
 
-      req.log.info({ inviteId: id, teamId: inv.team_id, userId: sess.id }, 'Invitation accepted');
+      req.log.info({ inviteId: id, teamId: inv.team_id, userId: sess.auditUserId }, 'Invitation accepted');
       return { ok: true };
     });
   });
@@ -157,7 +157,7 @@ export default async function invitationRoutes(fastify: FastifyInstance) {
 
       await client.query('delete from public.team_invitations where id = $1', [id]);
 
-      req.log.info({ inviteId: id, userId: sess.id }, 'Invitation declined');
+      req.log.info({ inviteId: id, userId: sess.auditUserId }, 'Invitation declined');
       return { ok: true };
     });
   });
@@ -192,7 +192,7 @@ export default async function invitationRoutes(fastify: FastifyInstance) {
 
       await client.query('delete from public.team_invitations where id = $1', [id]);
 
-      req.log.info({ inviteId: id, teamId, revokedBy: sess.id }, 'ADMIN: Invitation revoked');
+      req.log.info({ inviteId: id, teamId, revokedBy: sess.auditUserId }, 'ADMIN: Invitation revoked');
       return { ok: true };
     });
   });
