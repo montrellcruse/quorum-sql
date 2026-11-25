@@ -76,3 +76,17 @@
 - Keep frontend TypeScript strict (noImplicitAny, strictNullChecks).
 - Backend is ESM; prefer named exports and avoid `require()`.
 - Add request/log context safely; do not log secrets.
+
+## Agent skills
+
+### Issue tracker
+
+Use GitHub Issues for `montrellcruse/quorum-sql`. See `docs/agents/issue-tracker.md` when reading or publishing tickets or specs.
+
+### Triage labels
+
+Use the five default triage labels. See `docs/agents/triage-labels.md` when applying a triage role.
+
+### Domain docs
+
+This repo uses a single-context layout. See `docs/agents/domain.md` before exploring the codebase or recording a domain decision.
