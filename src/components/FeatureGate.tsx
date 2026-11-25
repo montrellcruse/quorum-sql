@@ -30,12 +30,12 @@ export function FeatureGate({
   const fallbackContext = useSoloUser(
     soloContext ? { teamId: null } : { teamId, isPersonalTeam }
   );
-  const { isSoloUser, loading } = soloContext ?? fallbackContext;
+  const { isSoloUser, teamMemberCount, loading } = soloContext ?? fallbackContext;
 
   if (loading) return null;
 
   if (soloOnly && !isSoloUser) return <>{fallback}</>;
-  if (teamOnly && isSoloUser) return <>{fallback}</>;
+  if (teamOnly && (teamMemberCount === null || teamMemberCount < 2)) return <>{fallback}</>;
 
   return <>{children}</>;
 }

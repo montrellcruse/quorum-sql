@@ -14,7 +14,7 @@ import { getErrorMessage } from '@/utils/errors';
 
 const CreateTeam = () => {
   const { user, loading: authLoading } = useAuth();
-  const { refreshTeams, userTeams } = useTeam();
+  const { refreshTeams, setActiveTeam, userTeams } = useTeam();
   const { adapter } = useDbProvider();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -44,7 +44,7 @@ const CreateTeam = () => {
     setCreating(true);
 
     try {
-      await adapter.teams.create(validation.data, 1);
+      const created = await adapter.teams.create(validation.data, 1);
 
       toast({
         title: 'Success',
@@ -52,6 +52,12 @@ const CreateTeam = () => {
       });
 
       await refreshTeams();
+      setActiveTeam({
+        id: created.id,
+        name: created.name,
+        role: 'admin',
+        isPersonal: created.is_personal ?? false,
+      });
       navigate('/dashboard');
     } catch (error: unknown) {
       const message = getErrorMessage(error, 'Failed to create team');

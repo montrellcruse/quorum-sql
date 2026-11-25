@@ -16,6 +16,11 @@ export const PaginationQuerySchema = z.object({
 });
 export type ParsedPaginationQuery = z.infer<typeof PaginationQuerySchema>;
 
+export const FolderListQuerySchema = PaginationQuerySchema.extend({
+  rootOnly: z.enum(['true', 'false']).optional().transform((value) => value === 'true'),
+});
+export type FolderListQuery = PaginationQuery & { rootOnly?: string };
+
 export const SetupSupabaseBodySchema = z.object({
   url: z.string().min(1),
   anonKey: z.string().min(1),
@@ -220,6 +225,14 @@ export const SubmitDraftBodySchema = z.object({
   change_reason: z.string().max(500).nullable().optional(),
 });
 export type SubmitDraftBody = z.infer<typeof SubmitDraftBodySchema>;
+
+export const SubmitNewQueryBodySchema = CreateQueryBodySchema
+  .pick({ title: true, description: true, sql_content: true, team_id: true })
+  .extend({
+    folder_id: z.string().uuid(),
+    change_reason: SubmitDraftBodySchema.shape.change_reason,
+  });
+export type SubmitNewQueryBody = z.infer<typeof SubmitNewQueryBodySchema>;
 
 export const SubmitQueryBodySchema = z.object({
   sql: z.string().max(100000).optional().nullable(),

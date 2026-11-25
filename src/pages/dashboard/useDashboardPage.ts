@@ -9,10 +9,9 @@ import { getErrorMessage } from '@/utils/errors';
 import { useSoloUser } from '@/hooks/useSoloUser';
 import { useDbProvider } from '@/hooks/useDbProvider';
 import { queryKeys } from '@/hooks/queryKeys';
-import { useTeamFolders } from '@/hooks/useTeamFolders';
+import { useRootFolders } from '@/hooks/useTeamFolders';
 import { useSearchQueriesMutation } from '@/hooks/useQueries';
 import { usePendingApprovalsCount, usePendingInvitesCount } from '@/hooks/usePendingApprovals';
-import { useAdminTeams } from '@/hooks/useTeamMembers';
 
 interface NewFolderForm {
   name: string;
@@ -25,8 +24,8 @@ const INITIAL_NEW_FOLDER: NewFolderForm = {
 };
 
 export function useDashboardPage() {
-  const { user } = useAuth();
-  const { activeTeam, userTeams, setActiveTeam, loading: teamLoading } = useTeam();
+  const { user, sessionScope } = useAuth();
+  const { activeTeam, userTeams, setActiveTeam, refreshTeams, loading: teamLoading, error: teamError } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { adapter } = useDbProvider();
@@ -40,11 +39,7 @@ export function useDashboardPage() {
   const activeTeamId = activeTeam?.id;
   const soloContext = useSoloUser();
 
-  const foldersQuery = useTeamFolders(activeTeamId, {
-    enabled: Boolean(user && activeTeamId),
-    rootOnly: true,
-  });
-  const adminTeamsQuery = useAdminTeams({ enabled: Boolean(user) });
+  const foldersQuery = useRootFolders(activeTeamId, sessionScope);
   const pendingInvitesCountQuery = usePendingInvitesCount(user?.email, {
     enabled: Boolean(user?.email),
   });
@@ -79,19 +74,16 @@ export function useDashboardPage() {
         parent_folder_id: null,
         team_id: activeTeam.id,
       });
+      return queryKeys.folders.roots(activeTeam.id, sessionScope);
     },
-    onSuccess: async () => {
+    onSuccess: async (key) => {
       toast({
         title: 'Success',
         description: 'Folder created successfully',
       });
       setNewFolder(INITIAL_NEW_FOLDER);
       setCreateFolderDialogOpen(false);
-      if (activeTeamId) {
-        await queryClient.invalidateQueries({
-          queryKey: queryKeys.folders.byTeam(activeTeamId),
-        });
-      }
+      await queryClient.invalidateQueries({ queryKey: key });
     },
     onError: (error: unknown) => {
       toast({
@@ -102,15 +94,13 @@ export function useDashboardPage() {
     },
   });
 
-  const projects = foldersQuery.data ?? [];
+  const projects = foldersQuery.data?.pages.flatMap((page) => page.folders) ?? [];
   const loadingProjects = foldersQuery.isLoading;
   const pendingInvitesCount = pendingInvitesCountQuery.data ?? 0;
   const pendingApprovalsCount = pendingApprovalsCountQuery.data ?? 0;
   const searchResults = searchQueriesMutation.data ?? [];
   const searching = searchQueriesMutation.isPending;
-  const isAdmin = Boolean(
-    activeTeamId && adminTeamsQuery.data?.some((team) => team.id === activeTeamId)
-  );
+  const isAdmin = activeTeam?.role === 'admin';
 
   useEffect(() => {
     if (foldersQuery.isError) {
@@ -121,15 +111,6 @@ export function useDashboardPage() {
       });
     }
   }, [foldersQuery.isError, foldersQuery.error, toast]);
-
-  useEffect(() => {
-    if (adminTeamsQuery.isError && import.meta.env.DEV) {
-      console.error(
-        'Error checking admin status:',
-        getErrorMessage(adminTeamsQuery.error, 'Unknown error')
-      );
-    }
-  }, [adminTeamsQuery.isError, adminTeamsQuery.error]);
 
   const handleCreateFolder = async () => {
     if (!newFolder.name.trim()) {
@@ -179,7 +160,11 @@ export function useDashboardPage() {
     try {
       await authAdapter.signOut();
       toast({ title: 'Signed out', description: 'Successfully signed out.' });
-      navigate('/auth?signout=1');
+      if (authAdapter.requiresManualPostAuthRedirect) {
+        window.location.assign('/auth?signout=1');
+      } else {
+        navigate('/auth?signout=1');
+      }
     } catch (error: unknown) {
       toast({
         title: 'Error',
@@ -201,6 +186,8 @@ export function useDashboardPage() {
     activeTeam,
     userTeams,
     teamLoading,
+    teamError,
+    refreshTeams,
     isSoloUser: soloContext.isSoloUser,
     soloContext,
     createFolderDialogOpen,
@@ -211,7 +198,11 @@ export function useDashboardPage() {
     setSearchTerm,
     projects,
     loadingProjects,
-    loadingFoldersError: foldersQuery.isError,
+    loadingFoldersError: foldersQuery.isError && !foldersQuery.isFetchNextPageError,
+    moreFoldersError: foldersQuery.isFetchNextPageError,
+    hasMoreFolders: foldersQuery.hasNextPage,
+    loadingMoreFolders: foldersQuery.isFetching,
+    loadMoreFolders: foldersQuery.fetchNextPage,
     pendingInvitesCount,
     pendingApprovalsCount,
     searchResults,

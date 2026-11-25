@@ -1,12 +1,11 @@
 export const queryKeys = {
   teams: {
-    admin: ['teams', 'admin'] as const,
     detail: (teamId: string) => ['teams', 'detail', teamId] as const,
-    members: (teamId: string) => ['teams', 'members', teamId] as const,
+    members: (teamId: string, sessionScope: number) => ['teams', 'members', teamId, sessionScope] as const,
     invitations: (teamId: string) => ['teams', 'invitations', teamId] as const,
   },
   folders: {
-    byTeam: (teamId: string) => ['folders', 'team', teamId] as const,
+    roots: (teamId: string, sessionScope: number) => ['folders', 'roots', teamId, sessionScope] as const,
     paths: (teamId: string) => ['folders', 'paths', teamId] as const,
   },
   queries: {

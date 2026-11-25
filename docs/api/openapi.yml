@@ -718,6 +718,7 @@ paths:
     get:
       tags: [Folders]
       summary: List folders for a team
+      description: Results are ordered by name and ID. Root filtering is applied before pagination.
       operationId: getTeamFolders
       security:
         - sessionCookie: []
@@ -726,6 +727,12 @@ paths:
         - $ref: '#/components/parameters/IdPath'
         - $ref: '#/components/parameters/LimitQuery'
         - $ref: '#/components/parameters/OffsetQuery'
+        - name: rootOnly
+          in: query
+          description: Limit results to root folders.
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: Team folders
@@ -739,6 +746,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1170,6 +1179,42 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /queries/submit-new:
+    post:
+      tags: [Approvals]
+      summary: Create and submit a query in one transaction
+      operationId: postSubmitNewQuery
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitNewQueryBody'
+      responses:
+        '200':
+          description: Created and submitted query
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2098,6 +2143,33 @@ components:
         last_modified_by_email:
           type: string
           format: email
+          nullable: true
+
+    SubmitNewQueryBody:
+      type: object
+      required: [folder_id, team_id, title, sql_content]
+      properties:
+        folder_id:
+          type: string
+          format: uuid
+        team_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        sql_content:
+          type: string
+          minLength: 1
+          maxLength: 100000
+        change_reason:
+          type: string
+          maxLength: 500
           nullable: true
 
     SubmitDraftBody:

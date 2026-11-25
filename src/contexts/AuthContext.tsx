@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { restAuthAdapter } from '@/lib/auth/restAuthAdapter';
@@ -9,6 +9,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  sessionScope: number;
 }
 
 // Dev-only test accounts that bypass domain validation
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   loading: true,
+  sessionScope: 0,
 });
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -40,8 +42,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionScope, setSessionScope] = useState(0);
+  const currentUserId = useRef<string | null>(null);
 
   useEffect(() => {
+    const updateUser = (next: User | null) => {
+      const nextId = next?.id ?? null;
+      if (nextId !== currentUserId.current) {
+        currentUserId.current = nextId;
+        setSessionScope((scope) => scope + 1);
+      }
+      setUser(next);
+    };
     const provider = getDbProviderType();
     if (provider === 'rest') {
       // REST mode: fetch session user once
@@ -49,7 +61,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .getSessionUser()
         .then((u) => {
           if (!u) {
-            setUser(null);
+            updateUser(null);
             setSession(null);
             setLoading(false);
             return;
@@ -58,16 +70,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // Domain validation
           const userEmail = u.email;
           if (userEmail && !isDevTestAccount(userEmail) && !isEmailAllowed(userEmail, ALLOWED_EMAIL_DOMAIN)) {
-            setUser(null);
+            updateUser(null);
             setSession(null);
           } else {
-            setUser(fakeUser);
+            updateUser(fakeUser);
             setSession(null);
           }
           setLoading(false);
         })
         .catch(() => {
-          setUser(null);
+          updateUser(null);
           setSession(null);
           setLoading(false);
         });
@@ -82,13 +94,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           if (userEmail && !isDevTestAccount(userEmail) && !isEmailAllowed(userEmail, ALLOWED_EMAIL_DOMAIN)) {
             await supabase.auth.signOut();
             setSession(null);
-            setUser(null);
+            updateUser(null);
             setLoading(false);
             return;
           }
         }
         setSession(session);
-        setUser(session?.user ?? null);
+        updateUser(session?.user ?? null);
         setLoading(false);
       }
     );
@@ -99,13 +111,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (userEmail && !isDevTestAccount(userEmail) && !isEmailAllowed(userEmail, ALLOWED_EMAIL_DOMAIN)) {
           await supabase.auth.signOut();
           setSession(null);
-          setUser(null);
+          updateUser(null);
           setLoading(false);
           return;
         }
       }
       setSession(session);
-      setUser(session?.user ?? null);
+      updateUser(session?.user ?? null);
       setLoading(false);
     });
 
@@ -113,7 +125,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, loading }}>
+    <AuthContext.Provider value={{ user, session, loading, sessionScope }}>
       {children}
     </AuthContext.Provider>
   );

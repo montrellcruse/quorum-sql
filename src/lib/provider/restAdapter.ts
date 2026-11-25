@@ -84,6 +84,10 @@ const folders: FoldersRepo = {
   async listByTeam(teamId: UUID) {
     return http<Folder[]>(baseUrl(`/teams/${teamId}/folders`));
   },
+  async listRoots(teamId, { limit, offset }) {
+    const search = new URLSearchParams({ rootOnly: 'true', limit: String(limit), offset: String(offset) });
+    return http<Folder[]>(baseUrl(`/teams/${teamId}/folders?${search}`));
+  },
   async getById(id: UUID) {
     return http<Folder | null>(baseUrl(`/folders/${id}`));
   },
@@ -134,10 +138,10 @@ const queries: QueriesRepo = {
       body: JSON.stringify({ edits, change_reason: changeReason }),
     });
   },
-  async submitForApproval(id, sql, opts) {
-    await http<void>(baseUrl(`/queries/${id}/submit`), {
+  async createForApproval(submission) {
+    return http<{ id: UUID }>(baseUrl('/queries/submit-new'), {
       method: 'POST',
-      body: JSON.stringify({ sql, ...(opts || {}) }),
+      body: JSON.stringify(submission),
     });
   },
   async approve(id, historyId) {

@@ -1,8 +1,7 @@
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { getDbAdapter } from '@/lib/provider';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import type { TeamWithRole } from '@/integrations/supabase/types';
-import { getErrorMessage } from '@/utils/errors';
+import { getDbAdapter } from '@/lib/provider';
 
 interface Team {
   id: string;
@@ -17,6 +16,8 @@ interface TeamContextType {
   setActiveTeam: (team: Team) => void;
   refreshTeams: () => Promise<void>;
   loading: boolean;
+  error: Error | null;
+  sessionScope: number;
 }
 
 const TeamContext = createContext<TeamContextType>({
@@ -25,128 +26,58 @@ const TeamContext = createContext<TeamContextType>({
   setActiveTeam: () => {},
   refreshTeams: async () => {},
   loading: true,
+  error: null,
+  sessionScope: 0,
 });
 
 // eslint-disable-next-line react-refresh/only-export-components
-export const useTeam = () => {
-  const context = useContext(TeamContext);
-  if (!context) {
-    throw new Error('useTeam must be used within a TeamProvider');
-  }
-  return context;
-};
+export const useTeam = () => useContext(TeamContext);
 
-export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
-  const { user } = useAuth();
-  const [activeTeam, setActiveTeamState] = useState<Team | null>(null);
-  const [userTeams, setUserTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
-  const fetchSeq = useRef(0);
-  const retryRef = useRef(0);
-  const retryTimeoutRef = useRef<number | null>(null);
-  const fetchUserTeamsRef = useRef<(() => Promise<void>) | null>(null);
+export const TeamProvider = ({ children }: { children: ReactNode }) => {
+  const { user, sessionScope } = useAuth();
+  const queryClient = useQueryClient();
+  const [selectedTeamId, setSelectedTeamId] = useState(() => localStorage.getItem('activeTeamId'));
+  const key = ['teams', 'list', sessionScope] as const;
+  const teamsQuery = useQuery({
+    queryKey: key,
+    enabled: Boolean(user),
+    queryFn: async () => {
+      const teams = await getDbAdapter().teams.listForUser();
+      return teams.map((team): Team => ({
+        id: team.id,
+        name: team.name,
+        role: team.role ?? 'member',
+        isPersonal: team.is_personal ?? false,
+      })).sort((a, b) => a.name.localeCompare(b.name));
+    },
+  });
 
-  const fetchUserTeams = useCallback(async () => {
-    const seq = ++fetchSeq.current;
-    let shouldRetry = false;
-    setLoading(true);
-    try {
-      const adapter = getDbAdapter();
-      const data = await adapter.teams.listForUser();
-      const items: Team[] = (data || []).map((t) => ({
-        id: t.id,
-        name: t.name,
-        role: (t as TeamWithRole).role || 'member',
-        isPersonal: t.is_personal ?? false,
-      }));
-      // Dedupe by team id; prefer 'admin' role if duplicates present
-      const dedupMap = new Map<string, Team>();
-      for (const t of items) {
-        const prev = dedupMap.get(t.id);
-        if (!prev) dedupMap.set(t.id, t);
-        else if (prev.role !== 'admin' && t.role === 'admin') dedupMap.set(t.id, t);
-      }
-      const unique = Array.from(dedupMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  const userTeams = user ? teamsQuery.data ?? [] : [];
+  const activeTeam = userTeams.find((team) => team.id === selectedTeamId) ?? userTeams[0] ?? null;
 
-      if (seq !== fetchSeq.current) return;
-      setUserTeams(unique);
-
-      // Set active team
-      if (unique.length > 0) {
-        retryRef.current = 0;
-        // Check localStorage for previously selected team
-        const storedTeamId = localStorage.getItem('activeTeamId');
-        const storedTeam = unique.find(t => t.id === storedTeamId);
-        
-        // If stored team exists and user is still a member, use it
-        // Otherwise default to first team
-        const teamToActivate = storedTeam || unique[0];
-        if (seq !== fetchSeq.current) return;
-        setActiveTeamState(teamToActivate);
-      } else {
-        if (seq !== fetchSeq.current) return;
-        setActiveTeamState(null);
-        if (user && retryRef.current < 1) {
-          shouldRetry = true;
-          retryRef.current += 1;
-          if (retryTimeoutRef.current !== null) {
-            window.clearTimeout(retryTimeoutRef.current);
-          }
-          retryTimeoutRef.current = window.setTimeout(() => {
-            void fetchUserTeamsRef.current?.();
-          }, 800);
-        }
-      }
-    } catch (error: unknown) {
-      if (import.meta.env.DEV) {
-        console.error('Error fetching user teams:', getErrorMessage(error, 'Unknown error'));
-      }
-      if (seq !== fetchSeq.current) return;
-      setUserTeams([]);
-      setActiveTeamState(null);
-    } finally {
-      if (seq === fetchSeq.current && !shouldRetry) {
-        setLoading(false);
-      }
+  const activeTeamId = activeTeam?.id;
+  useEffect(() => {
+    if (activeTeamId) {
+      setSelectedTeamId(activeTeamId);
+      localStorage.setItem('activeTeamId', activeTeamId);
     }
-  }, [user]);
-
-  useEffect(() => {
-    fetchUserTeamsRef.current = fetchUserTeams;
-  }, [fetchUserTeams]);
-
-  useEffect(() => {
-    if (user) {
-      retryRef.current = 0;
-      fetchUserTeams();
-    } else {
-      fetchSeq.current += 1;
-      retryRef.current = 0;
-      if (retryTimeoutRef.current !== null) {
-        window.clearTimeout(retryTimeoutRef.current);
-        retryTimeoutRef.current = null;
-      }
-      setUserTeams([]);
-      setActiveTeamState(null);
-      setLoading(false);
-    }
-  }, [user, fetchUserTeams]);
-
-  useEffect(() => {
-    return () => {
-      if (retryTimeoutRef.current !== null) {
-        window.clearTimeout(retryTimeoutRef.current);
-      }
-    };
-  }, []);
+  }, [activeTeamId]);
 
   const setActiveTeam = (team: Team) => {
-    setActiveTeamState(team);
-    localStorage.setItem('activeTeamId', team.id);
+    setSelectedTeamId(team.id);
+  };
+
+  const refreshTeams = async () => {
+    if (!user) return;
+    await queryClient.cancelQueries({ queryKey: key, exact: true });
+    await queryClient.invalidateQueries({ queryKey: key, exact: true });
   };
 
   return (
-    <TeamContext.Provider value={{ activeTeam, userTeams, setActiveTeam, refreshTeams: fetchUserTeams, loading }}>
+    <TeamContext.Provider value={{
+      activeTeam, userTeams, setActiveTeam, refreshTeams, sessionScope,
+      loading: teamsQuery.isLoading, error: teamsQuery.error,
+    }}>
       {children}
     </TeamContext.Provider>
   );

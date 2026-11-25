@@ -1,36 +1,39 @@
-import { useQuery } from '@tanstack/react-query';
+import {
+  useInfiniteQuery, useQuery, type InfiniteData, type UseInfiniteQueryResult,
+} from '@tanstack/react-query';
 import { useDbProvider } from '@/hooks/useDbProvider';
 import { queryKeys } from '@/hooks/queryKeys';
 import type { Folder, FolderPath } from '@/lib/provider/types';
 
-interface UseTeamFoldersOptions {
-  enabled?: boolean;
-  rootOnly?: boolean;
+const ROOT_PAGE_SIZE = 50;
+
+interface RootFolderPage {
+  folders: Folder[];
+  nextOffset?: number;
 }
 
-interface UseTeamFolderPathsOptions {
-  enabled?: boolean;
-}
-
-export function useTeamFolders(teamId?: string, options: UseTeamFoldersOptions = {}) {
+export function useRootFolders(
+  teamId: string | undefined, sessionScope: number,
+): UseInfiniteQueryResult<InfiniteData<RootFolderPage, number>> {
   const { adapter } = useDbProvider();
-  const { enabled = true, rootOnly = false } = options;
 
-  return useQuery({
-    queryKey: queryKeys.folders.byTeam(teamId ?? ''),
-    enabled: Boolean(teamId) && enabled,
-    queryFn: async (): Promise<Folder[]> => {
-      if (!teamId) return [];
-      const folders = await adapter.folders.listByTeam(teamId);
-      if (!rootOnly) return folders;
-      return folders
-        .filter((folder) => folder.parent_folder_id == null)
-        .sort((a, b) => a.name.localeCompare(b.name));
+  return useInfiniteQuery({
+    queryKey: queryKeys.folders.roots(teamId ?? '', sessionScope),
+    enabled: Boolean(teamId),
+    initialPageParam: 0,
+    queryFn: async ({ pageParam: offset }) => {
+      if (!teamId) throw new Error('Missing team for folder list');
+      const folders = await adapter.folders.listRoots(teamId, { limit: ROOT_PAGE_SIZE + 1, offset });
+      return {
+        folders: folders.slice(0, ROOT_PAGE_SIZE),
+        nextOffset: folders.length > ROOT_PAGE_SIZE ? offset + ROOT_PAGE_SIZE : undefined,
+      };
     },
+    getNextPageParam: (page) => page.nextOffset,
   });
 }
 
-export function useTeamFolderPaths(teamId?: string, options: UseTeamFolderPathsOptions = {}) {
+export function useTeamFolderPaths(teamId?: string, options: { enabled?: boolean } = {}) {
   const { adapter } = useDbProvider();
   const { enabled = true } = options;
 

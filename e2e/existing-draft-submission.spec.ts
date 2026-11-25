@@ -1,7 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { test, expect, type Page, type Response } from '@playwright/test';
 import { generateTestUser, signUp, waitForDashboard } from './fixtures/auth';
 import { createFolder, openFolder } from './fixtures/queries';
-import { openDraftSubmissionTestDatabase } from '../server/tests/fixtures/draft-submission-db.mjs';
+import { openWorkspaceTestDatabase } from '../server/tests/fixtures/workspace-db.ts';
 
 const databaseUrl = process.env.E2E_TEST_DATABASE_URL;
 const original = {
@@ -30,19 +31,9 @@ async function createExistingDraft(page: Page) {
   const folder = 'Draft submission tests';
   await createFolder(page, folder);
   await openFolder(page, folder);
-  if (databaseUrl) {
-    const database = openDraftSubmissionTestDatabase(databaseUrl);
-    try {
-      await database.seedDraft(new URL(page.url()).pathname.split('/').at(-1), original);
-    } finally {
-      await database.close();
-    }
-    await page.reload();
-  } else {
-    await page.getByRole('button', { name: 'New Query', exact: true }).click();
-    await fillDraft(page, original);
-    await page.getByRole('button', { name: 'Save Draft', exact: true }).click();
-  }
+  await page.getByRole('button', { name: 'New Query', exact: true }).click();
+  await fillDraft(page, original);
+  await page.getByRole('button', { name: 'Save Draft', exact: true }).click();
   const card = page.getByTestId('query-card').filter({ hasText: original.title });
   await expect(card.getByText('Draft', { exact: true })).toBeVisible();
   await card.getByRole('heading', { name: original.title }).click();
@@ -152,13 +143,13 @@ test('rolls back an existing draft when history fails and commits exactly one ve
   expect(baseline.query).toMatchObject({ ...original, status: 'draft' });
   expect(baseline.history).toEqual([]);
 
-  const database = openDraftSubmissionTestDatabase(databaseUrl!);
+  const database = openWorkspaceTestDatabase(databaseUrl!);
   const reviewerContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
   try {
     const reviewerPage = await reviewerContext.newPage();
     const reviewer = generateTestUser('draftreviewer');
     await signUp(reviewerPage, reviewer);
-    await database.addReviewer(draft.id, reviewer.email);
+    await database.addReviewer(baseline.query.folder_id, reviewer.email);
 
     await page.goto(draft.edit);
     await fillDraft(page, edits);
@@ -193,4 +184,88 @@ test('rolls back an existing draft when history fails and commits exactly one ve
     await reviewerContext.close();
     await database.close();
   }
+});
+
+test('a new query leaves no partial draft when approval history fails', async ({
+  page,
+  context,
+  browser,
+}) => {
+  test.skip(!databaseUrl, 'Set E2E_TEST_DATABASE_URL to the app’s isolated local database');
+  test.setTimeout(90_000);
+  await signUp(page, generateTestUser('newsubmission'));
+  await waitForDashboard(page);
+  await createFolder(page, 'New submissions');
+  await openFolder(page, 'New submissions');
+  const folder = new URL(page.url());
+  const database = openWorkspaceTestDatabase(databaseUrl!);
+  const reviewerContext = await browser.newContext({ baseURL: folder.origin });
+  try {
+    const reviewer = await reviewerContext.newPage();
+    const reviewerAccount = generateTestUser('newreviewer');
+    await signUp(reviewer, reviewerAccount);
+    await database.addReviewer(folder.pathname.split('/').at(-1)!, reviewerAccount.email);
+    await page.getByRole('button', { name: 'New Query', exact: true }).click();
+    await fillDraft(page, edits);
+    const reason = `New draft ${randomUUID()}`;
+    const allowHistoryWrites = await database.rejectNewHistoryWrites(reason);
+    try {
+      await submit(page, 'editor', reason);
+      await expect(page.getByText('Submission failed', { exact: true })).toBeVisible();
+      await expect(page.getByLabel('Title', { exact: true })).toHaveValue(edits.title);
+      const persisted = await context.newPage();
+      await persisted.goto(folder.pathname);
+      await expect(persisted.getByText('No queries yet')).toBeVisible();
+      await persisted.close();
+    } finally {
+      await allowHistoryWrites();
+    }
+    await expect(page.getByLabel(/change reason/i)).toHaveValue(reason);
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Submit for Approval', exact: true })
+      .click();
+    const card = page.getByTestId('query-card').filter({ hasText: edits.title });
+    await expect(card).toHaveCount(1);
+    await expect(card.getByText('Pending Approval', { exact: true })).toBeVisible();
+    await card.getByRole('heading', { name: edits.title }).click();
+    await expect(page).toHaveURL(/\/query\/view\//);
+    const view = new URL(page.url()).pathname;
+    const stored = await readStoredDraft(reviewer, { view, id: view.split('/').at(-1)! });
+    expect(stored.query).toMatchObject({ ...edits, status: 'pending_approval' });
+    expect(stored.history).toMatchObject([
+      { sql_content: edits.sql_content, change_reason: reason, status: 'pending_approval' },
+    ]);
+    await expect(reviewer.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
+  } finally {
+    await reviewerContext.close();
+    await database.close();
+  }
+});
+
+test('an author can create and auto-approve a new query directly from the editor', async ({
+  page,
+}) => {
+  await signUp(page, generateTestUser('solosubmit'));
+  await waitForDashboard(page);
+  await createFolder(page, 'Solo submissions');
+  await openFolder(page, 'Solo submissions');
+  await page.getByRole('button', { name: 'New Query', exact: true }).click();
+  await fillDraft(page, edits);
+  await submit(page, 'editor', 'Ready for the workspace');
+  const card = page.getByTestId('query-card').filter({ hasText: edits.title });
+  await expect(card).toHaveCount(1);
+  await expect(card.getByText('Approved', { exact: true })).toBeVisible();
+  await card.getByRole('heading', { name: edits.title }).click();
+  await expect(page).toHaveURL(/\/query\/view\//);
+  const view = new URL(page.url()).pathname;
+  const stored = await readStoredDraft(page, { view, id: view.split('/').at(-1)! });
+  expect(stored.query).toMatchObject({ ...edits, status: 'approved' });
+  expect(stored.history).toMatchObject([
+    {
+      sql_content: edits.sql_content,
+      change_reason: 'Ready for the workspace',
+      status: 'approved',
+    },
+  ]);
 });

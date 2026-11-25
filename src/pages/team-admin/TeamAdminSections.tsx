@@ -322,6 +322,9 @@ export function TeamMembersCard({
   role,
   invitations,
   members,
+  loading,
+  hasError,
+  showInvite,
   isTeamOwner,
   onEmailChange,
   onRoleChange,
@@ -334,6 +337,9 @@ export function TeamMembersCard({
   role: Role;
   invitations: TeamInvitation[];
   members: TeamMember[];
+  loading: boolean;
+  hasError: boolean;
+  showInvite: boolean;
   isTeamOwner: (userId: string) => boolean;
   onEmailChange: (value: string) => void;
   onRoleChange: (role: Role) => void;
@@ -349,20 +355,28 @@ export function TeamMembersCard({
         <CardDescription>Manage team members and their roles</CardDescription>
       </CardHeader>
       <CardContent>
-        <InviteCollaboratorForm
-          email={email}
-          role={role}
-          onEmailChange={onEmailChange}
-          onRoleChange={onRoleChange}
-          onSubmit={onInvite}
-        />
-        <PendingInvitationsList invitations={invitations} onRevoke={onRevokeInvitation} />
-        <CurrentMembersList
-          members={members}
-          isTeamOwner={isTeamOwner}
-          onToggleRole={onToggleRole}
-          onRemoveMember={onRemoveMember}
-        />
+        {showInvite && (
+          <>
+            <InviteCollaboratorForm
+              email={email}
+              role={role}
+              onEmailChange={onEmailChange}
+              onRoleChange={onRoleChange}
+              onSubmit={onInvite}
+            />
+            <PendingInvitationsList invitations={invitations} onRevoke={onRevokeInvitation} />
+          </>
+        )}
+        {loading && <p role="status">Loading team members…</p>}
+        {hasError && <p role="alert">Could not load team members.</p>}
+        {!loading && !hasError && (
+          <CurrentMembersList
+            members={members}
+            isTeamOwner={isTeamOwner}
+            onToggleRole={onToggleRole}
+            onRemoveMember={onRemoveMember}
+          />
+        )}
       </CardContent>
     </Card>
   );

@@ -5,12 +5,14 @@ import {
   ApproveQueryBodySchema,
   RejectQueryBodySchema,
   SubmitDraftBodySchema,
+  SubmitNewQueryBodySchema,
   SubmitQueryBodySchema,
   type ApprovalsQuery,
   type ApproveQueryBody,
   type IdParams,
   type RejectQueryBody,
   type SubmitDraftBody,
+  type SubmitNewQueryBody,
   type SubmitQueryBody,
 } from '../schemas.js';
 
@@ -154,6 +156,35 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
     } catch (error) {
       const code = (error as { code?: string })?.code;
       if (code === 'P0002') return reply.code(404).send({ error: 'Query not found' });
+      if (code === '22023') return reply.code(400).send({ error: (error as Error).message });
+      throw error;
+    }
+  });
+
+  fastify.post<{ Body: SubmitNewQueryBody }>('/queries/submit-new', async (req, reply) => {
+    const sess = req.user;
+    if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const parsed = SubmitNewQueryBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
+    }
+
+    const {
+      folder_id: folderId, team_id: teamId, title, sql_content: sql, description,
+      change_reason: changeReason,
+    } = parsed.data;
+    try {
+      return await fastify.withClient(sess.id, async (client) => {
+        const { rows } = await client.query<{ id: string }>(
+          'select public.create_query_for_approval($1, $2, $3, $4, $5, $6) as id',
+          [folderId, teamId, title, sql, description, changeReason],
+        );
+        return { id: rows[0].id };
+      });
+    } catch (error) {
+      const code = (error as { code?: string })?.code;
+      if (code === 'P0002') return reply.code(404).send({ error: 'Folder not found in the selected team' });
       if (code === '22023') return reply.code(400).send({ error: (error as Error).message });
       throw error;
     }
