@@ -128,6 +128,7 @@ paths:
     post:
       tags: [Setup]
       summary: Test Supabase connectivity
+      description: Probes the project REST endpoint over HTTPS. Redirects are rejected and the probe times out after five seconds.
       operationId: postSetupTestSupabase
       requestBody:
         required: true
@@ -1919,7 +1920,7 @@ components:
         url:
           type: string
           minLength: 1
-          description: Supabase project URL.
+          description: HTTPS origin for a project under supabase.co or supabase.com, with no credentials, non-default port, path, query, or fragment.
         anonKey:
           type: string
           minLength: 1

@@ -9,6 +9,8 @@ export interface SessionUser {
   email?: string;
   role?: string;
   source: AuthSource;
+  // Only set for a verified identity, never for development impersonation.
+  auditUserId?: string;
 }
 
 declare module 'fastify' {

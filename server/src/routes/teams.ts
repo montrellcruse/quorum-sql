@@ -76,7 +76,7 @@ export default async function teamRoutes(fastify: FastifyInstance) {
         [team.id],
       );
 
-      req.log.info({ teamId: team.id, userId: sess.id }, 'ADMIN: Team created');
+      req.log.info({ teamId: team.id, userId: sess.auditUserId }, 'ADMIN: Team created');
       return team;
     });
   });
@@ -123,7 +123,7 @@ export default async function teamRoutes(fastify: FastifyInstance) {
         values,
       );
 
-      req.log.info({ teamId: id, userId: sess.id, approvalQuota, name }, 'ADMIN: Team settings updated');
+      req.log.info({ teamId: id, userId: sess.auditUserId, approvalQuota }, 'ADMIN: Team settings updated');
       return { ok: true };
     });
   });
@@ -194,7 +194,7 @@ export default async function teamRoutes(fastify: FastifyInstance) {
       }
 
       await client.query('delete from public.teams where id = $1', [id]);
-      req.log.info({ teamId: id, userId: sess.id }, 'ADMIN: Team deleted');
+      req.log.info({ teamId: id, userId: sess.auditUserId }, 'ADMIN: Team deleted');
       return { ok: true };
     });
   });
@@ -223,7 +223,7 @@ export default async function teamRoutes(fastify: FastifyInstance) {
       );
 
       if (!teamRows[0] || teamRows[0].admin_id !== sess.id) {
-        req.log.warn({ teamId: id, userId: sess.id }, 'AUTH FAILURE: Non-owner attempted ownership transfer');
+        req.log.warn({ teamId: id, userId: sess.auditUserId }, 'AUTH FAILURE: Non-owner attempted ownership transfer');
         return reply.code(403).send({ error: 'Only the team owner can transfer ownership' });
       }
 

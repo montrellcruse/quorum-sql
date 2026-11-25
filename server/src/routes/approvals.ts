@@ -225,9 +225,9 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
           sess.id,
         ]);
         return { ok: true };
-      } catch (error) {
+      } catch {
         req.log.warn(
-          { err: error, queryId: id, userId: sess.id },
+          { queryId: id, userId: sess.auditUserId },
           'submit_query_for_approval v2 failed, falling back to legacy signature',
         );
         // Fallback for older function signature
@@ -262,7 +262,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       const approverEmail = userRows[0]?.email;
 
       await client.query('select public.approve_query_with_quota($1, $2, $3)', [historyId, sess.id, approverEmail]);
-      req.log.info({ queryId: id, historyId, userId: sess.id }, 'Query approved');
+      req.log.info({ queryId: id, historyId, userId: sess.auditUserId }, 'Query approved');
       return { ok: true };
     });
   });
@@ -286,7 +286,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
     return fastify.withClient(sess.id, async (client) => {
       // Pass rejecter user ID (not reason) as the function expects
       await client.query('select public.reject_query_with_authorization($1, $2, $3)', [historyId, sess.id, reason]);
-      req.log.info({ queryId: id, historyId, reason, userId: sess.id }, 'Query rejected');
+      req.log.info({ queryId: id, historyId, userId: sess.auditUserId }, 'Query rejected');
       return { ok: true };
     });
   });

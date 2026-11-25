@@ -3,20 +3,13 @@ import bcrypt from 'bcrypt';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { PoolClient } from 'pg';
 import { securityConfig, supabaseConfig } from '../config.js';
+import type { SessionUser } from '../types/fastify.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 let supabaseJWKS: ReturnType<typeof createRemoteJWKSet> | null = null;
 
-type AuthSource = 'supabase' | 'session' | 'dev-header' | 'dev-fake';
-type AuthPayload = {
-  id: string;
-  email?: string;
-  role?: string;
-};
-type AuthUser = AuthPayload & {
-  source: AuthSource;
-};
+type AuthPayload = Pick<SessionUser, 'id' | 'email' | 'role'>;
 
 function getSupabaseJWKS(): ReturnType<typeof createRemoteJWKSet> | null {
   if (!supabaseConfig.jwksUrl) return null;
@@ -88,14 +81,14 @@ async function verifySessionToken(token: string): Promise<AuthPayload | null> {
   }
 }
 
-export async function getSessionUser(req: FastifyRequest): Promise<AuthUser | null> {
+export async function getSessionUser(req: FastifyRequest): Promise<SessionUser | null> {
   // 1. Try Supabase JWT from Authorization header
   const authHeader = req.headers['authorization'];
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
     const user = await verifySupabaseToken(token);
     if (user) {
-      return { ...user, source: 'supabase' };
+      return { ...user, source: 'supabase', auditUserId: user.id };
     }
     // Invalid Supabase token - do NOT fall through to other auth methods
     // This prevents token forgery attacks
@@ -107,7 +100,7 @@ export async function getSessionUser(req: FastifyRequest): Promise<AuthUser | nu
   if (sessionToken) {
     const user = await verifySessionToken(sessionToken);
     if (user) {
-      return { ...user, source: 'session' };
+      return { ...user, source: 'session', auditUserId: user.id };
     }
     // Invalid session token - do NOT fall through to dev auth
     req.log.warn('Invalid session token provided');
@@ -128,7 +121,7 @@ export async function getSessionUser(req: FastifyRequest): Promise<AuthUser | nu
     
     // Use fake user ID only if configured and no other auth provided
     if (securityConfig.devFakeUserId) {
-      req.log.warn({ userId: securityConfig.devFakeUserId }, 'DEV AUTH: Using fake user');
+      req.log.warn('DEV AUTH: Using fake user');
       return { id: securityConfig.devFakeUserId, source: 'dev-fake' };
     }
   }
@@ -139,7 +132,7 @@ export async function getSessionUser(req: FastifyRequest): Promise<AuthUser | nu
 export async function requireAuthenticatedUser(req: FastifyRequest, reply: FastifyReply): Promise<boolean> {
   const user = await getSessionUser(req);
   if (!user) {
-    req.log.info({ path: req.url, method: req.method }, 'AUTH FAILURE: No valid session');
+    req.log.info({ path: req.routeOptions?.url, method: req.method }, 'AUTH FAILURE: No valid session');
     reply.code(401).send({ error: 'Unauthorized' });
     return false;
   }
@@ -190,7 +183,7 @@ export async function requireTeamAdmin(
 ) {
   const role = await getTeamRole(client, userId, teamId, req);
   if (role !== 'admin') {
-    req?.log?.warn({ userId, teamId }, 'AUTH FAILURE: User is not team admin');
+    req?.log?.warn({ teamId }, 'AUTH FAILURE: User is not team admin');
     return false;
   }
   return true;
@@ -204,7 +197,7 @@ export async function requireTeamMember(
 ) {
   const role = await getTeamRole(client, userId, teamId, req);
   if (!role) {
-    req?.log?.warn({ userId, teamId }, 'AUTH FAILURE: User is not team member');
+    req?.log?.warn({ teamId }, 'AUTH FAILURE: User is not team member');
     return false;
   }
   return true;

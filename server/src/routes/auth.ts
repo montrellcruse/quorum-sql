@@ -194,7 +194,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   }, async (req, reply) => {
     const sess = await getSessionUser(req);
     if (sess) {
-      req.log.info({ userId: sess.id }, 'User logged out');
+      req.log.info({ userId: sess.auditUserId }, 'User logged out');
     }
     reply.clearCookie('session', { path: '/', sameSite: 'lax', secure: isProd });
     reply.clearCookie('csrf', { path: '/', sameSite: 'lax', secure: isProd });

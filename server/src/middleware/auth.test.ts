@@ -111,6 +111,26 @@ describe('Auth Middleware', () => {
       expect(result).toBe(null);
     });
 
+    it('keeps a verified session actor ID for audit events', async () => {
+      const { jwtVerify } = await import('jose');
+      vi.mocked(jwtVerify).mockResolvedValueOnce({
+        payload: { sub: 'user-123', email: 'user@example.com' },
+        protectedHeader: { alg: 'HS256' },
+      });
+
+      const { getSessionUser } = await import('./auth.js');
+      const mockReq = {
+        headers: {},
+        cookies: { session: 'mock-session' },
+      } as unknown as FastifyRequest;
+
+      await expect(getSessionUser(mockReq)).resolves.toMatchObject({
+        id: 'user-123',
+        source: 'session',
+        auditUserId: 'user-123',
+      });
+    });
+
     it('logs warning for invalid Bearer token', async () => {
       const { jwtVerify } = await import('jose');
       vi.mocked(jwtVerify).mockRejectedValue(new Error('Invalid token'));
@@ -385,5 +405,6 @@ describe('Auth Middleware with Dev Auth', () => {
       id: fakeUserId,
       source: 'dev-fake',
     });
+    expect(mockReq.log.warn).toHaveBeenCalledExactlyOnceWith('DEV AUTH: Using fake user');
   });
 });
