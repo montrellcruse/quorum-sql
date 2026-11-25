@@ -305,17 +305,14 @@ export function useQueryView() {
   };
 
   const handleSubmitForApproval = async () => {
-    if (!query || !id || !user || !activeTeam) {
+    if (!query || !id || !user) {
       return;
     }
 
     setSubmitting(true);
     try {
-      await adapter.queries.submitForApproval(id, query.sql_content, {
-        modified_by_email: user.email || '',
-        change_reason: changeReason.trim() || null,
-        team_id: activeTeam.id,
-        user_id: user.id,
+      await adapter.queries.submitDraftForApproval(id, {
+        changeReason: changeReason.trim() || null,
       });
       toast({ title: 'Success', description: 'Query submitted for approval' });
 

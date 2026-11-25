@@ -1173,6 +1173,40 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /queries/{id}/submit-draft:
+    post:
+      tags: [Approvals]
+      summary: Submit an existing draft with optional edits
+      description: Commit the query, its approval status, and its history entry in one transaction.
+      operationId: postSubmitDraft
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+        - supabaseBearer: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitDraftBody'
+      responses:
+        '200':
+          description: Submission accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /queries/{id}/submit:
     post:
       tags: [Approvals]
@@ -2064,6 +2098,31 @@ components:
         last_modified_by_email:
           type: string
           format: email
+          nullable: true
+
+    SubmitDraftBody:
+      type: object
+      properties:
+        edits:
+          type: object
+          description: Omit to submit the saved draft as it is.
+          required: [title, sql_content]
+          properties:
+            title:
+              type: string
+              minLength: 1
+              maxLength: 200
+            description:
+              type: string
+              maxLength: 1000
+              nullable: true
+            sql_content:
+              type: string
+              minLength: 1
+              maxLength: 100000
+        change_reason:
+          type: string
+          maxLength: 500
           nullable: true
 
     SubmitQueryBody:

@@ -4,11 +4,13 @@ import { requireAuthenticatedUser, isValidUUID } from '../middleware/auth.js';
 import {
   ApproveQueryBodySchema,
   RejectQueryBodySchema,
+  SubmitDraftBodySchema,
   SubmitQueryBodySchema,
   type ApprovalsQuery,
   type ApproveQueryBody,
   type IdParams,
   type RejectQueryBody,
+  type SubmitDraftBody,
   type SubmitQueryBody,
 } from '../schemas.js';
 
@@ -123,6 +125,37 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
     } catch (err) {
       if (isMissingTable(err)) return [];
       throw err;
+    }
+  });
+
+  fastify.post<{ Params: IdParams; Body: SubmitDraftBody }>('/queries/:id/submit-draft', async (req, reply) => {
+    const sess = req.user;
+    if (!sess) return reply.code(401).send({ error: 'Unauthorized' });
+    const { id } = req.params;
+
+    if (!isValidUUID(id)) {
+      return reply.code(400).send({ error: 'Invalid query ID' });
+    }
+
+    const parsed = SubmitDraftBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Invalid body' });
+    }
+
+    const { edits, change_reason: changeReason } = parsed.data;
+    const { title, description, sql_content: sql } = edits ?? {};
+    try {
+      return await fastify.withClient(sess.id, async (client) => {
+        await client.query('select public.submit_query_draft_for_approval($1, $2, $3, $4, $5)', [
+          id, changeReason, title, description, sql,
+        ]);
+        return { ok: true };
+      });
+    } catch (error) {
+      const code = (error as { code?: string })?.code;
+      if (code === 'P0002') return reply.code(404).send({ error: 'Query not found' });
+      if (code === '22023') return reply.code(400).send({ error: (error as Error).message });
+      throw error;
     }
   });
 

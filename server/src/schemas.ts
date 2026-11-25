@@ -215,6 +215,12 @@ export const UpdateQueryBodySchema = z.object({
 });
 export type UpdateQueryBody = z.infer<typeof UpdateQueryBodySchema>;
 
+export const SubmitDraftBodySchema = z.object({
+  edits: CreateQueryBodySchema.pick({ title: true, description: true, sql_content: true }).optional(),
+  change_reason: z.string().max(500).nullable().optional(),
+});
+export type SubmitDraftBody = z.infer<typeof SubmitDraftBodySchema>;
+
 export const SubmitQueryBodySchema = z.object({
   sql: z.string().max(100000).optional().nullable(),
   modified_by_email: z.string().email().nullable().optional(),

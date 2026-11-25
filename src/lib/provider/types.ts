@@ -126,6 +126,11 @@ export interface TeamInvitation {
   inviter_full_name?: string;
 }
 
+export interface DraftSubmission {
+  edits?: Pick<SqlQuery, 'title' | 'description' | 'sql_content'>;
+  changeReason?: string | null;
+}
+
 export interface QueriesRepo {
   getById(id: UUID): Promise<SqlQuery | null>;
   search(params: { teamId: UUID; q?: string }): Promise<SqlQuery[]>;
@@ -133,6 +138,7 @@ export interface QueriesRepo {
   create(input: Partial<SqlQuery> & { title: string; sql_content: string; team_id: UUID }): Promise<SqlQuery>;
   update(id: UUID, patch: Partial<SqlQuery>): Promise<void>;
   remove(id: UUID): Promise<void>;
+  submitDraftForApproval(id: UUID, submission: DraftSubmission): Promise<void>;
   submitForApproval(
     id: UUID,
     sql: string,

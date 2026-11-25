@@ -128,6 +128,12 @@ const queries: QueriesRepo = {
   async remove(id) {
     await http<void>(baseUrl(`/queries/${id}`), { method: 'DELETE' });
   },
+  async submitDraftForApproval(id, { edits, changeReason }) {
+    await http<void>(baseUrl(`/queries/${id}/submit-draft`), {
+      method: 'POST',
+      body: JSON.stringify({ edits, change_reason: changeReason }),
+    });
+  },
   async submitForApproval(id, sql, opts) {
     await http<void>(baseUrl(`/queries/${id}/submit`), {
       method: 'POST',

@@ -177,6 +177,17 @@ export function useQueryEditor() {
         if (!resolvedQueryId) {
           throw new Error('Missing query ID');
         }
+        if (newStatus === 'pending_approval') {
+          await adapter.queries.submitDraftForApproval(resolvedQueryId, {
+            edits: {
+              title: query.title,
+              description: query.description,
+              sql_content: query.sql_content,
+            },
+            changeReason: changeReason.trim() || null,
+          });
+          return { queryId: resolvedQueryId, folderId: query.folder_id };
+        }
         await adapter.queries.update(resolvedQueryId, {
           title: query.title,
           description: query.description,
@@ -199,7 +210,7 @@ export function useQueryEditor() {
         });
       }
 
-      return { queryId: resolvedQueryId, folderId: query.folder_id, status: newStatus };
+      return { queryId: resolvedQueryId, folderId: query.folder_id };
     },
   });
 
@@ -253,7 +264,7 @@ export function useQueryEditor() {
   const handleSave = async (newStatus: QueryStatus) => {
     const validation = querySchema.safeParse({
       title: query?.title,
-      description: query?.description,
+      description: query?.description ?? undefined,
       sql_content: query?.sql_content,
     });
 
@@ -281,6 +292,7 @@ export function useQueryEditor() {
     try {
       const result = await saveQueryMutation.mutateAsync(newStatus);
       if (newStatus === 'pending_approval') {
+        setApprovalDialogOpen(false);
         setChangeReason('');
         toast({ title: 'Success', description: 'Query submitted for approval' });
       } else {
@@ -296,11 +308,17 @@ export function useQueryEditor() {
       }
       await queryClient.invalidateQueries({ queryKey: queryKeys.queries.detail(result.queryId) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.queries.history(result.queryId) });
+      if (newStatus === 'pending_approval') {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.queries.approvals(result.queryId) });
+      }
       navigate(`/folder/${result.folderId}`);
     } catch (error: unknown) {
       toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to save query'),
+        title: newStatus === 'pending_approval' ? 'Submission failed' : 'Error',
+        description: getErrorMessage(
+          error,
+          newStatus === 'pending_approval' ? 'Failed to submit query for approval' : 'Failed to save query'
+        ),
         variant: 'destructive',
       });
     }

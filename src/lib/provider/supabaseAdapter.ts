@@ -286,6 +286,16 @@ const queries: QueriesRepo = {
       .eq('id', id);
     if (error) throw error;
   },
+  async submitDraftForApproval(id, { edits, changeReason }) {
+    const { error } = await supabase.rpc('submit_query_draft_for_approval', {
+      _query_id: id,
+      _change_reason: changeReason,
+      _title: edits?.title,
+      _description: edits?.description,
+      _sql_content: edits?.sql_content,
+    });
+    if (error) throw error;
+  },
   async submitForApproval(id, sql, opts) {
     const { userId, email } = await resolveApprovalIdentity(opts);
     const teamId = await resolveApprovalTeamId(id, opts?.team_id);

@@ -97,7 +97,7 @@ const QueryEdit = () => {
           setChangeReason('');
         }}
         onSubmitApproval={() => {
-          setApprovalDialogOpen(false);
+          if (isNewQuery) setApprovalDialogOpen(false);
           void handleSave('pending_approval');
         }}
       />
