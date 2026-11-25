@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { useDbProvider } from '@/hooks/useDbProvider';
+import { queryKeys } from '@/hooks/queryKeys';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -12,8 +14,9 @@ import { ArrowLeft } from 'lucide-react';
 import type { TeamInvitation } from '@/lib/provider/types';
 
 const AcceptInvites = () => {
-  const { user } = useAuth();
+  const { user, sessionScope } = useAuth();
   const { refreshTeams } = useTeam();
+  const queryClient = useQueryClient();
   const { adapter } = useDbProvider();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -63,9 +66,18 @@ const AcceptInvites = () => {
 
       const updatedInvitations = invitations.filter(inv => inv.id !== invitationId);
       setInvitations(updatedInvitations);
+      const acceptedTeam = invitations.find((invite) => invite.id === invitationId)?.team_id;
+      await refreshTeams();
+      if (acceptedTeam) {
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.teams.members(acceptedTeam, sessionScope),
+        });
+      }
+      if (user?.email) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.pendingInvites(user.email) });
+      }
 
       if (updatedInvitations.length === 0) {
-        await refreshTeams();
         navigate('/dashboard');
       }
     } catch (error: unknown) {

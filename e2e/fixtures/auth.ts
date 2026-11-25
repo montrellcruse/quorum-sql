@@ -22,9 +22,10 @@ export function generateTestUser(prefix: string = 'test') {
  */
 export async function signUp(
   page: Page,
-  user: { email: string; password: string; fullName?: string }
+  user: { email: string; password: string; fullName?: string },
+  { alreadyOnAuthPage = false } = {},
 ): Promise<void> {
-  await page.goto('/auth');
+  if (!alreadyOnAuthPage) await page.goto('/auth');
 
   // Click "Create one" to switch to sign up mode
   const createAccountLink = page.getByRole('button', { name: /create one/i });

@@ -77,6 +77,10 @@ interface DashboardFoldersProps {
   loading: boolean;
   hasError: boolean;
   folders: Folder[];
+  moreError: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
   onOpenFolder: (folderId: string) => void;
 }
 
@@ -146,6 +150,8 @@ export function DashboardHeader({
       <div>
         <h1 className="text-3xl font-bold">Quorum</h1>
         <p className="text-muted-foreground">Welcome back, {userEmail}</p>
+        {soloContext.loading && <p role="status">Loading team members…</p>}
+        {soloContext.error && <p role="alert">Could not load team members.</p>}
         {activeTeam && userTeams.length > 1 && (
           <div className="mt-2">
             <Select value={activeTeam.id} onValueChange={onTeamChange}>
@@ -164,7 +170,9 @@ export function DashboardHeader({
         )}
         {activeTeam && userTeams.length === 1 && (
           <p className="mt-1 text-sm text-muted-foreground">
-            {getWorkspaceLabel(isSoloUser)}: {activeTeam.name}
+            {soloContext.teamMemberCount === null
+              ? activeTeam.name
+              : `${getWorkspaceLabel(isSoloUser)}: ${activeTeam.name}`}
           </p>
         )}
       </div>
@@ -339,13 +347,15 @@ export function DashboardCreateFolderDialog({
   );
 }
 
-export function DashboardFolders({ loading, hasError, folders, onOpenFolder }: DashboardFoldersProps) {
+export function DashboardFolders({
+  loading, hasError, folders, moreError, hasMore, loadingMore, onLoadMore, onOpenFolder,
+}: DashboardFoldersProps) {
   if (loading) {
-    return <p className="text-muted-foreground">Loading folders...</p>;
+    return <p role="status" className="text-muted-foreground">Loading folders...</p>;
   }
 
   if (hasError) {
-    return <p className="text-muted-foreground">Failed to load folders.</p>;
+    return <p role="alert" className="text-muted-foreground">Failed to load folders.</p>;
   }
 
   if (folders.length === 0) {
@@ -362,26 +372,34 @@ export function DashboardFolders({ loading, hasError, folders, onOpenFolder }: D
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {folders.map((folder) => (
-        <Card
-          key={folder.id}
-          data-testid="folder-card"
-          data-folder-name={folder.name}
-          className="cursor-pointer transition-colors hover:bg-accent"
-          onClick={() => onOpenFolder(folder.id)}
-          onKeyDown={(event) =>
-            handleInteractiveKeyDown(event, () => onOpenFolder(folder.id))
-          }
-          role="button"
-          tabIndex={0}
-        >
-          <CardHeader>
-            <CardTitle>{folder.name}</CardTitle>
-            {folder.description && <CardDescription>{folder.description}</CardDescription>}
-          </CardHeader>
-        </Card>
-      ))}
-    </div>
+    <>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {folders.map((folder) => (
+          <Card
+            key={folder.id}
+            data-testid="folder-card"
+            data-folder-name={folder.name}
+            className="cursor-pointer transition-colors hover:bg-accent"
+            onClick={() => onOpenFolder(folder.id)}
+            onKeyDown={(event) =>
+              handleInteractiveKeyDown(event, () => onOpenFolder(folder.id))
+            }
+            role="button"
+            tabIndex={0}
+          >
+            <CardHeader>
+              <CardTitle>{folder.name}</CardTitle>
+              {folder.description && <CardDescription>{folder.description}</CardDescription>}
+            </CardHeader>
+          </Card>
+        ))}
+      </div>
+      {moreError && <p role="alert" className="mt-4">Failed to load more folders.</p>}
+      {hasMore && (
+        <Button className="mt-4" variant="outline" disabled={loadingMore} onClick={onLoadMore}>
+          {loadingMore ? 'Loading folders…' : 'Load more folders'}
+        </Button>
+      )}
+    </>
   );
 }

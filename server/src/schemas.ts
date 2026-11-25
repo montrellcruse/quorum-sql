@@ -16,6 +16,11 @@ export const PaginationQuerySchema = z.object({
 });
 export type ParsedPaginationQuery = z.infer<typeof PaginationQuerySchema>;
 
+export const FolderListQuerySchema = PaginationQuerySchema.extend({
+  rootOnly: z.enum(['true', 'false']).optional().transform((value) => value === 'true'),
+});
+export type FolderListQuery = PaginationQuery & { rootOnly?: string };
+
 export const SetupSupabaseBodySchema = z.object({
   url: z.string().min(1),
   anonKey: z.string().min(1),
@@ -214,6 +219,23 @@ export const UpdateQueryBodySchema = z.object({
   last_modified_by_email: z.string().email().nullable().optional(),
 });
 export type UpdateQueryBody = z.infer<typeof UpdateQueryBodySchema>;
+
+export const SubmitDraftBodySchema = z.object({
+  edits: CreateQueryBodySchema.pick({ title: true, description: true, sql_content: true }).optional(),
+  change_reason: z.string().refine(
+    (reason) => Array.from(reason).length <= 1000,
+    'Change reason must be at most 1000 characters',
+  ).nullable().optional(),
+});
+export type SubmitDraftBody = z.infer<typeof SubmitDraftBodySchema>;
+
+export const SubmitNewQueryBodySchema = CreateQueryBodySchema
+  .pick({ title: true, description: true, sql_content: true, team_id: true })
+  .extend({
+    folder_id: z.string().uuid(),
+    change_reason: SubmitDraftBodySchema.shape.change_reason,
+  });
+export type SubmitNewQueryBody = z.infer<typeof SubmitNewQueryBodySchema>;
 
 export const SubmitQueryBodySchema = z.object({
   sql: z.string().max(100000).optional().nullable(),

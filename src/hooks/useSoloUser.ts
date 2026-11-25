@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
 import { useTeam } from '@/contexts/TeamContext';
-import { getDbAdapter } from '@/lib/provider';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
 
 export interface SoloUserContext {
   isSoloUser: boolean;
   isPersonalTeam: boolean;
-  teamMemberCount: number;
+  teamMemberCount: number | null;
   loading: boolean;
+  error: boolean;
 }
 
 export interface UseSoloUserOptions {
@@ -15,55 +15,16 @@ export interface UseSoloUserOptions {
 }
 
 export function useSoloUser(options: UseSoloUserOptions = {}): SoloUserContext {
-  const { activeTeam } = useTeam();
+  const { activeTeam, sessionScope } = useTeam();
   const teamId = options.teamId === undefined ? activeTeam?.id : options.teamId;
-  const personalFlag = options.isPersonalTeam ?? activeTeam?.isPersonal ?? false;
-  const [memberCount, setMemberCount] = useState<number>(1);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let isActive = true;
-
-    async function fetchMemberCount() {
-      if (!teamId) {
-        if (isActive) {
-          setMemberCount(1);
-          setLoading(false);
-        }
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const adapter = getDbAdapter();
-        const members = await adapter.members.list(teamId);
-        if (isActive) {
-          setMemberCount(members?.length || 1);
-        }
-      } catch {
-        if (isActive) {
-          setMemberCount(1);
-        }
-      } finally {
-        if (isActive) {
-          setLoading(false);
-        }
-      }
-    }
-
-    fetchMemberCount();
-
-    return () => {
-      isActive = false;
-    };
-  }, [teamId]);
-
-  const isSoloUser = memberCount === 1;
+  const roster = useTeamMembers(activeTeam ? teamId ?? undefined : undefined, sessionScope);
+  const teamMemberCount = roster.isSuccess && !roster.isFetching ? roster.data.length : null;
 
   return {
-    isSoloUser,
-    isPersonalTeam: personalFlag,
-    teamMemberCount: memberCount,
-    loading,
+    isSoloUser: teamMemberCount === 1,
+    isPersonalTeam: options.isPersonalTeam ?? activeTeam?.isPersonal ?? false,
+    teamMemberCount,
+    loading: roster.isFetching,
+    error: roster.isError,
   };
 }

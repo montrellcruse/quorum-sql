@@ -10,12 +10,12 @@ import { useSoloUser } from '@/hooks/useSoloUser';
 import { getSettingsLabel } from '@/utils/terminology';
 import { useDbProvider } from '@/hooks/useDbProvider';
 import { queryKeys } from '@/hooks/queryKeys';
-import { useAdminTeams, useTeamDetails, useTeamInvitations, useTeamMembers } from '@/hooks/useTeamMembers';
+import { useTeamDetails, useTeamInvitations, useTeamMembers } from '@/hooks/useTeamMembers';
 import type { Role } from '@/lib/provider/types';
 
 export function useTeamAdmin() {
-  const { user } = useAuth();
-  const { activeTeam, refreshTeams } = useTeam();
+  const { user, sessionScope } = useAuth();
+  const { activeTeam, userTeams, refreshTeams, loading: teamsLoading, error: teamsError } = useTeam();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { adapter } = useDbProvider();
@@ -30,11 +30,10 @@ export function useTeamAdmin() {
   const [transferOwnershipDialogOpen, setTransferOwnershipDialogOpen] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
 
-  const adminTeamsQuery = useAdminTeams({ enabled: Boolean(user) });
-  const adminTeams = useMemo(() => adminTeamsQuery.data ?? [], [adminTeamsQuery.data]);
+  const adminTeams = useMemo(() => userTeams.filter((team) => team.role === 'admin'), [userTeams]);
   const teamDetailsQuery = useTeamDetails(selectedTeamId, { enabled: Boolean(selectedTeamId) });
   const selectedTeam = teamDetailsQuery.data ?? null;
-  const membersQuery = useTeamMembers(selectedTeamId, { enabled: Boolean(selectedTeamId) });
+  const membersQuery = useTeamMembers(user ? selectedTeamId : undefined, sessionScope);
   const members = membersQuery.data ?? [];
   const invitationsQuery = useTeamInvitations(selectedTeamId, { enabled: Boolean(selectedTeamId) });
   const invitations = invitationsQuery.data ?? [];
@@ -51,7 +50,7 @@ export function useTeamAdmin() {
   const isTeamOwner = (userId: string) => selectedTeam?.admin_id === userId;
 
   useEffect(() => {
-    if (!user || !adminTeamsQuery.isSuccess) {
+    if (!user || teamsLoading || teamsError) {
       return;
     }
 
@@ -77,7 +76,8 @@ export function useTeamAdmin() {
     setSelectedTeamId(defaultTeamId);
   }, [
     user,
-    adminTeamsQuery.isSuccess,
+    teamsLoading,
+    teamsError,
     adminTeams,
     selectedTeamId,
     activeTeam,
@@ -86,15 +86,15 @@ export function useTeamAdmin() {
   ]);
 
   useEffect(() => {
-    if (adminTeamsQuery.isError) {
+    if (teamsError) {
       toast({
         title: 'Error',
-        description: getErrorMessage(adminTeamsQuery.error, 'Failed to load teams'),
+        description: getErrorMessage(teamsError, 'Failed to load teams'),
         variant: 'destructive',
       });
       navigate('/dashboard');
     }
-  }, [adminTeamsQuery.isError, adminTeamsQuery.error, navigate, toast]);
+  }, [teamsError, navigate, toast]);
 
   useEffect(() => {
     if (selectedTeamId && teamDetailsQuery.isError) {
@@ -168,9 +168,6 @@ export function useTeamAdmin() {
           await adapter.teams.convertPersonal(selectedTeamId);
           await queryClient.invalidateQueries({
             queryKey: queryKeys.teams.detail(selectedTeamId),
-          });
-          await queryClient.invalidateQueries({
-            queryKey: queryKeys.teams.admin,
           });
           await refreshTeams();
         } catch (error: unknown) {
@@ -257,7 +254,7 @@ export function useTeamAdmin() {
         });
       }
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.teams.members(selectedTeamId),
+        queryKey: queryKeys.teams.members(selectedTeamId, sessionScope),
       });
     } catch (error: unknown) {
       toast({
@@ -291,7 +288,7 @@ export function useTeamAdmin() {
         description: `Member role updated to ${newRole}.`,
       });
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.teams.members(selectedTeamId),
+        queryKey: queryKeys.teams.members(selectedTeamId, sessionScope),
       });
     } catch (error: unknown) {
       toast({
@@ -350,9 +347,6 @@ export function useTeamAdmin() {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.teams.detail(selectedTeamId),
       });
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.teams.admin,
-      });
       await refreshTeams();
     } catch (error: unknown) {
       toast({
@@ -388,10 +382,7 @@ export function useTeamAdmin() {
         queryKey: queryKeys.teams.detail(selectedTeamId),
       });
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.teams.members(selectedTeamId),
-      });
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.teams.admin,
+        queryKey: queryKeys.teams.members(selectedTeamId, sessionScope),
       });
       await refreshTeams();
     } catch (error: unknown) {
@@ -404,7 +395,7 @@ export function useTeamAdmin() {
   };
 
   const loadingPage =
-    adminTeamsQuery.isLoading ||
+    teamsLoading ||
     (Boolean(selectedTeamId) && teamDetailsQuery.isLoading && !selectedTeam);
 
   return {

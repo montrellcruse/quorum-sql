@@ -148,58 +148,41 @@ export function useQueryEditor() {
         throw new Error('User is not authenticated');
       }
 
-      const userId = user.id;
       const userEmail = user.email || '';
-      const teamId = activeTeam?.id;
-      let resolvedTeamId = teamId;
-      let resolvedQueryId = isNewQuery ? '' : (id ?? '');
+      const edits = {
+        title: query.title,
+        description: query.description,
+        sql_content: query.sql_content,
+      };
+      const reason = changeReason.trim() || null;
 
       if (isNewQuery) {
-        if (!resolvedTeamId) {
-          const folder = await adapter.folders.getById(query.folder_id);
-          resolvedTeamId = folder?.team_id;
-        }
-        if (!resolvedTeamId) {
-          throw new Error('Active team is required to create a query');
-        }
-        const created = await adapter.queries.create({
-          title: query.title,
-          description: query.description,
-          sql_content: query.sql_content,
-          status: newStatus,
-          folder_id: query.folder_id,
-          team_id: resolvedTeamId,
-          created_by_email: userEmail,
-          last_modified_by_email: userEmail,
-        });
-        resolvedQueryId = created.id;
-      } else {
-        if (!resolvedQueryId) {
-          throw new Error('Missing query ID');
-        }
-        await adapter.queries.update(resolvedQueryId, {
-          title: query.title,
-          description: query.description,
-          sql_content: query.sql_content,
-          status: newStatus,
-          last_modified_by_email: userEmail,
-        });
+        const folder = await adapter.folders.getById(query.folder_id);
+        if (!folder) throw new Error('The selected folder is unavailable');
+        const input = { ...edits, folder_id: folder.id, team_id: folder.team_id };
+        const created = newStatus === 'pending_approval'
+          ? await adapter.queries.createForApproval({ ...input, change_reason: reason })
+          : await adapter.queries.create({
+              ...input,
+              status: newStatus,
+              user_id: user.id,
+              created_by_email: userEmail,
+              last_modified_by_email: userEmail,
+            });
+        return { queryId: created.id, folderId: folder.id };
       }
 
-      if (!resolvedQueryId) {
-        throw new Error('Failed to resolve query ID');
-      }
-
+      if (!id) throw new Error('Missing query ID');
       if (newStatus === 'pending_approval') {
-        await adapter.queries.submitForApproval(resolvedQueryId, query.sql_content, {
-          modified_by_email: userEmail,
-          change_reason: changeReason.trim() || null,
-          team_id: resolvedTeamId,
-          user_id: userId,
+        await adapter.queries.submitDraftForApproval(id, { edits, changeReason: reason });
+      } else {
+        await adapter.queries.update(id, {
+          ...edits,
+          status: newStatus,
+          last_modified_by_email: userEmail,
         });
       }
-
-      return { queryId: resolvedQueryId, folderId: query.folder_id, status: newStatus };
+      return { queryId: id, folderId: query.folder_id };
     },
   });
 
@@ -253,7 +236,7 @@ export function useQueryEditor() {
   const handleSave = async (newStatus: QueryStatus) => {
     const validation = querySchema.safeParse({
       title: query?.title,
-      description: query?.description,
+      description: query?.description ?? undefined,
       sql_content: query?.sql_content,
     });
 
@@ -281,6 +264,7 @@ export function useQueryEditor() {
     try {
       const result = await saveQueryMutation.mutateAsync(newStatus);
       if (newStatus === 'pending_approval') {
+        setApprovalDialogOpen(false);
         setChangeReason('');
         toast({ title: 'Success', description: 'Query submitted for approval' });
       } else {
@@ -296,11 +280,17 @@ export function useQueryEditor() {
       }
       await queryClient.invalidateQueries({ queryKey: queryKeys.queries.detail(result.queryId) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.queries.history(result.queryId) });
+      if (newStatus === 'pending_approval') {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.queries.approvals(result.queryId) });
+      }
       navigate(`/folder/${result.folderId}`);
     } catch (error: unknown) {
       toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Failed to save query'),
+        title: newStatus === 'pending_approval' ? 'Submission failed' : 'Error',
+        description: getErrorMessage(
+          error,
+          newStatus === 'pending_approval' ? 'Failed to submit query for approval' : 'Failed to save query'
+        ),
         variant: 'destructive',
       });
     }

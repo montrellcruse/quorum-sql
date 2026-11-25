@@ -410,6 +410,27 @@ export type Database = {
         }
         Returns: Json
       }
+      create_query_for_approval: {
+        Args: {
+          _folder_id: string
+          _team_id: string
+          _title: string
+          _sql_content: string
+          _description?: string | null
+          _change_reason?: string | null
+        }
+        Returns: string
+      }
+      submit_query_draft_for_approval: {
+        Args: {
+          _query_id: string
+          _change_reason?: string | null
+          _title?: string
+          _description?: string | null
+          _sql_content?: string
+        }
+        Returns: Json
+      }
       submit_query_for_approval:
         | {
             Args: {

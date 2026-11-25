@@ -69,6 +69,7 @@ export interface FolderPath {
 
 export interface FoldersRepo {
   listByTeam(teamId: UUID): Promise<Folder[]>;
+  listRoots(teamId: UUID, page: { limit: number; offset: number }): Promise<Folder[]>;
   getById(id: UUID): Promise<Folder | null>;
   listChildren(parentId: UUID): Promise<Folder[]>;
   listPaths(teamId: UUID): Promise<FolderPath[]>;
@@ -126,6 +127,15 @@ export interface TeamInvitation {
   inviter_full_name?: string;
 }
 
+export interface DraftSubmission {
+  edits?: Pick<SqlQuery, 'title' | 'description' | 'sql_content'>;
+  changeReason?: string | null;
+}
+
+export type NewQuerySubmission = Pick<
+  SqlQuery, 'title' | 'description' | 'sql_content' | 'folder_id' | 'team_id'
+> & { change_reason?: string | null };
+
 export interface QueriesRepo {
   getById(id: UUID): Promise<SqlQuery | null>;
   search(params: { teamId: UUID; q?: string }): Promise<SqlQuery[]>;
@@ -133,11 +143,8 @@ export interface QueriesRepo {
   create(input: Partial<SqlQuery> & { title: string; sql_content: string; team_id: UUID }): Promise<SqlQuery>;
   update(id: UUID, patch: Partial<SqlQuery>): Promise<void>;
   remove(id: UUID): Promise<void>;
-  submitForApproval(
-    id: UUID,
-    sql: string,
-    opts?: { modified_by_email?: string | null; change_reason?: string | null; team_id?: UUID; user_id?: UUID }
-  ): Promise<void>;
+  submitDraftForApproval(id: UUID, submission: DraftSubmission): Promise<void>;
+  createForApproval(submission: NewQuerySubmission): Promise<{ id: UUID }>;
   approve(id: UUID, historyId: UUID): Promise<void>;
   reject(id: UUID, historyId: UUID, reason?: string): Promise<void>;
   getHistory(id: UUID): Promise<QueryHistory[]>;

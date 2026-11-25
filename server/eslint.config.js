@@ -46,6 +46,13 @@ export default tseslint.config(
   },
   // Test files can be more relaxed
   {
+    files: ['tests/**/*.ts'],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: { tsconfigRootDir: import.meta.dirname },
+    },
+  },
+  {
     files: ['src/**/*.test.ts', 'tests/**/*.ts', 'tests/**/*.mjs'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',

@@ -21,23 +21,15 @@ import type {
   FolderQuery,
 } from './types';
 
-type MemberRow = {
-  id: string;
-  user_id: string;
-  role: Role;
-  profiles?: { email?: string | null } | null;
-};
 
 type InvitationRow = {
   id: string;
   team_id: string;
   invited_email: string;
   role: Role;
-  status: string;
   invited_by_user_id: string | null;
   created_at: string;
   teams?: { name?: string | null } | null;
-  profiles?: { email?: string | null; full_name?: string | null } | null;
 };
 
 const isTeamMemberRow = (row: unknown): row is { role: Role; teams: Team } => {
@@ -53,9 +45,13 @@ const isTeamMemberRow = (row: unknown): row is { role: Role; teams: Team } => {
 
 const teams: TeamsRepo = {
   async listForUser() {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!user) return [];
     const { data, error } = await supabase
       .from('team_members')
-      .select('role, teams:team_id(id, name, approval_quota, admin_id, is_personal)');
+      .select('role, teams:team_id(id, name, approval_quota, admin_id, is_personal)')
+      .eq('user_id', user.id);
     if (error) throw error;
     const mapped = (data || [])
       .filter(isTeamMemberRow)
@@ -159,6 +155,18 @@ const folders: FoldersRepo = {
     if (error) throw error;
     return (data || []) as Folder[];
   },
+  async listRoots(teamId, { limit, offset }) {
+    const { data, error } = await supabase
+      .from('folders')
+      .select('*')
+      .eq('team_id', teamId)
+      .is('parent_folder_id', null)
+      .order('name')
+      .order('id')
+      .range(offset, offset + limit - 1);
+    if (error) throw error;
+    return data;
+  },
   async getById(id: UUID) {
     const { data, error } = await supabase
       .from('folders')
@@ -208,27 +216,6 @@ const folders: FoldersRepo = {
     if (error) throw error;
   },
 };
-
-type SubmitApprovalOptions = Parameters<QueriesRepo['submitForApproval']>[2];
-
-async function resolveApprovalIdentity(options: SubmitApprovalOptions) {
-  const { data: { user } } = await supabase.auth.getUser();
-  const userId = options?.user_id ?? user?.id;
-  const email = options?.modified_by_email ?? user?.email;
-  if (!userId || !email) throw new Error('Not authenticated');
-  return { userId, email };
-}
-
-async function resolveApprovalTeamId(queryId: UUID, teamId?: UUID) {
-  if (teamId) return teamId;
-  const { data: query, error } = await supabase
-    .from('sql_queries')
-    .select('team_id')
-    .eq('id', queryId)
-    .single();
-  if (error || !query) throw new Error('Query not found');
-  return query.team_id;
-}
 
 const queries: QueriesRepo = {
   async getById(id: UUID) {
@@ -286,19 +273,27 @@ const queries: QueriesRepo = {
       .eq('id', id);
     if (error) throw error;
   },
-  async submitForApproval(id, sql, opts) {
-    const { userId, email } = await resolveApprovalIdentity(opts);
-    const teamId = await resolveApprovalTeamId(id, opts?.team_id);
-
-    const { error } = await supabase.rpc('submit_query_for_approval', {
+  async submitDraftForApproval(id, { edits, changeReason }) {
+    const { error } = await supabase.rpc('submit_query_draft_for_approval', {
       _query_id: id,
-      _sql_content: sql,
-      _modified_by_email: email,
-      _change_reason: opts?.change_reason || '',
-      _team_id: teamId,
-      _user_id: userId,
+      _change_reason: changeReason,
+      _title: edits?.title,
+      _description: edits?.description,
+      _sql_content: edits?.sql_content,
     });
     if (error) throw error;
+  },
+  async createForApproval(submission) {
+    const { data, error } = await supabase.rpc('create_query_for_approval', {
+      _folder_id: submission.folder_id,
+      _team_id: submission.team_id,
+      _title: submission.title,
+      _sql_content: submission.sql_content,
+      _description: submission.description,
+      _change_reason: submission.change_reason,
+    });
+    if (error) throw error;
+    return { id: data };
   },
   async approve(id, historyId) {
     const { error } = await supabase.rpc('approve_query_with_quota', {
@@ -376,21 +371,27 @@ const queries: QueriesRepo = {
   },
 };
 
+async function loadProfiles(userIds: string[]): Promise<Map<string, { email: string; full_name: string | null }>> {
+  if (!userIds.length) return new Map<string, { email: string; full_name: string | null }>();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('user_id, email, full_name')
+    .in('user_id', userIds);
+  if (error) throw error;
+  return new Map(data.map((profile) => [profile.user_id, profile]));
+}
+
 const members: TeamMembersRepo = {
   async list(teamId: UUID) {
-    const { data, error } = await supabase
+    const { data: roster, error } = await supabase
       .from('team_members')
-      .select('id, user_id, role, profiles!inner(email)')
+      .select('id, user_id, role')
       .eq('team_id', teamId);
     if (error) throw error;
-    const rows = (data || []) as MemberRow[];
-    return rows.map((row) => ({
-      id: row.id,
-      user_id: row.user_id,
-      team_id: teamId,
-      role: row.role,
-      email: row.profiles?.email ?? undefined,
-    })) as TeamMember[];
+    const profiles = await loadProfiles(roster.map((member) => member.user_id));
+    return roster.map((member): TeamMember => ({
+      ...member, team_id: teamId, email: profiles.get(member.user_id)?.email,
+    }));
   },
   async countByRole(teamId: UUID, role: Role) {
     const { count, error } = await supabase
@@ -427,9 +428,8 @@ const invitations: InvitationsRepo = {
     const { data, error } = await supabase
       .from('team_invitations')
       .select(`
-        id, team_id, invited_email, role, status, invited_by_user_id, created_at,
-        teams!inner(name),
-        profiles!team_invitations_invited_by_user_id_fkey(email, full_name)
+        id, team_id, invited_email, role, invited_by_user_id, created_at,
+        teams!inner(name)
       `)
       .eq('invited_email', user.email.toLowerCase())
       .eq('status', 'pending')
@@ -437,18 +437,24 @@ const invitations: InvitationsRepo = {
     if (error) throw error;
     
     const rows = (data || []) as InvitationRow[];
-    return rows.map((row) => ({
-      id: row.id,
-      team_id: row.team_id,
-      invited_email: row.invited_email,
-      role: row.role,
-      status: row.status,
-      invited_by_user_id: row.invited_by_user_id,
-      created_at: row.created_at,
-      team_name: row.teams?.name ?? undefined,
-      inviter_email: row.profiles?.email ?? undefined,
-      inviter_full_name: row.profiles?.full_name ?? undefined,
-    })) as TeamInvitation[];
+    const profiles = await loadProfiles(rows.flatMap((row) =>
+      row.invited_by_user_id ? [row.invited_by_user_id] : []
+    ));
+    return rows.map((row): TeamInvitation => {
+      const inviter = row.invited_by_user_id ? profiles.get(row.invited_by_user_id) : undefined;
+      return {
+        id: row.id,
+        team_id: row.team_id,
+        invited_email: row.invited_email,
+        role: row.role,
+        status: 'pending',
+        invited_by_user_id: row.invited_by_user_id ?? undefined,
+        created_at: row.created_at,
+        team_name: row.teams?.name ?? undefined,
+        inviter_email: inviter?.email,
+        inviter_full_name: inviter?.full_name ?? undefined,
+      };
+    });
   },
   async listByTeam(teamId: UUID) {
     const { data, error } = await supabase

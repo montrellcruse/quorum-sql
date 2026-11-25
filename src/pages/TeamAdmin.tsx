@@ -72,21 +72,22 @@ const TeamAdmin = () => {
             onSubmit={handleRenameTeam}
           />
 
-          <FeatureGate teamOnly soloContext={soloContext}>
-            <TeamMembersCard
-              email={newUserEmail}
-              role={newUserRole}
-              invitations={invitations}
-              members={members}
-              isTeamOwner={isTeamOwner}
-              onEmailChange={setNewUserEmail}
-              onRoleChange={setNewUserRole}
-              onInvite={handleInviteUser}
-              onRevokeInvitation={handleRevokeInvitation}
-              onToggleRole={handleToggleRole}
-              onRemoveMember={handleRemoveMember}
-            />
-          </FeatureGate>
+          <TeamMembersCard
+            email={newUserEmail}
+            role={newUserRole}
+            invitations={invitations}
+            members={members}
+            loading={soloContext.loading}
+            hasError={soloContext.error}
+            showInvite={(soloContext.teamMemberCount ?? 0) > 1}
+            isTeamOwner={isTeamOwner}
+            onEmailChange={setNewUserEmail}
+            onRoleChange={setNewUserRole}
+            onInvite={handleInviteUser}
+            onRevokeInvitation={handleRevokeInvitation}
+            onToggleRole={handleToggleRole}
+            onRemoveMember={handleRemoveMember}
+          />
 
           <FeatureGate soloOnly soloContext={soloContext}>
             <CollaborateCard
